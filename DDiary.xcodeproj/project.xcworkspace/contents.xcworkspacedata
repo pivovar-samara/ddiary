@@ -4,4 +4,16 @@
    <FileRef
       location = "self:">
    </FileRef>
+   <FileRef
+      location = "group:AppContainer.swift">
+   </FileRef>
+   <FileRef
+      location = "group:AppEnvironment.swift">
+   </FileRef>
+   <FileRef
+      location = "group:RootView.swift">
+   </FileRef>
+   <FileRef
+      location = "group:DDiaryApp.swift">
+   </FileRef>
 </Workspace>

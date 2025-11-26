@@ -41,6 +41,14 @@
 			);
 			target = 4849EBAE2ED4BF4F00E060BF /* DDiary */;
 		};
+		48A7450D2ED6F7AE00ED51CC /* Exceptions for "DDiary" folder in "DDiaryTests" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Models/HealthEnums.swift,
+				Models/HealthModels.swift,
+			);
+			target = 4849EBBF2ED4BF5000E060BF /* DDiaryTests */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -48,6 +56,7 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				4849EBD22ED4BF5000E060BF /* Exceptions for "DDiary" folder in "DDiary" target */,
+				48A7450D2ED6F7AE00ED51CC /* Exceptions for "DDiary" folder in "DDiaryTests" target */,
 			);
 			path = DDiary;
 			sourceTree = "<group>";

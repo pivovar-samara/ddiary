@@ -12,7 +12,10 @@ import SwiftData
 struct DDiaryApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
-            Item.self,
+            BPMeasurement.self,
+            GlucoseMeasurement.self,
+            UserSettings.self,
+            GoogleIntegration.self
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
@@ -22,10 +25,11 @@ struct DDiaryApp: App {
             fatalError("Could not create ModelContainer: \(error)")
         }
     }()
-
+    
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .injectPlaceholderAppContainer()
         }
         .modelContainer(sharedModelContainer)
     }

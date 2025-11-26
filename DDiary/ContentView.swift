@@ -9,53 +9,30 @@ import SwiftUI
 import SwiftData
 
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
+    @Environment(\.appContainer) private var appContainer
 
     var body: some View {
-        NavigationSplitView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp ?? Date.distantPast, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp ?? Date.distantPast, format: Date.FormatStyle(date: .numeric, time: .standard))
-                    }
-                }
-                .onDelete(perform: deleteItems)
-            }
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
-                }
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
-                    }
-                }
-            }
-        } detail: {
-            Text("Select an item")
-        }
-    }
+        NavigationStack {
+            VStack(spacing: 16) {
+                Text("DDiary")
+                    .font(.largeTitle).bold()
 
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
-        }
-    }
-
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
+                if appContainer == nil {
+                    Text("AppContainer not injected")
+                        .foregroundStyle(.red)
+                } else {
+                    Text("AppContainer injected")
+                        .foregroundStyle(.secondary)
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding()
+            .navigationTitle("Home")
         }
     }
 }
 
 #Preview {
     ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
+        .injectPlaceholderAppContainer()
 }
