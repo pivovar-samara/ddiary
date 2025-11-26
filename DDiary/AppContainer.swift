@@ -2,37 +2,73 @@ import Foundation
 import SwiftUI
 import SwiftData
 
-public protocol MeasurementsRepository {}
-
-public protocol SettingsRepository {}
-
-public protocol GoogleIntegrationRepository {}
-
-public protocol NotificationsRepository {}
-
-public protocol AnalyticsRepository {}
-
-struct NoopMeasurementsRepository: MeasurementsRepository {
+@MainActor struct NoopMeasurementsRepository: MeasurementsRepository {
     let modelContainer: ModelContainer
     init(modelContainer: ModelContainer) {
         self.modelContainer = modelContainer
     }
+
+    // MARK: - BP CRUD
+    func createBPMeasurement(_ measurement: BPMeasurement) async throws -> BPMeasurement { measurement }
+    func getBPMeasurement(id: UUID) async throws -> BPMeasurement? { nil }
+    func updateBPMeasurement(_ measurement: BPMeasurement) async throws -> BPMeasurement { measurement }
+    func deleteBPMeasurement(id: UUID) async throws {}
+
+    // MARK: - Glucose CRUD
+    func createGlucoseMeasurement(_ measurement: GlucoseMeasurement) async throws -> GlucoseMeasurement { measurement }
+    func getGlucoseMeasurement(id: UUID) async throws -> GlucoseMeasurement? { nil }
+    func updateGlucoseMeasurement(_ measurement: GlucoseMeasurement) async throws -> GlucoseMeasurement { measurement }
+    func deleteGlucoseMeasurement(id: UUID) async throws {}
+
+    // MARK: - Queries
+    func fetchAllBloodPressureMeasurements() async throws -> [BPMeasurement] { [] }
+    func fetchAllGlucoseMeasurements() async throws -> [GlucoseMeasurement] { [] }
+    func fetchBloodPressureMeasurements(from startDate: Date, to endDate: Date) async throws -> [BPMeasurement] { [] }
+    func fetchGlucoseMeasurements(from startDate: Date, to endDate: Date) async throws -> [GlucoseMeasurement] { [] }
+
+    // MARK: - Google Sync
+    func fetchBloodPressureMeasurementsNeedingGoogleSync() async throws -> [BPMeasurement] { [] }
+    func fetchGlucoseMeasurementsNeedingGoogleSync() async throws -> [GlucoseMeasurement] { [] }
 }
 
-struct NoopSettingsRepository: SettingsRepository {
+@MainActor struct NoopSettingsRepository: SettingsRepository {
     init() {}
+    func getOrCreateUserSettings() async throws -> UserSettings { UserSettings() }
+    func updateUserSettings(_ settings: UserSettings) async throws -> UserSettings { settings }
 }
 
-struct NoopGoogleIntegrationRepository: GoogleIntegrationRepository {
+@MainActor struct NoopGoogleIntegrationRepository: GoogleIntegrationRepository {
     init() {}
+    func getOrCreateGoogleIntegration() async throws -> GoogleIntegration { GoogleIntegration() }
+    func updateGoogleIntegration(_ integration: GoogleIntegration) async throws -> GoogleIntegration { integration }
+    func clearTokensOnLogout() async throws {}
 }
 
 struct NoopNotificationsRepository: NotificationsRepository {
     init() {}
+    func requestAuthorization() async throws -> Bool { true }
+    func scheduleBloodPressureNotifications(at times: [DateComponents], replaceExisting: Bool) async throws {}
+    func scheduleGlucoseNotifications(_ schedule: [GlucoseSlot: [DateComponents]], replaceExisting: Bool) async throws {}
+    func cancelAllScheduledNotifications() async throws {}
+    func cancelBloodPressureNotifications() async throws {}
+    func cancelGlucoseNotifications(slots: Set<GlucoseSlot>?) async throws {}
+    func rescheduleBloodPressureNotifications(at times: [DateComponents]) async throws {}
+    func rescheduleGlucoseNotifications(_ schedule: [GlucoseSlot: [DateComponents]]) async throws {}
+    func snoozeNotification(with identifier: String, by minutes: Int) async throws {}
+    func skipNotification(with identifier: String) async throws {}
+    func moveNotification(with identifier: String, to date: Date) async throws {}
 }
 
 struct NoopAnalyticsRepository: AnalyticsRepository {
     init() {}
+    func logAppOpen() async {}
+    func logMeasurementLogged(type: MeasurementType) async {}
+    func logScheduleUpdated(for type: MeasurementType) async {}
+    func logExportCSV() async {}
+    func logGoogleSyncSuccess(count: Int?) async {}
+    func logGoogleSyncFailure(errorDescription: String?) async {}
+    func logGoogleEnabled() async {}
+    func logGoogleDisabled() async {}
 }
 
 public actor LogBPMeasurementUseCase {

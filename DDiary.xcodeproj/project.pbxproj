@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		4849F0792ED4C31900E060BF /* AmplitudeSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 4849F0782ED4C31900E060BF /* AmplitudeSwift */; };
+		48F9A6962ED7763600C114DB /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = 48F9A6952ED7763600C114DB /* README.md */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -28,9 +29,10 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		4849EBAF2ED4BF4F00E060BF /* DDiary.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DDiary.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		4849EBC02ED4BF5000E060BF /* DDiaryTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DDiaryTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		4849EBCA2ED4BF5000E060BF /* DDiaryUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DDiaryUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		4849EBAF2ED4BF4F00E060BF /* DDiary.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = DDiary.app; path = "/Users/pivovar/Library/Mobile Documents/com~apple~CloudDocs/Documents/Projects/ddiary/build/Debug-iphoneos/DDiary.app"; sourceTree = "<absolute>"; };
+		4849EBC02ED4BF5000E060BF /* DDiaryTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; name = DDiaryTests.xctest; path = "/Users/pivovar/Library/Mobile Documents/com~apple~CloudDocs/Documents/Projects/ddiary/build/Debug-iphoneos/DDiary.app/PlugIns/DDiaryTests.xctest"; sourceTree = "<absolute>"; };
+		4849EBCA2ED4BF5000E060BF /* DDiaryUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; name = DDiaryUITests.xctest; path = "/Users/pivovar/Library/Mobile Documents/com~apple~CloudDocs/Documents/Projects/ddiary/build/Debug-iphoneos/DDiaryUITests-Runner.app/PlugIns/DDiaryUITests.xctest"; sourceTree = "<absolute>"; };
+		48F9A6952ED7763600C114DB /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -102,21 +104,11 @@
 		4849EBA62ED4BF4F00E060BF = {
 			isa = PBXGroup;
 			children = (
+				48F9A6952ED7763600C114DB /* README.md */,
 				4849EBB12ED4BF4F00E060BF /* DDiary */,
 				4849EBC32ED4BF5000E060BF /* DDiaryTests */,
 				4849EBCD2ED4BF5000E060BF /* DDiaryUITests */,
-				4849EBB02ED4BF4F00E060BF /* Products */,
 			);
-			sourceTree = "<group>";
-		};
-		4849EBB02ED4BF4F00E060BF /* Products */ = {
-			isa = PBXGroup;
-			children = (
-				4849EBAF2ED4BF4F00E060BF /* DDiary.app */,
-				4849EBC02ED4BF5000E060BF /* DDiaryTests.xctest */,
-				4849EBCA2ED4BF5000E060BF /* DDiaryUITests.xctest */,
-			);
-			name = Products;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -227,7 +219,7 @@
 				4849F0772ED4C31900E060BF /* XCRemoteSwiftPackageReference "Amplitude-Swift" */,
 			);
 			preferredProjectObjectVersion = 77;
-			productRefGroup = 4849EBB02ED4BF4F00E060BF /* Products */;
+			productRefGroup = 4849EBA62ED4BF4F00E060BF;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -243,6 +235,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				48F9A6962ED7763600C114DB /* README.md in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
