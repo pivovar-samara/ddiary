@@ -2,79 +2,72 @@ import Foundation
 import SwiftUI
 import SwiftData
 
+// MARK: - No-op repository implementations for previews
 @MainActor struct NoopMeasurementsRepository: MeasurementsRepository {
-    let modelContainer: ModelContainer
-    init(modelContainer: ModelContainer) {
-        self.modelContainer = modelContainer
-    }
-
-    // MARK: - BP CRUD
-    func createBPMeasurement(_ measurement: BPMeasurement) async throws -> BPMeasurement { measurement }
-    func getBPMeasurement(id: UUID) async throws -> BPMeasurement? { nil }
-    func updateBPMeasurement(_ measurement: BPMeasurement) async throws -> BPMeasurement { measurement }
+    func createBPMeasurement(_ measurement: BPMeasurementDTO) async throws -> BPMeasurementDTO { measurement }
+    func getBPMeasurement(id: UUID) async throws -> BPMeasurementDTO? { nil }
+    func updateBPMeasurement(_ measurement: BPMeasurementDTO) async throws -> BPMeasurementDTO { measurement }
     func deleteBPMeasurement(id: UUID) async throws {}
 
-    // MARK: - Glucose CRUD
-    func createGlucoseMeasurement(_ measurement: GlucoseMeasurement) async throws -> GlucoseMeasurement { measurement }
-    func getGlucoseMeasurement(id: UUID) async throws -> GlucoseMeasurement? { nil }
-    func updateGlucoseMeasurement(_ measurement: GlucoseMeasurement) async throws -> GlucoseMeasurement { measurement }
+    func createGlucoseMeasurement(_ measurement: GlucoseMeasurementDTO) async throws -> GlucoseMeasurementDTO { measurement }
+    func getGlucoseMeasurement(id: UUID) async throws -> GlucoseMeasurementDTO? { nil }
+    func updateGlucoseMeasurement(_ measurement: GlucoseMeasurementDTO) async throws -> GlucoseMeasurementDTO { measurement }
     func deleteGlucoseMeasurement(id: UUID) async throws {}
 
-    // MARK: - Queries
-    func fetchAllBloodPressureMeasurements() async throws -> [BPMeasurement] { [] }
-    func fetchAllGlucoseMeasurements() async throws -> [GlucoseMeasurement] { [] }
-    func fetchBloodPressureMeasurements(from startDate: Date, to endDate: Date) async throws -> [BPMeasurement] { [] }
-    func fetchGlucoseMeasurements(from startDate: Date, to endDate: Date) async throws -> [GlucoseMeasurement] { [] }
+    func fetchAllBloodPressureMeasurements() async throws -> [BPMeasurementDTO] { [] }
+    func fetchAllGlucoseMeasurements() async throws -> [GlucoseMeasurementDTO] { [] }
+    func fetchBloodPressureMeasurements(from startDate: Date, to endDate: Date) async throws -> [BPMeasurementDTO] { [] }
+    func fetchGlucoseMeasurements(from startDate: Date, to endDate: Date) async throws -> [GlucoseMeasurementDTO] { [] }
+}
 
-    // MARK: - Google Sync
-    func fetchBloodPressureMeasurementsNeedingGoogleSync() async throws -> [BPMeasurement] { [] }
-    func fetchGlucoseMeasurementsNeedingGoogleSync() async throws -> [GlucoseMeasurement] { [] }
+@MainActor struct NoopRotationScheduleRepository: RotationScheduleRepository {
+    func getRotationState() async throws -> GlucoseRotationStateDTO { GlucoseRotationStateDTO() }
+    func updateRotationState(_ state: GlucoseRotationStateDTO) async throws -> GlucoseRotationStateDTO { state }
 }
 
 @MainActor struct NoopSettingsRepository: SettingsRepository {
-    init() {}
-    func getOrCreateUserSettings() async throws -> UserSettings { UserSettings() }
-    func updateUserSettings(_ settings: UserSettings) async throws -> UserSettings { settings }
+    func getOrCreateUserSettings() async throws -> UserSettingsDTO { UserSettingsDTO() }
+    func updateUserSettings(_ settings: UserSettingsDTO) async throws -> UserSettingsDTO { settings }
 }
 
-@MainActor struct NoopGoogleIntegrationRepository: GoogleIntegrationRepository {
-    init() {}
-    func getOrCreateGoogleIntegration() async throws -> GoogleIntegration { GoogleIntegration() }
-    func updateGoogleIntegration(_ integration: GoogleIntegration) async throws -> GoogleIntegration { integration }
-    func clearTokensOnLogout() async throws {}
-}
+// MARK: - UseCase actors
+public enum MeasurementValidationError: LocalizedError {
+    case invalidBloodPressure
+    case invalidGlucose
 
-struct NoopNotificationsRepository: NotificationsRepository {
-    init() {}
-    func requestAuthorization() async throws -> Bool { true }
-    func scheduleBloodPressureNotifications(at times: [DateComponents], replaceExisting: Bool) async throws {}
-    func scheduleGlucoseNotifications(_ schedule: [GlucoseSlot: [DateComponents]], replaceExisting: Bool) async throws {}
-    func cancelAllScheduledNotifications() async throws {}
-    func cancelBloodPressureNotifications() async throws {}
-    func cancelGlucoseNotifications(slots: Set<GlucoseSlot>?) async throws {}
-    func rescheduleBloodPressureNotifications(at times: [DateComponents]) async throws {}
-    func rescheduleGlucoseNotifications(_ schedule: [GlucoseSlot: [DateComponents]]) async throws {}
-    func snoozeNotification(with identifier: String, by minutes: Int) async throws {}
-    func skipNotification(with identifier: String) async throws {}
-    func moveNotification(with identifier: String, to date: Date) async throws {}
-}
-
-struct NoopAnalyticsRepository: AnalyticsRepository {
-    init() {}
-    func logAppOpen() async {}
-    func logMeasurementLogged(type: MeasurementType) async {}
-    func logScheduleUpdated(for type: MeasurementType) async {}
-    func logExportCSV() async {}
-    func logGoogleSyncSuccess(count: Int?) async {}
-    func logGoogleSyncFailure(errorDescription: String?) async {}
-    func logGoogleEnabled() async {}
-    func logGoogleDisabled() async {}
+    public var errorDescription: String? {
+        switch self {
+        case .invalidBloodPressure:
+            return "Blood pressure values must be positive."
+        case .invalidGlucose:
+            return "Glucose value must be positive."
+        }
+    }
 }
 
 public actor LogBPMeasurementUseCase {
     private let measurements: any MeasurementsRepository
     public init(measurements: any MeasurementsRepository) {
         self.measurements = measurements
+    }
+
+    public func execute(_ measurement: BPMeasurementDTO) async throws -> BPMeasurementDTO {
+        guard measurement.systolic > 0, measurement.diastolic > 0, measurement.pulse >= 0 else {
+            throw MeasurementValidationError.invalidBloodPressure
+        }
+        return try await measurements.createBPMeasurement(measurement)
+    }
+}
+
+public actor GetBPHistoryUseCase {
+    private let measurements: any MeasurementsRepository
+    public init(measurements: any MeasurementsRepository) {
+        self.measurements = measurements
+    }
+
+    public func execute() async throws -> [BPMeasurementDTO] {
+        let items = try await measurements.fetchAllBloodPressureMeasurements()
+        return items.sorted { $0.timestamp > $1.timestamp }
     }
 }
 
@@ -83,90 +76,76 @@ public actor LogGlucoseMeasurementUseCase {
     public init(measurements: any MeasurementsRepository) {
         self.measurements = measurements
     }
-}
 
-public actor ExportCSVUseCase {
-    private let measurements: any MeasurementsRepository
-    private let settings: any SettingsRepository
-    public init(measurements: any MeasurementsRepository, settings: any SettingsRepository) {
-        self.measurements = measurements
-        self.settings = settings
+    public func execute(_ measurement: GlucoseMeasurementDTO) async throws -> GlucoseMeasurementDTO {
+        guard measurement.value > 0 else { throw MeasurementValidationError.invalidGlucose }
+        return try await measurements.createGlucoseMeasurement(measurement)
     }
 }
 
-public actor SyncWithGoogleUseCase {
-    private let google: any GoogleIntegrationRepository
+public actor GetGlucoseHistoryUseCase {
     private let measurements: any MeasurementsRepository
-    public init(google: any GoogleIntegrationRepository, measurements: any MeasurementsRepository) {
-        self.google = google
+    public init(measurements: any MeasurementsRepository) {
         self.measurements = measurements
+    }
+
+    public func execute() async throws -> [GlucoseMeasurementDTO] {
+        let items = try await measurements.fetchAllGlucoseMeasurements()
+        return items.sorted { $0.timestamp > $1.timestamp }
     }
 }
 
+// MARK: - AppContainer
+@MainActor
 public struct AppContainer {
     // SwiftData model container shared across the app
     public let modelContainer: ModelContainer
 
     // Repositories
     public let measurementsRepository: any MeasurementsRepository
+    public let rotationScheduleRepository: any RotationScheduleRepository
     public let settingsRepository: any SettingsRepository
-    public let googleIntegrationRepository: any GoogleIntegrationRepository
-    public let notificationsRepository: any NotificationsRepository
-    public let analyticsRepository: any AnalyticsRepository
 
     // Use Cases (actors)
     public let logBPMeasurementUseCase: LogBPMeasurementUseCase
+    public let getBPHistoryUseCase: GetBPHistoryUseCase
     public let logGlucoseMeasurementUseCase: LogGlucoseMeasurementUseCase
-    public let exportCSVUseCase: ExportCSVUseCase
-    public let syncWithGoogleUseCase: SyncWithGoogleUseCase
+    public let getGlucoseHistoryUseCase: GetGlucoseHistoryUseCase
 
     public init(
         modelContainer: ModelContainer,
         measurementsRepository: any MeasurementsRepository,
-        settingsRepository: any SettingsRepository,
-        googleIntegrationRepository: any GoogleIntegrationRepository,
-        notificationsRepository: any NotificationsRepository,
-        analyticsRepository: any AnalyticsRepository
+        rotationScheduleRepository: any RotationScheduleRepository,
+        settingsRepository: any SettingsRepository
     ) {
         self.modelContainer = modelContainer
         self.measurementsRepository = measurementsRepository
+        self.rotationScheduleRepository = rotationScheduleRepository
         self.settingsRepository = settingsRepository
-        self.googleIntegrationRepository = googleIntegrationRepository
-        self.notificationsRepository = notificationsRepository
-        self.analyticsRepository = analyticsRepository
 
         // Wire up use cases from repositories
         self.logBPMeasurementUseCase = LogBPMeasurementUseCase(measurements: measurementsRepository)
+        self.getBPHistoryUseCase = GetBPHistoryUseCase(measurements: measurementsRepository)
         self.logGlucoseMeasurementUseCase = LogGlucoseMeasurementUseCase(measurements: measurementsRepository)
-        self.exportCSVUseCase = ExportCSVUseCase(
-            measurements: measurementsRepository,
-            settings: settingsRepository
-        )
-        self.syncWithGoogleUseCase = SyncWithGoogleUseCase(
-            google: googleIntegrationRepository,
-            measurements: measurementsRepository
-        )
+        self.getGlucoseHistoryUseCase = GetGlucoseHistoryUseCase(measurements: measurementsRepository)
     }
 
     // Convenience factory for previews or bootstrapping with no-op implementations
     public static func placeholder(using modelContainer: ModelContainer) -> AppContainer {
-        let measurements = NoopMeasurementsRepository(modelContainer: modelContainer)
+        let measurements = NoopMeasurementsRepository()
+        let rotation = NoopRotationScheduleRepository()
         let settings = NoopSettingsRepository()
-        let google = NoopGoogleIntegrationRepository()
-        let notifications = NoopNotificationsRepository()
-        let analytics = NoopAnalyticsRepository()
 
         return AppContainer(
             modelContainer: modelContainer,
             measurementsRepository: measurements,
-            settingsRepository: settings,
-            googleIntegrationRepository: google,
-            notificationsRepository: notifications,
-            analyticsRepository: analytics
+            rotationScheduleRepository: rotation,
+            settingsRepository: settings
         )
     }
 }
 
+// MARK: - Environment helpers
 private struct AppContainerEnvironmentKey: EnvironmentKey {
     static let defaultValue: AppContainer? = nil
 }

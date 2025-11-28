@@ -7,7 +7,7 @@
 
 import Foundation
 
-// MARK: - Glucose Unit
+/// Supported glucose units used across DTOs and mapping.
 public enum GlucoseUnit: String, Codable, CaseIterable, Sendable {
     case mmolL
     case mgdL
@@ -40,7 +40,7 @@ public enum GlucoseUnit: String, Codable, CaseIterable, Sendable {
     }
 }
 
-// MARK: - Glucose Measurement Type
+/// Distinguishes glucose measurement context.
 public enum GlucoseMeasurementType: String, Codable, CaseIterable, Sendable {
     case beforeMeal
     case afterMeal2h
@@ -55,7 +55,7 @@ public enum GlucoseMeasurementType: String, Codable, CaseIterable, Sendable {
     }
 }
 
-// MARK: - Meal Slot
+/// Meal slots supported by the glucose rotating scheduler.
 public enum MealSlot: String, Codable, CaseIterable, Sendable {
     case breakfast
     case lunch
@@ -72,7 +72,15 @@ public enum MealSlot: String, Codable, CaseIterable, Sendable {
     }
 }
 
-// MARK: - Google Sync Status
+/// Completion status for the glucose rotating schedule.
+public enum GlucoseRotationCompletionState: String, Codable, CaseIterable, Sendable {
+    case none
+    case beforeDone
+    case afterDone
+    case bothDone
+}
+
+/// Google sync state retained for future integration.
 public enum GoogleSyncStatus: String, Codable, CaseIterable, Sendable {
     case notSynced
     case queued

@@ -8,24 +8,21 @@
 import Foundation
 import SwiftData
 
-// MARK: - BPMeasurement
-@Model
-public final class BPMeasurement: Codable, Identifiable {
-    public var id: UUID = UUID()
-    public var timestamp: Date = Date.now
-    public var systolic: Int = 0
-    public var diastolic: Int = 0
-    public var pulse: Int = 0
-    public var comment: String?
-    public var googleSyncStatusRaw: String = GoogleSyncStatus.notSynced.rawValue
-    public var googleLastError: String?
-    public var googleLastSyncAt: Date?
+/// Architectural rules:
+/// - UseCases are implemented as actors
+/// - Repository implementations are @MainActor classes
+/// - DTOs are immutable Sendable structs used for all cross-actor communication
+/// - @Model types MUST NOT cross actor boundaries
 
-    // Derived strongly-typed status bridged through a raw field for SwiftData persistence
-    public var googleSyncStatus: GoogleSyncStatus {
-        get { GoogleSyncStatus(rawValue: googleSyncStatusRaw) ?? .notSynced }
-        set { googleSyncStatusRaw = newValue.rawValue }
-    }
+// MARK: - Measurement Storage Models (SwiftData @Model)
+@Model
+public final class BPMeasurementModel {
+    public var id: UUID
+    public var timestamp: Date
+    public var systolic: Int
+    public var diastolic: Int
+    public var pulse: Int
+    public var note: String?
 
     public init(
         id: UUID = UUID(),
@@ -33,69 +30,26 @@ public final class BPMeasurement: Codable, Identifiable {
         systolic: Int,
         diastolic: Int,
         pulse: Int,
-        comment: String? = nil,
-        googleSyncStatus: GoogleSyncStatus = .notSynced,
-        googleLastError: String? = nil,
-        googleLastSyncAt: Date? = nil
+        note: String? = nil
     ) {
         self.id = id
         self.timestamp = timestamp
         self.systolic = systolic
         self.diastolic = diastolic
         self.pulse = pulse
-        self.comment = comment
-        self.googleSyncStatusRaw = googleSyncStatus.rawValue
-        self.googleLastError = googleLastError
-        self.googleLastSyncAt = googleLastSyncAt
-    }
-
-    // MARK: Codable
-    private enum CodingKeys: String, CodingKey {
-        case id, timestamp, systolic, diastolic, pulse, comment
-        case googleSyncStatus, googleLastError, googleLastSyncAt
-    }
-
-    public required init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.id = try container.decode(UUID.self, forKey: .id)
-        self.timestamp = try container.decode(Date.self, forKey: .timestamp)
-        self.systolic = try container.decode(Int.self, forKey: .systolic)
-        self.diastolic = try container.decode(Int.self, forKey: .diastolic)
-        self.pulse = try container.decode(Int.self, forKey: .pulse)
-        self.comment = try container.decodeIfPresent(String.self, forKey: .comment)
-        let status = try container.decode(GoogleSyncStatus.self, forKey: .googleSyncStatus)
-        self.googleSyncStatusRaw = status.rawValue
-        self.googleLastError = try container.decodeIfPresent(String.self, forKey: .googleLastError)
-        self.googleLastSyncAt = try container.decodeIfPresent(Date.self, forKey: .googleLastSyncAt)
-    }
-
-    public func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(id, forKey: .id)
-        try container.encode(timestamp, forKey: .timestamp)
-        try container.encode(systolic, forKey: .systolic)
-        try container.encode(diastolic, forKey: .diastolic)
-        try container.encode(pulse, forKey: .pulse)
-        try container.encodeIfPresent(comment, forKey: .comment)
-        try container.encode(googleSyncStatus, forKey: .googleSyncStatus)
-        try container.encodeIfPresent(googleLastError, forKey: .googleLastError)
-        try container.encodeIfPresent(googleLastSyncAt, forKey: .googleLastSyncAt)
+        self.note = note
     }
 }
 
-// MARK: - GlucoseMeasurement
 @Model
-public final class GlucoseMeasurement: Codable, Identifiable {
-    public var id: UUID = UUID()
-    public var timestamp: Date = Date.now
-    public var value: Double = 0.0
-    public var unitRaw: String = GlucoseUnit.mmolL.rawValue
-    public var measurementTypeRaw: String = GlucoseMeasurementType.beforeMeal.rawValue
-    public var mealSlotRaw: String = MealSlot.none.rawValue
-    public var comment: String?
-    public var googleSyncStatusRaw: String = GoogleSyncStatus.notSynced.rawValue
-    public var googleLastError: String?
-    public var googleLastSyncAt: Date?
+public final class GlucoseMeasurementModel {
+    public var id: UUID
+    public var timestamp: Date
+    public var value: Double
+    public var unitRaw: String
+    public var measurementTypeRaw: String
+    public var mealSlotRaw: String
+    public var note: String?
 
     public var unit: GlucoseUnit {
         get { GlucoseUnit(rawValue: unitRaw) ?? .mmolL }
@@ -112,11 +66,6 @@ public final class GlucoseMeasurement: Codable, Identifiable {
         set { mealSlotRaw = newValue.rawValue }
     }
 
-    public var googleSyncStatus: GoogleSyncStatus {
-        get { GoogleSyncStatus(rawValue: googleSyncStatusRaw) ?? .notSynced }
-        set { googleSyncStatusRaw = newValue.rawValue }
-    }
-
     public init(
         id: UUID = UUID(),
         timestamp: Date = .now,
@@ -124,10 +73,7 @@ public final class GlucoseMeasurement: Codable, Identifiable {
         unit: GlucoseUnit = .mmolL,
         measurementType: GlucoseMeasurementType = .beforeMeal,
         mealSlot: MealSlot = .none,
-        comment: String? = nil,
-        googleSyncStatus: GoogleSyncStatus = .notSynced,
-        googleLastError: String? = nil,
-        googleLastSyncAt: Date? = nil
+        note: String? = nil
     ) {
         self.id = id
         self.timestamp = timestamp
@@ -135,51 +81,42 @@ public final class GlucoseMeasurement: Codable, Identifiable {
         self.unitRaw = unit.rawValue
         self.measurementTypeRaw = measurementType.rawValue
         self.mealSlotRaw = mealSlot.rawValue
-        self.comment = comment
-        self.googleSyncStatusRaw = googleSyncStatus.rawValue
-        self.googleLastError = googleLastError
-        self.googleLastSyncAt = googleLastSyncAt
-    }
-
-    // MARK: Codable
-    private enum CodingKeys: String, CodingKey {
-        case id, timestamp, value, unit, measurementType, mealSlot, comment
-        case googleSyncStatus, googleLastError, googleLastSyncAt
-    }
-
-    public required init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.id = try container.decode(UUID.self, forKey: .id)
-        self.timestamp = try container.decode(Date.self, forKey: .timestamp)
-        self.value = try container.decode(Double.self, forKey: .value)
-        let unit = try container.decode(GlucoseUnit.self, forKey: .unit)
-        self.unitRaw = unit.rawValue
-        let type = try container.decode(GlucoseMeasurementType.self, forKey: .measurementType)
-        self.measurementTypeRaw = type.rawValue
-        let slot = try container.decode(MealSlot.self, forKey: .mealSlot)
-        self.mealSlotRaw = slot.rawValue
-        self.comment = try container.decodeIfPresent(String.self, forKey: .comment)
-        let status = try container.decode(GoogleSyncStatus.self, forKey: .googleSyncStatus)
-        self.googleSyncStatusRaw = status.rawValue
-        self.googleLastError = try container.decodeIfPresent(String.self, forKey: .googleLastError)
-        self.googleLastSyncAt = try container.decodeIfPresent(Date.self, forKey: .googleLastSyncAt)
-    }
-
-    public func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(id, forKey: .id)
-        try container.encode(timestamp, forKey: .timestamp)
-        try container.encode(value, forKey: .value)
-        try container.encode(unit, forKey: .unit)
-        try container.encode(measurementType, forKey: .measurementType)
-        try container.encode(mealSlot, forKey: .mealSlot)
-        try container.encodeIfPresent(comment, forKey: .comment)
-        try container.encode(googleSyncStatus, forKey: .googleSyncStatus)
-        try container.encodeIfPresent(googleLastError, forKey: .googleLastError)
-        try container.encodeIfPresent(googleLastSyncAt, forKey: .googleLastSyncAt)
+        self.note = note
     }
 }
 
+@Model
+public final class GlucoseRotationConfigModel {
+    public var id: UUID
+    public var participatingMeals: [MealSlot]
+    public var currentMealIndex: Int
+    public var completionStateRaw: String
+    public var beforeTimestamp: Date?
+    public var afterTimestamp: Date?
+
+    public var completionState: GlucoseRotationCompletionState {
+        get { GlucoseRotationCompletionState(rawValue: completionStateRaw) ?? .none }
+        set { completionStateRaw = newValue.rawValue }
+    }
+
+    public init(
+        id: UUID = UUID(),
+        participatingMeals: [MealSlot] = MealSlot.allCases,
+        currentMealIndex: Int = 0,
+        completionState: GlucoseRotationCompletionState = .none,
+        beforeTimestamp: Date? = nil,
+        afterTimestamp: Date? = nil
+    ) {
+        self.id = id
+        self.participatingMeals = participatingMeals
+        self.currentMealIndex = currentMealIndex
+        self.completionStateRaw = completionState.rawValue
+        self.beforeTimestamp = beforeTimestamp
+        self.afterTimestamp = afterTimestamp
+    }
+}
+
+// MARK: - Supporting Types
 public struct TimeOfDay: Codable, Hashable, Sendable {
     public var hour: Int
     public var minute: Int
@@ -210,7 +147,7 @@ public final class UserSettings: Codable, Identifiable {
 
     public var glucoseMin: Double = 4.0
     public var glucoseMax: Double = 7.8
-    
+
     public var breakfastTime: TimeOfDay = TimeOfDay(hour: 8, minute: 0)
     public var lunchTime: TimeOfDay = TimeOfDay(hour: 12, minute: 0)
     public var dinnerTime: TimeOfDay = TimeOfDay(hour: 18, minute: 0)
@@ -402,4 +339,3 @@ public final class GoogleIntegration: Codable, Identifiable {
         self.isEnabled = isEnabled
     }
 }
-

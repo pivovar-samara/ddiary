@@ -17,152 +17,123 @@ public final class SwiftDataMeasurementsRepository: MeasurementsRepository {
     }
 
     // MARK: - BP CRUD
-    public func createBPMeasurement(_ measurement: BPMeasurement) async throws -> BPMeasurement {
-        context.insert(measurement)
+    public func createBPMeasurement(_ measurement: BPMeasurementDTO) async throws -> BPMeasurementDTO {
+        let model = measurement.makeModel()
+        context.insert(model)
         try context.save()
-        return measurement
+        return BPMeasurementDTO(model: model)
     }
 
-    public func getBPMeasurement(id: UUID) async throws -> BPMeasurement? {
-        var descriptor = FetchDescriptor<BPMeasurement>(
+    public func getBPMeasurement(id: UUID) async throws -> BPMeasurementDTO? {
+        var descriptor = FetchDescriptor<BPMeasurementModel>(
             predicate: #Predicate { $0.id == id }
         )
         descriptor.fetchLimit = 1
         let results = try context.fetch(descriptor)
-        return results.first
+        return results.first.map(BPMeasurementDTO.init(model:))
     }
 
-    public func updateBPMeasurement(_ measurement: BPMeasurement) async throws -> BPMeasurement {
-        // Find existing and update fields, or insert if missing
-        if let existing = try await getBPMeasurement(id: measurement.id) {
-            existing.timestamp = measurement.timestamp
-            existing.systolic = measurement.systolic
-            existing.diastolic = measurement.diastolic
-            existing.pulse = measurement.pulse
-            existing.comment = measurement.comment
-            existing.googleSyncStatus = measurement.googleSyncStatus
-            existing.googleLastError = measurement.googleLastError
-            existing.googleLastSyncAt = measurement.googleLastSyncAt
+    public func updateBPMeasurement(_ measurement: BPMeasurementDTO) async throws -> BPMeasurementDTO {
+        if let existing = try await getBPMeasurementModel(id: measurement.id) {
+            measurement.applying(to: existing)
             try context.save()
-            return existing
+            return BPMeasurementDTO(model: existing)
         } else {
-            context.insert(measurement)
-            try context.save()
-            return measurement
+            return try createBPMeasurement(measurement)
         }
     }
 
     public func deleteBPMeasurement(id: UUID) async throws {
-        if let existing = try await getBPMeasurement(id: id) {
+        if let existing = try await getBPMeasurementModel(id: id) {
             context.delete(existing)
             try context.save()
         }
     }
 
     // MARK: - Glucose CRUD
-    public func createGlucoseMeasurement(_ measurement: GlucoseMeasurement) async throws -> GlucoseMeasurement {
-        context.insert(measurement)
+    public func createGlucoseMeasurement(_ measurement: GlucoseMeasurementDTO) async throws -> GlucoseMeasurementDTO {
+        let model = measurement.makeModel()
+        context.insert(model)
         try context.save()
-        return measurement
+        return GlucoseMeasurementDTO(model: model)
     }
 
-    public func getGlucoseMeasurement(id: UUID) async throws -> GlucoseMeasurement? {
-        var descriptor = FetchDescriptor<GlucoseMeasurement>(
+    public func getGlucoseMeasurement(id: UUID) async throws -> GlucoseMeasurementDTO? {
+        var descriptor = FetchDescriptor<GlucoseMeasurementModel>(
             predicate: #Predicate { $0.id == id }
         )
         descriptor.fetchLimit = 1
         let results = try context.fetch(descriptor)
-        return results.first
+        return results.first.map(GlucoseMeasurementDTO.init(model:))
     }
 
-    public func updateGlucoseMeasurement(_ measurement: GlucoseMeasurement) async throws -> GlucoseMeasurement {
-        if let existing = try await getGlucoseMeasurement(id: measurement.id) {
-            existing.timestamp = measurement.timestamp
-            existing.value = measurement.value
-            existing.unit = measurement.unit
-            existing.measurementType = measurement.measurementType
-            existing.mealSlot = measurement.mealSlot
-            existing.comment = measurement.comment
-            existing.googleSyncStatus = measurement.googleSyncStatus
-            existing.googleLastError = measurement.googleLastError
-            existing.googleLastSyncAt = measurement.googleLastSyncAt
+    public func updateGlucoseMeasurement(_ measurement: GlucoseMeasurementDTO) async throws -> GlucoseMeasurementDTO {
+        if let existing = try await getGlucoseMeasurementModel(id: measurement.id) {
+            measurement.applying(to: existing)
             try context.save()
-            return existing
+            return GlucoseMeasurementDTO(model: existing)
         } else {
-            context.insert(measurement)
-            try context.save()
-            return measurement
+            return try createGlucoseMeasurement(measurement)
         }
     }
 
     public func deleteGlucoseMeasurement(id: UUID) async throws {
-        if let existing = try await getGlucoseMeasurement(id: id) {
+        if let existing = try await getGlucoseMeasurementModel(id: id) {
             context.delete(existing)
             try context.save()
         }
     }
 
     // MARK: - Queries (All)
-    public func fetchAllBloodPressureMeasurements() async throws -> [BPMeasurement] {
-        let descriptor = FetchDescriptor<BPMeasurement>(
+    public func fetchAllBloodPressureMeasurements() async throws -> [BPMeasurementDTO] {
+        let descriptor = FetchDescriptor<BPMeasurementModel>(
             sortBy: [SortDescriptor(\.timestamp, order: .forward)]
         )
-        return try context.fetch(descriptor)
+        let results = try context.fetch(descriptor)
+        return results.map(BPMeasurementDTO.init(model:))
     }
 
-    public func fetchAllGlucoseMeasurements() async throws -> [GlucoseMeasurement] {
-        let descriptor = FetchDescriptor<GlucoseMeasurement>(
+    public func fetchAllGlucoseMeasurements() async throws -> [GlucoseMeasurementDTO] {
+        let descriptor = FetchDescriptor<GlucoseMeasurementModel>(
             sortBy: [SortDescriptor(\.timestamp, order: .forward)]
         )
-        return try context.fetch(descriptor)
+        let results = try context.fetch(descriptor)
+        return results.map(GlucoseMeasurementDTO.init(model:))
     }
 
     // MARK: - Queries (Date Range)
-    public func fetchBloodPressureMeasurements(from startDate: Date, to endDate: Date) async throws -> [BPMeasurement] {
-        let descriptor = FetchDescriptor<BPMeasurement>(
+    public func fetchBloodPressureMeasurements(from startDate: Date, to endDate: Date) async throws -> [BPMeasurementDTO] {
+        let descriptor = FetchDescriptor<BPMeasurementModel>(
             predicate: #Predicate { $0.timestamp >= startDate && $0.timestamp <= endDate },
             sortBy: [SortDescriptor(\.timestamp, order: .forward)]
         )
-        return try context.fetch(descriptor)
+        let results = try context.fetch(descriptor)
+        return results.map(BPMeasurementDTO.init(model:))
     }
 
-    public func fetchGlucoseMeasurements(from startDate: Date, to endDate: Date) async throws -> [GlucoseMeasurement] {
-        let descriptor = FetchDescriptor<GlucoseMeasurement>(
+    public func fetchGlucoseMeasurements(from startDate: Date, to endDate: Date) async throws -> [GlucoseMeasurementDTO] {
+        let descriptor = FetchDescriptor<GlucoseMeasurementModel>(
             predicate: #Predicate { $0.timestamp >= startDate && $0.timestamp <= endDate },
             sortBy: [SortDescriptor(\.timestamp, order: .forward)]
         )
-        return try context.fetch(descriptor)
+        let results = try context.fetch(descriptor)
+        return results.map(GlucoseMeasurementDTO.init(model:))
     }
 
-    // MARK: - Google Sync Filters
-    public func fetchBloodPressureMeasurementsNeedingGoogleSync() async throws -> [BPMeasurement] {
-        let notSynced = GoogleSyncStatus.notSynced.rawValue
-        let queued = GoogleSyncStatus.queued.rawValue
-        let failed = GoogleSyncStatus.failed.rawValue
-        let descriptor = FetchDescriptor<BPMeasurement>(
-            predicate: #Predicate {
-                ($0.googleSyncStatusRaw == notSynced) ||
-                ($0.googleSyncStatusRaw == queued) ||
-                ($0.googleSyncStatusRaw == failed)
-            },
-            sortBy: [SortDescriptor(\.timestamp, order: .forward)]
+    // MARK: - Helpers
+    private func getBPMeasurementModel(id: UUID) async throws -> BPMeasurementModel? {
+        var descriptor = FetchDescriptor<BPMeasurementModel>(
+            predicate: #Predicate { $0.id == id }
         )
-        return try context.fetch(descriptor)
+        descriptor.fetchLimit = 1
+        return try context.fetch(descriptor).first
     }
 
-    public func fetchGlucoseMeasurementsNeedingGoogleSync() async throws -> [GlucoseMeasurement] {
-        let notSynced = GoogleSyncStatus.notSynced.rawValue
-        let queued = GoogleSyncStatus.queued.rawValue
-        let failed = GoogleSyncStatus.failed.rawValue
-        let descriptor = FetchDescriptor<GlucoseMeasurement>(
-            predicate: #Predicate {
-                ($0.googleSyncStatusRaw == notSynced) ||
-                ($0.googleSyncStatusRaw == queued) ||
-                ($0.googleSyncStatusRaw == failed)
-            },
-            sortBy: [SortDescriptor(\.timestamp, order: .forward)]
+    private func getGlucoseMeasurementModel(id: UUID) async throws -> GlucoseMeasurementModel? {
+        var descriptor = FetchDescriptor<GlucoseMeasurementModel>(
+            predicate: #Predicate { $0.id == id }
         )
-        return try context.fetch(descriptor)
+        descriptor.fetchLimit = 1
+        return try context.fetch(descriptor).first
     }
 }
-

@@ -11,22 +11,22 @@ import Foundation
 
 // MARK: - Mock Measurements Repository (actor-backed, in-memory)
 @MainActor public final class MockMeasurementsRepository: MeasurementsRepository {
-    private var bpMeasurements: [UUID: BPMeasurement] = [:]
-    private var glucoseMeasurements: [UUID: GlucoseMeasurement] = [:]
+    private var bpMeasurements: [UUID: BPMeasurementDTO] = [:]
+    private var glucoseMeasurements: [UUID: GlucoseMeasurementDTO] = [:]
 
     public init() {}
 
     // MARK: BP CRUD
-    public func createBPMeasurement(_ measurement: BPMeasurement) async throws -> BPMeasurement {
+    public func createBPMeasurement(_ measurement: BPMeasurementDTO) async throws -> BPMeasurementDTO {
         bpMeasurements[measurement.id] = measurement
         return measurement
     }
 
-    public func getBPMeasurement(id: UUID) async throws -> BPMeasurement? {
+    public func getBPMeasurement(id: UUID) async throws -> BPMeasurementDTO? {
         return bpMeasurements[id]
     }
 
-    public func updateBPMeasurement(_ measurement: BPMeasurement) async throws -> BPMeasurement {
+    public func updateBPMeasurement(_ measurement: BPMeasurementDTO) async throws -> BPMeasurementDTO {
         bpMeasurements[measurement.id] = measurement
         return measurement
     }
@@ -36,16 +36,16 @@ import Foundation
     }
 
     // MARK: Glucose CRUD
-    public func createGlucoseMeasurement(_ measurement: GlucoseMeasurement) async throws -> GlucoseMeasurement {
+    public func createGlucoseMeasurement(_ measurement: GlucoseMeasurementDTO) async throws -> GlucoseMeasurementDTO {
         glucoseMeasurements[measurement.id] = measurement
         return measurement
     }
 
-    public func getGlucoseMeasurement(id: UUID) async throws -> GlucoseMeasurement? {
+    public func getGlucoseMeasurement(id: UUID) async throws -> GlucoseMeasurementDTO? {
         return glucoseMeasurements[id]
     }
 
-    public func updateGlucoseMeasurement(_ measurement: GlucoseMeasurement) async throws -> GlucoseMeasurement {
+    public func updateGlucoseMeasurement(_ measurement: GlucoseMeasurementDTO) async throws -> GlucoseMeasurementDTO {
         glucoseMeasurements[measurement.id] = measurement
         return measurement
     }
@@ -55,52 +55,40 @@ import Foundation
     }
 
     // MARK: Queries
-    public func fetchAllBloodPressureMeasurements() async throws -> [BPMeasurement] {
+    public func fetchAllBloodPressureMeasurements() async throws -> [BPMeasurementDTO] {
         return bpMeasurements.values.sorted { $0.timestamp < $1.timestamp }
     }
 
-    public func fetchAllGlucoseMeasurements() async throws -> [GlucoseMeasurement] {
+    public func fetchAllGlucoseMeasurements() async throws -> [GlucoseMeasurementDTO] {
         return glucoseMeasurements.values.sorted { $0.timestamp < $1.timestamp }
     }
 
-    public func fetchBloodPressureMeasurements(from startDate: Date, to endDate: Date) async throws -> [BPMeasurement] {
+    public func fetchBloodPressureMeasurements(from startDate: Date, to endDate: Date) async throws -> [BPMeasurementDTO] {
         return bpMeasurements.values
             .filter { $0.timestamp >= startDate && $0.timestamp <= endDate }
             .sorted { $0.timestamp < $1.timestamp }
     }
 
-    public func fetchGlucoseMeasurements(from startDate: Date, to endDate: Date) async throws -> [GlucoseMeasurement] {
+    public func fetchGlucoseMeasurements(from startDate: Date, to endDate: Date) async throws -> [GlucoseMeasurementDTO] {
         return glucoseMeasurements.values
             .filter { $0.timestamp >= startDate && $0.timestamp <= endDate }
-            .sorted { $0.timestamp < $1.timestamp }
-    }
-
-    public func fetchBloodPressureMeasurementsNeedingGoogleSync() async throws -> [BPMeasurement] {
-        return bpMeasurements.values
-            .filter { $0.googleSyncStatus == .notSynced || $0.googleSyncStatus == .queued || $0.googleSyncStatus == .failed }
-            .sorted { $0.timestamp < $1.timestamp }
-    }
-
-    public func fetchGlucoseMeasurementsNeedingGoogleSync() async throws -> [GlucoseMeasurement] {
-        return glucoseMeasurements.values
-            .filter { $0.googleSyncStatus == .notSynced || $0.googleSyncStatus == .queued || $0.googleSyncStatus == .failed }
             .sorted { $0.timestamp < $1.timestamp }
     }
 }
 
 // MARK: - Mock Settings Repository
 @MainActor public final class MockSettingsRepository: SettingsRepository {
-    private var settings: UserSettings?
-    public init(initial: UserSettings? = nil) { self.settings = initial }
+    private var settings: UserSettingsDTO?
+    public init(initial: UserSettingsDTO? = nil) { self.settings = initial }
 
-    public func getOrCreateUserSettings() async throws -> UserSettings {
+    public func getOrCreateUserSettings() async throws -> UserSettingsDTO {
         if let s = settings { return s }
-        let created = UserSettings.default()
+        let created = UserSettingsDTO()
         settings = created
         return created
     }
 
-    public func updateUserSettings(_ settings: UserSettings) async throws -> UserSettings {
+    public func updateUserSettings(_ settings: UserSettingsDTO) async throws -> UserSettingsDTO {
         self.settings = settings
         return settings
     }

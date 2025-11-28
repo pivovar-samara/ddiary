@@ -10,26 +10,38 @@ import SwiftData
 
 @main
 struct DDiaryApp: App {
-    var sharedModelContainer: ModelContainer = {
+    private let sharedModelContainer: ModelContainer
+    private let appContainer: AppContainer
+
+    init() {
         let schema = Schema([
-            BPMeasurement.self,
-            GlucoseMeasurement.self,
+            BPMeasurementModel.self,
+            GlucoseMeasurementModel.self,
+            GlucoseRotationConfigModel.self,
             UserSettings.self,
             GoogleIntegration.self
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
         do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
+            let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
+            let modelContext = ModelContext(container)
+            self.sharedModelContainer = container
+            self.appContainer = AppContainer(
+                modelContainer: container,
+                measurementsRepository: SwiftDataMeasurementsRepository(modelContext: modelContext),
+                rotationScheduleRepository: SwiftDataRotationScheduleRepository(modelContext: modelContext),
+                settingsRepository: SwiftDataSettingsRepository(modelContext: modelContext)
+            )
         } catch {
             fatalError("Could not create ModelContainer: \(error)")
         }
-    }()
-    
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .injectPlaceholderAppContainer()
+                .appContainer(appContainer)
         }
         .modelContainer(sharedModelContainer)
     }
