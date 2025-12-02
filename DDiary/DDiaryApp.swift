@@ -15,7 +15,7 @@ struct DDiaryApp: App {
             BPMeasurement.self,
             GlucoseMeasurement.self,
             UserSettings.self,
-            GoogleIntegration.self
+            GoogleIntegration.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
@@ -28,8 +28,9 @@ struct DDiaryApp: App {
     
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .injectPlaceholderAppContainer()
+            let container = AppContainer(modelContainer: sharedModelContainer)
+            RootView()
+                .appContainer(container)
         }
         .modelContainer(sharedModelContainer)
     }

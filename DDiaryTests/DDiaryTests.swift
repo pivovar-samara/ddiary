@@ -30,7 +30,7 @@ struct DDiaryTests {
             diastolic: 80,
             pulse: 70,
             comment: "Test",
-            googleSyncStatus: .notSynced
+            googleSyncStatus: .pending
         )
 
         // When: insert and save
@@ -50,7 +50,7 @@ struct DDiaryTests {
         #expect(fetched.diastolic == 80)
         #expect(fetched.pulse == 70)
         #expect(fetched.comment == "Test")
-        #expect(fetched.googleSyncStatus == .notSynced)
+        #expect(fetched.googleSyncStatus == .pending)
     }
 
 }

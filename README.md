@@ -23,11 +23,15 @@ The app is explicitly **not a medical device** and provides no medical recommend
   - iOS 26+ (iPhone)  
   - iPadOS 26+
 - **Language:** Swift 6.2
+- **Concurrency model:** **Swift 6 concurrency** only:
+  - Use `async/await`, `Task`, `TaskGroup`, `actor`s, and `@MainActor`.
+  - Avoid completion-handler–style APIs internally; wrap such APIs with async adapters.
+  - Make types `Sendable` where appropriate to be compatible with Swift 6 strict concurrency checks.
 - **UI framework:** SwiftUI
 - **Persistence:** SwiftData with CloudKit sync enabled.
-- **Networking / APIs:** URLSession (or similar standard) for Google Sheets integration.
-- **Architecture:** MVVM + Use Case + Repository + manual DI.
-- **Use Cases:** Implemented as `actor`s.
+- **Networking / APIs:** URLSession (or similar standard) wrapped in async `func`s.
+- **Architecture:** MVVM + Use Case + Repository + **manual DI**.
+- **Use Cases:** Implemented as **Swift `actor`s** for safe concurrent access.
 - **Domain vs Persistence models:** SwiftData `@Model` types double as domain models (Option B).
 - **Analytics:** Amplitude (minimal events).
 - **Tests:** Unit tests, repository tests with mocks, and basic UI tests.
@@ -38,7 +42,8 @@ Apple Health integration is intentionally **excluded from v1**.
 
 ## 2. Domain Model
 
-All models below are SwiftData `@Model` types (domain + persistence).
+All models below are SwiftData `@Model` types (domain + persistence).  
+They are used primarily from the main actor via SwiftUI and SwiftData’s `ModelContext`, so strict cross-actor Sendability is usually not required for models themselves.
 
 ### 2.1 Blood Pressure Measurement (`BPMeasurement`)
 
@@ -152,11 +157,13 @@ Fields:
 - `refreshToken: String?`
 - `isEnabled: Bool`
 
+Access to `GoogleIntegration` should be coordinated through a repository on the main actor; tokens are passed into background `Task`s for networking.
+
 ---
 
 ## 3. Schedules, Slots and Statuses
 
-The app models daily “slots” for measurements. These are conceptual and mostly expressed in:
+The app models daily “slots” for measurements. Intended to be computed in a concurrency-safe manner, typically via @MainActor view models or dedicated actors. These are conceptual and mostly expressed in:
 
 - Scheduled notification times.
 - UI representation of the “Today” screen.
@@ -172,6 +179,8 @@ For a given scheduled slot (BP or glucose) with planned time `slotTime`:
 - **completed (green)** — a measurement was logged for this logical slot on this date (regardless of exact timestamp, as long as it corresponds to the intended type/slot).
 
 “Completed” always overrides “missed”/“due” once a measurement exists (for that slot/day).
+
+The status computation is pure and can be performed in synchronous helper functions or in @MainActor view models.
 
 ### 3.2 “Today” Status
 
@@ -215,6 +224,7 @@ The cycle mode is optional and can be implemented in a minimal way in v1; the co
 
 - 1 slot per day tracking mode.
 - Ability to shift/preserve the target slot depending on user behavior.
+- All updates to `UserSettings.currentCycleIndex` happen on the same actor (usually @MainActor), or through a dedicated use case actor that ensures sequential updates.
 
 ---
 
@@ -228,6 +238,8 @@ The cycle mode is optional and can be implemented in a minimal way in v1; the co
   - Glucose measurement times (meal times, before meals, bedtime, and cycle mode if enabled).
 
 - Notifications **do not** contain inline text fields. Instead, they have actions that open the app to a **Quick Entry screen**.
+- Interactions with `UNUserNotificationCenter` should be wrapped in async functions (e.g. using `withCheckedContinuation` if needed).
+- Handling of notification responses should funnel into @MainActor methods when updating UI or SwiftData.
 
 ### 4.2 Notification Actions
 
@@ -316,6 +328,11 @@ On Save:
 ---
 
 ## 6. Screens & Flows
+
+Implementation should:
+
+- Mark ViewModels as `@MainActor` (or use `@Observable` with main-actor isolation).
+- Use async calls to use case actors from the main thread via `Task { await useCase.execute(...) }`.
 
 ### 6.1 Today Screen
 
@@ -447,6 +464,9 @@ Encoding: UTF-8, delimiter: `,` (comma; or `;` for regional preferences as neede
 
 ## 7. Google Sheets Integration
 
+- `GoogleSheetsClient` operations are `async` and can be called from `SyncWithGoogleUseCase` actor.
+- Networking runs off main actor; results are persisted via repositories, which internally use SwiftData. SwiftData operations should be called from @MainActor contexts; the use case actor may hop to the main actor when needed using `await MainActor.run`.
+
 ### 7.1 Authentication
 
 - Use OAuth via `ASWebAuthenticationSession`.
@@ -510,8 +530,10 @@ When user taps “Disconnect Google”:
 - SwiftData is configured with CloudKit-backed persistent container.
 - All `@Model` entities (`BPMeasurement`, `GlucoseMeasurement`, `UserSettings`, `GoogleIntegration`) are synced via the private iCloud database.
 - When a measurement is synced across devices, its `googleSyncStatus` is also synced, ensuring that:
-
   - Any device can attempt the Google sync for a pending/failed record, but once one device succeeds and marks it `success`, others will not re-sync it.
+- SwiftData + CloudKit synchronization is managed by the system; application code should avoid doing long-running work on the main actor inside SwiftUI lifecycle methods.
+- Use case actors can react to changes signaled by view models (e.g. on app launch or settings change) and perform async work.
+
 
 ---
 
@@ -522,26 +544,26 @@ When user taps “Disconnect Google”:
 1. **Presentation Layer (SwiftUI + MVVM)**
 
    - View: SwiftUI views (`TodayView`, `HistoryView`, `SettingsView`, etc.).
-   - ViewModels: `@Observable` classes holding view state and interacting with Use Cases.
+   - ViewModels: `@Observable` classes, typically annotated `@MainActor`, holding view state and interacting with Use Cases via `async` methods.
 
 2. **Domain Layer (Use Cases as actors)**
 
-   - Use Case actors encapsulate business logic:
+   - Use Case actors encapsulate business logic and act as concurrency boundaries:
 
-     - `LogBPMeasurementUseCase`
-     - `LogGlucoseMeasurementUseCase`
-     - `ExportCSVUseCase`
-     - `SyncWithGoogleUseCase`
-     - `UpdateSchedulesUseCase`
-     - `RescheduleGlucoseCycleUseCase`
-     - `GetTodayOverviewUseCase`
+     - `actor LogBPMeasurementUseCase`
+     - `actor LogGlucoseMeasurementUseCase`
+     - `actor ExportCSVUseCase`
+     - `actor SyncWithGoogleUseCase`
+     - `actor UpdateSchedulesUseCase`
+     - `actor RescheduleGlucoseCycleUseCase`
+     - `actor GetTodayOverviewUseCase`
      - etc.
 
-   - Each use case depends on repository protocols.
+   - Each actor is initialized with references to repository protocols that are `Sendable` or accessed via `@MainActor` functions when needed.
 
-3. **Data Layer (Repositories)**
+3. **Data Layer (Repository protocols + implementations)**
 
-   - Repository protocols:
+   - Repository protocols (expose `async` methods):
 
      - `MeasurementsRepository`
      - `SettingsRepository`
@@ -556,10 +578,15 @@ When user taps “Disconnect Google”:
      - `SwiftDataGoogleIntegrationRepository`
      - `UserNotificationsRepository`
      - `AmplitudeAnalyticsRepository`
+    
+   - SwiftData-based repositories are generally used from the main actor; repository functions that mutate SwiftData should be `@MainActor` or call `MainActor.run`.
+   - Networking and analytics code can run on background tasks but must coordinate writes through repos.
 
 ### 9.2 Manual Dependency Injection
 
-- There is a central `AppContainer` (or similar) responsible for wiring dependencies:
+- There is a central `AppContainer` (or similar) responsible for wiring:
+  - Concrete repository implementations.
+  - Use Case actors.
 
 ```swift
 struct AppContainer {
@@ -575,6 +602,7 @@ struct AppContainer {
 ```
 
 - The root SwiftUI App struct constructs this container and passes dependencies into root ViewModels.
+- ViewModels receive references to use cases and repositories as needed.
 
 ---
 
@@ -588,10 +616,17 @@ struct AppContainer {
   - Proper update of `googleSyncStatus`.
   - Correct behavior of daily cycle logic.
   - Correct interaction with repositories (e.g., calling expected methods with correct parameters).
+  - Correct behavior when multiple `Task`s call the use case concurrently (where relevant).
+  - Correct state transitions on `googleSyncStatus`.
+
+- Use `async` test methods.
+- Use mock repositories that conform to protocols and can be safely used from actors.
 
 ### 10.2 Repository Tests with Mocks
 
 - Mock or stub implementations of repository protocols for testing Use Cases.
+- Repository logic touching SwiftData may be tested on @MainActor.
+- Mock repositories for use cases can be simple non-actor types or actors, depending on test design.
 - Tests to ensure:
 
   - Error propagation.
@@ -624,6 +659,9 @@ Included in v1:
 - Manual DI, MVVM, Use Cases as actors, SwiftData models as domain models.
 - Analytics integration with minimal events.
 - Unit tests, basic repository tests, and minimal XCUITests.
+- Prefer `async/await` over callbacks.
+- Use actors as logical concurrency boundaries for domain logic.
+- Keep heavy work off the main actor while ensuring SwiftData and SwiftUI interactions happen on the main actor.
 
 Excluded from v1:
 

@@ -8,7 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		4849F0792ED4C31900E060BF /* AmplitudeSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 4849F0782ED4C31900E060BF /* AmplitudeSwift */; };
-		48F9A6962ED7763600C114DB /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = 48F9A6952ED7763600C114DB /* README.md */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -29,9 +28,10 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		4849EBAF2ED4BF4F00E060BF /* DDiary.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = DDiary.app; path = "/Users/pivovar/Library/Mobile Documents/com~apple~CloudDocs/Documents/Projects/ddiary/build/Debug-iphoneos/DDiary.app"; sourceTree = "<absolute>"; };
-		4849EBC02ED4BF5000E060BF /* DDiaryTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; name = DDiaryTests.xctest; path = "/Users/pivovar/Library/Mobile Documents/com~apple~CloudDocs/Documents/Projects/ddiary/build/Debug-iphoneos/DDiary.app/PlugIns/DDiaryTests.xctest"; sourceTree = "<absolute>"; };
-		4849EBCA2ED4BF5000E060BF /* DDiaryUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; name = DDiaryUITests.xctest; path = "/Users/pivovar/Library/Mobile Documents/com~apple~CloudDocs/Documents/Projects/ddiary/build/Debug-iphoneos/DDiaryUITests-Runner.app/PlugIns/DDiaryUITests.xctest"; sourceTree = "<absolute>"; };
+		484314DB2EDAE34000ECF66A /* DDiary.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DDiary.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		484314DC2EDAE34000ECF66A /* DDiaryTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DDiaryTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		484314DD2EDAE34000ECF66A /* DDiaryUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DDiaryUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		484315052EDAEC2D00ECF66A /* DDiary_Development_Plan.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = DDiary_Development_Plan.md; sourceTree = "<group>"; };
 		48F9A6952ED7763600C114DB /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -43,14 +43,6 @@
 			);
 			target = 4849EBAE2ED4BF4F00E060BF /* DDiary */;
 		};
-		48A7450D2ED6F7AE00ED51CC /* Exceptions for "DDiary" folder in "DDiaryTests" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Models/HealthEnums.swift,
-				Models/HealthModels.swift,
-			);
-			target = 4849EBBF2ED4BF5000E060BF /* DDiaryTests */;
-		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -58,7 +50,6 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				4849EBD22ED4BF5000E060BF /* Exceptions for "DDiary" folder in "DDiary" target */,
-				48A7450D2ED6F7AE00ED51CC /* Exceptions for "DDiary" folder in "DDiaryTests" target */,
 			);
 			path = DDiary;
 			sourceTree = "<group>";
@@ -104,10 +95,14 @@
 		4849EBA62ED4BF4F00E060BF = {
 			isa = PBXGroup;
 			children = (
+				484315052EDAEC2D00ECF66A /* DDiary_Development_Plan.md */,
 				48F9A6952ED7763600C114DB /* README.md */,
 				4849EBB12ED4BF4F00E060BF /* DDiary */,
 				4849EBC32ED4BF5000E060BF /* DDiaryTests */,
 				4849EBCD2ED4BF5000E060BF /* DDiaryUITests */,
+				484314DB2EDAE34000ECF66A /* DDiary.app */,
+				484314DC2EDAE34000ECF66A /* DDiaryTests.xctest */,
+				484314DD2EDAE34000ECF66A /* DDiaryUITests.xctest */,
 			);
 			sourceTree = "<group>";
 		};
@@ -134,7 +129,7 @@
 				4849F0782ED4C31900E060BF /* AmplitudeSwift */,
 			);
 			productName = DDiary;
-			productReference = 4849EBAF2ED4BF4F00E060BF /* DDiary.app */;
+			productReference = 484314DB2EDAE34000ECF66A /* DDiary.app */;
 			productType = "com.apple.product-type.application";
 		};
 		4849EBBF2ED4BF5000E060BF /* DDiaryTests */ = {
@@ -157,7 +152,7 @@
 			packageProductDependencies = (
 			);
 			productName = DDiaryTests;
-			productReference = 4849EBC02ED4BF5000E060BF /* DDiaryTests.xctest */;
+			productReference = 484314DC2EDAE34000ECF66A /* DDiaryTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
 		4849EBC92ED4BF5000E060BF /* DDiaryUITests */ = {
@@ -180,7 +175,7 @@
 			packageProductDependencies = (
 			);
 			productName = DDiaryUITests;
-			productReference = 4849EBCA2ED4BF5000E060BF /* DDiaryUITests.xctest */;
+			productReference = 484314DD2EDAE34000ECF66A /* DDiaryUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
@@ -235,7 +230,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				48F9A6962ED7763600C114DB /* README.md in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -323,7 +317,7 @@
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
@@ -358,7 +352,7 @@
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
@@ -500,7 +494,7 @@
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/DDiary.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/DDiary";
 			};
@@ -522,7 +516,7 @@
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/DDiary.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/DDiary";
 			};
@@ -543,7 +537,7 @@
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = DDiary;
 			};
@@ -564,7 +558,7 @@
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = DDiary;
 			};
