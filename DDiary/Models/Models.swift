@@ -57,8 +57,8 @@ extension TimeOfDay {
 }
 
 @Model
-final class BPMeasurement {
-    var id: UUID = UUID()
+public final class BPMeasurement {
+    public var id: UUID = UUID()
     var timestamp: Date = Date()
     var systolic: Int = 0
     var diastolic: Int = 0
@@ -92,8 +92,8 @@ final class BPMeasurement {
 }
 
 @Model
-final class GlucoseMeasurement {
-    var id: UUID = UUID()
+public final class GlucoseMeasurement {
+    public var id: UUID = UUID()
     var timestamp: Date = Date()
     var value: Double = 0.0
     var unit: GlucoseUnit = GlucoseUnit.mmolL
@@ -130,8 +130,8 @@ final class GlucoseMeasurement {
 }
 
 @Model
-final class UserSettings {
-    var id: UUID = UUID()
+public final class UserSettings {
+    public var id: UUID = UUID()
 
     var glucoseUnit: GlucoseUnit = GlucoseUnit.mmolL
 
@@ -243,8 +243,8 @@ extension UserSettings {
 }
 
 @Model
-final class GoogleIntegration {
-    var id: UUID = UUID()
+public final class GoogleIntegration {
+    public var id: UUID = UUID()
     var spreadsheetId: String?
     var googleUserId: String?
     var refreshToken: String?

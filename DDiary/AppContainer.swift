@@ -2,44 +2,6 @@ import Foundation
 import SwiftUI
 import SwiftData
 
-@MainActor protocol MeasurementsRepository: AnyObject {}
-@MainActor protocol SettingsRepository: AnyObject {}
-@MainActor protocol GoogleIntegrationRepository: AnyObject {}
-protocol NotificationsRepository: Sendable {}
-protocol AnalyticsRepository: Sendable {}
-
-@MainActor
-final class SwiftDataMeasurementsRepository: MeasurementsRepository {
-    init(modelContainer: ModelContainer) {
-        self.modelContainer = modelContainer
-    }
-    private let modelContainer: ModelContainer
-}
-
-@MainActor
-final class SwiftDataSettingsRepository: SettingsRepository {
-    init(modelContainer: ModelContainer) {
-        self.modelContainer = modelContainer
-    }
-    private let modelContainer: ModelContainer
-}
-
-@MainActor
-final class SwiftDataGoogleIntegrationRepository: GoogleIntegrationRepository {
-    init(modelContainer: ModelContainer) {
-        self.modelContainer = modelContainer
-    }
-    private let modelContainer: ModelContainer
-}
-
-struct UserNotificationsRepository: NotificationsRepository {
-    init() {}
-}
-
-struct NoopAnalyticsRepository: AnalyticsRepository {
-    init() {}
-}
-
 @MainActor
 final class LogBPMeasurementUseCase {
     private let measurementsRepository: any MeasurementsRepository
@@ -119,7 +81,7 @@ struct AppContainer {
         let settingsRepository = SwiftDataSettingsRepository(modelContainer: modelContainer)
         let googleIntegrationRepository = SwiftDataGoogleIntegrationRepository(modelContainer: modelContainer)
         let notificationsRepository = UserNotificationsRepository()
-        let analyticsRepository = NoopAnalyticsRepository()
+        let analyticsRepository = AmplitudeAnalyticsRepository()
         self.measurementsRepository = measurementsRepository
         self.settingsRepository = settingsRepository
         self.googleIntegrationRepository = googleIntegrationRepository
@@ -176,3 +138,4 @@ extension View {
         environment(\.appContainer, container)
     }
 }
+
