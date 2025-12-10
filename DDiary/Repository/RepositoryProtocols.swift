@@ -172,3 +172,75 @@ public enum AnalyticsScheduleKind: Sendable {
     case bloodPressure
     case glucose
 }
+
+// MARK: - GoogleSheetsClient
+
+public struct GoogleSheetsCredentials: Sendable {
+    public let spreadsheetId: String
+    public let refreshToken: String
+    public let googleUserId: String?
+
+    public init(spreadsheetId: String, refreshToken: String, googleUserId: String?) {
+        self.spreadsheetId = spreadsheetId
+        self.refreshToken = refreshToken
+        self.googleUserId = googleUserId
+    }
+}
+
+public struct GoogleSheetsBPRow: Sendable {
+    public let id: UUID
+    public let timestamp: Date
+    public let systolic: Int
+    public let diastolic: Int
+    public let pulse: Int
+    public let comment: String?
+
+    public init(
+        id: UUID,
+        timestamp: Date,
+        systolic: Int,
+        diastolic: Int,
+        pulse: Int,
+        comment: String?
+    ) {
+        self.id = id
+        self.timestamp = timestamp
+        self.systolic = systolic
+        self.diastolic = diastolic
+        self.pulse = pulse
+        self.comment = comment
+    }
+}
+
+public struct GoogleSheetsGlucoseRow: Sendable {
+    public let id: UUID
+    public let timestamp: Date
+    public let value: Double
+    public let unit: GlucoseUnit
+    public let measurementType: GlucoseMeasurementType
+    public let mealSlot: MealSlot
+    public let comment: String?
+
+    public init(
+        id: UUID,
+        timestamp: Date,
+        value: Double,
+        unit: GlucoseUnit,
+        measurementType: GlucoseMeasurementType,
+        mealSlot: MealSlot,
+        comment: String?
+    ) {
+        self.id = id
+        self.timestamp = timestamp
+        self.value = value
+        self.unit = unit
+        self.measurementType = measurementType
+        self.mealSlot = mealSlot
+        self.comment = comment
+    }
+}
+
+public protocol GoogleSheetsClient: Sendable {
+    func appendBloodPressureRow(_ row: GoogleSheetsBPRow, credentials: GoogleSheetsCredentials) async throws
+    func appendGlucoseRow(_ row: GoogleSheetsGlucoseRow, credentials: GoogleSheetsCredentials) async throws
+}

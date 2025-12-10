@@ -3,48 +3,6 @@ import SwiftUI
 import SwiftData
 
 @MainActor
-final class LogBPMeasurementUseCase {
-    private let measurementsRepository: any MeasurementsRepository
-    private let analyticsRepository: any AnalyticsRepository
-    
-    init(
-        measurementsRepository: any MeasurementsRepository,
-        analyticsRepository: any AnalyticsRepository
-    ) {
-        self.measurementsRepository = measurementsRepository
-        self.analyticsRepository = analyticsRepository
-    }
-}
-
-@MainActor
-final class LogGlucoseMeasurementUseCase {
-    private let measurementsRepository: any MeasurementsRepository
-    private let analyticsRepository: any AnalyticsRepository
-    
-    init(
-        measurementsRepository: any MeasurementsRepository,
-        analyticsRepository: any AnalyticsRepository
-    ) {
-        self.measurementsRepository = measurementsRepository
-        self.analyticsRepository = analyticsRepository
-    }
-}
-
-@MainActor
-final class ExportCSVUseCase {
-    private let measurementsRepository: any MeasurementsRepository
-    private let settingsRepository: any SettingsRepository
-    
-    init(
-        measurementsRepository: any MeasurementsRepository,
-        settingsRepository: any SettingsRepository
-    ) {
-        self.measurementsRepository = measurementsRepository
-        self.settingsRepository = settingsRepository
-    }
-}
-
-@MainActor
 final class SyncWithGoogleUseCase {
     private let googleIntegrationRepository: any GoogleIntegrationRepository
     private let measurementsRepository: any MeasurementsRepository
@@ -94,11 +52,11 @@ struct AppContainer {
         )
         self.logGlucoseMeasurementUseCase = LogGlucoseMeasurementUseCase(
             measurementsRepository: measurementsRepository,
+            settingsRepository: settingsRepository,
             analyticsRepository: analyticsRepository
         )
         self.exportCSVUseCase = ExportCSVUseCase(
-            measurementsRepository: measurementsRepository,
-            settingsRepository: settingsRepository
+            measurementsRepository: measurementsRepository
         )
         self.syncWithGoogleUseCase = SyncWithGoogleUseCase(
             googleIntegrationRepository: googleIntegrationRepository,
