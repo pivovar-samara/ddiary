@@ -1,0 +1,47 @@
+//
+//  LogGlucoseMeasurementUseCaseTests.swift
+//  DDiary
+//
+//  Created by Ilia Khokhlov on 10.12.25.
+//
+
+import XCTest
+@testable import DDiary
+
+@MainActor
+final class LogGlucoseMeasurementUseCaseTests: XCTestCase {
+    func test_happyPath_insertsWithUserUnit_andLogsAnalytics() async throws {
+        let measurements = MockMeasurementsRepository()
+        let settings = MockSettingsRepository()
+        let analytics = MockAnalyticsRepository()
+        let sut = LogGlucoseMeasurementUseCase(measurementsRepository: measurements, settingsRepository: settings, analyticsRepository: analytics)
+
+        try await sut.execute(value: 5.5, measurementType: .beforeMeal, mealSlot: .breakfast, comment: "fasting")
+
+        let all = try await measurements.glucoseMeasurements(from: Date.distantPast, to: Date.distantFuture)
+        XCTAssertEqual(all.count, 1)
+        let settingsUnit = try await settings.getOrCreate().glucoseUnit
+        XCTAssertEqual(all.first?.unit, settingsUnit)
+        XCTAssertEqual(all.first?.googleSyncStatus, .pending)
+        XCTAssertEqual(analytics.measurementLogged, [.glucose])
+    }
+
+    func test_errorPath_repositoryThrows() async throws {
+        @MainActor
+        final class ThrowingSettingsRepository: SettingsRepository {
+            func getOrCreate() async throws -> UserSettings { throw TestError.forced }
+            func save(_ settings: UserSettings) async throws {}
+            func update(_ settings: UserSettings) async throws {}
+        }
+        let measurements = MockMeasurementsRepository()
+        let settings = ThrowingSettingsRepository()
+        let analytics = MockAnalyticsRepository()
+        let sut = LogGlucoseMeasurementUseCase(measurementsRepository: measurements, settingsRepository: settings, analyticsRepository: analytics)
+
+        await XCTAssertThrowsErrorAsync(try await sut.execute(value: 4.2, measurementType: .beforeMeal, mealSlot: .breakfast, comment: nil))
+        let all = try await measurements.glucoseMeasurements(from: Date.distantPast, to: Date.distantFuture)
+        XCTAssertTrue(all.isEmpty)
+        XCTAssertTrue(analytics.measurementLogged.isEmpty)
+    }
+}
+

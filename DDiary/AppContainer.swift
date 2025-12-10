@@ -7,17 +7,99 @@ final class SyncWithGoogleUseCase {
     private let googleIntegrationRepository: any GoogleIntegrationRepository
     private let measurementsRepository: any MeasurementsRepository
     private let analyticsRepository: any AnalyticsRepository
-    private let notificationsRepository: any NotificationsRepository
+    private let googleSheetsClient: any GoogleSheetsClient
+
     init(
         googleIntegrationRepository: any GoogleIntegrationRepository,
         measurementsRepository: any MeasurementsRepository,
         analyticsRepository: any AnalyticsRepository,
-        notificationsRepository: any NotificationsRepository
-      ) {
+        googleSheetsClient: any GoogleSheetsClient
+    ) {
         self.googleIntegrationRepository = googleIntegrationRepository
         self.measurementsRepository = measurementsRepository
         self.analyticsRepository = analyticsRepository
-        self.notificationsRepository = notificationsRepository
+        self.googleSheetsClient = googleSheetsClient
+    }
+
+    /// Push pending/failed measurements to Google Sheets and update their sync status.
+    func execute() async {
+        do {
+            let integration = try await googleIntegrationRepository.getOrCreate()
+            guard
+                integration.isEnabled,
+                let spreadsheetId = integration.spreadsheetId,
+                let refreshToken = integration.refreshToken
+            else {
+                await analyticsRepository.logGoogleSyncFailure(reason: "Integration disabled or missing credentials")
+                return
+            }
+
+            let credentials = GoogleSheetsCredentials(
+                spreadsheetId: spreadsheetId,
+                refreshToken: refreshToken,
+                googleUserId: integration.googleUserId
+            )
+
+            // Fetch pending/failed items
+            let pendingBP = try await measurementsRepository.pendingOrFailedBPSync()
+            let pendingGlucose = try await measurementsRepository.pendingOrFailedGlucoseSync()
+
+            // Sync BP
+            for m in pendingBP.sorted(by: { $0.timestamp < $1.timestamp }) {
+                do {
+                    let row = GoogleSheetsBPRow(
+                        id: m.id,
+                        timestamp: m.timestamp,
+                        systolic: m.systolic,
+                        diastolic: m.diastolic,
+                        pulse: m.pulse,
+                        comment: m.comment
+                    )
+                    try await googleSheetsClient.appendBloodPressureRow(row, credentials: credentials)
+                    m.googleSyncStatus = .success
+                    m.googleLastError = nil
+                    m.googleLastSyncAt = Date()
+                    try await measurementsRepository.updateBP(m)
+                    await analyticsRepository.logGoogleSyncSuccess()
+                } catch {
+                    m.googleSyncStatus = .failed
+                    m.googleLastError = String(describing: error)
+                    m.googleLastSyncAt = Date()
+                    try? await measurementsRepository.updateBP(m)
+                    await analyticsRepository.logGoogleSyncFailure(reason: m.googleLastError)
+                }
+            }
+
+            // Sync Glucose
+            for m in pendingGlucose.sorted(by: { $0.timestamp < $1.timestamp }) {
+                do {
+                    let row = GoogleSheetsGlucoseRow(
+                        id: m.id,
+                        timestamp: m.timestamp,
+                        value: m.value,
+                        unit: m.unit,
+                        measurementType: m.measurementType,
+                        mealSlot: m.mealSlot,
+                        comment: m.comment
+                    )
+                    try await googleSheetsClient.appendGlucoseRow(row, credentials: credentials)
+                    m.googleSyncStatus = .success
+                    m.googleLastError = nil
+                    m.googleLastSyncAt = Date()
+                    try await measurementsRepository.updateGlucose(m)
+                    await analyticsRepository.logGoogleSyncSuccess()
+                } catch {
+                    m.googleSyncStatus = .failed
+                    m.googleLastError = String(describing: error)
+                    m.googleLastSyncAt = Date()
+                    try? await measurementsRepository.updateGlucose(m)
+                    await analyticsRepository.logGoogleSyncFailure(reason: m.googleLastError)
+                }
+            }
+        } catch {
+            // Repository-level failure: surface as analytics failure; individual records remain unchanged.
+            await analyticsRepository.logGoogleSyncFailure(reason: String(describing: error))
+        }
     }
 }
 
@@ -28,6 +110,7 @@ struct AppContainer {
     let googleIntegrationRepository: any GoogleIntegrationRepository
     let notificationsRepository: any NotificationsRepository
     let analyticsRepository: any AnalyticsRepository
+    let googleSheetsClient: any GoogleSheetsClient
 
     let logBPMeasurementUseCase: LogBPMeasurementUseCase
     let logGlucoseMeasurementUseCase: LogGlucoseMeasurementUseCase
@@ -40,11 +123,13 @@ struct AppContainer {
         let googleIntegrationRepository = SwiftDataGoogleIntegrationRepository(modelContainer: modelContainer)
         let notificationsRepository = UserNotificationsRepository()
         let analyticsRepository = AmplitudeAnalyticsRepository()
+        let googleSheetsClient = NoopGoogleSheetsClient()
         self.measurementsRepository = measurementsRepository
         self.settingsRepository = settingsRepository
         self.googleIntegrationRepository = googleIntegrationRepository
         self.notificationsRepository = notificationsRepository
         self.analyticsRepository = analyticsRepository
+        self.googleSheetsClient = googleSheetsClient
 
         self.logBPMeasurementUseCase = LogBPMeasurementUseCase(
             measurementsRepository: measurementsRepository,
@@ -62,7 +147,7 @@ struct AppContainer {
             googleIntegrationRepository: googleIntegrationRepository,
             measurementsRepository: measurementsRepository,
             analyticsRepository: analyticsRepository,
-            notificationsRepository: notificationsRepository
+            googleSheetsClient: googleSheetsClient
         )
     }
     
@@ -96,4 +181,3 @@ extension View {
         environment(\.appContainer, container)
     }
 }
-
