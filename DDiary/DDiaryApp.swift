@@ -10,7 +10,10 @@ import SwiftData
 
 @main
 struct DDiaryApp: App {
-    var sharedModelContainer: ModelContainer = {
+    let sharedModelContainer: ModelContainer
+    let appContainer: AppContainer
+
+    init() {
         let schema = Schema([
             BPMeasurement.self,
             GlucoseMeasurement.self,
@@ -20,17 +23,20 @@ struct DDiaryApp: App {
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
         do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
+            let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
+            self.sharedModelContainer = container
         } catch {
             fatalError("Could not create ModelContainer: \(error)")
         }
-    }()
+
+        // Wire up dependencies via a single AppContainer instance.
+        self.appContainer = AppContainer(modelContainer: sharedModelContainer)
+    }
     
     var body: some Scene {
         WindowGroup {
-            let container = AppContainer(modelContainer: sharedModelContainer)
             RootView()
-                .appContainer(container)
+                .appContainer(appContainer)
         }
         .modelContainer(sharedModelContainer)
     }

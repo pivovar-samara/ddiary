@@ -117,10 +117,10 @@ struct AppContainer {
     let exportCSVUseCase: ExportCSVUseCase
     let syncWithGoogleUseCase: SyncWithGoogleUseCase
 
-    init(modelContainer: ModelContainer) {
-        let measurementsRepository = SwiftDataMeasurementsRepository(modelContainer: modelContainer)
-        let settingsRepository = SwiftDataSettingsRepository(modelContainer: modelContainer)
-        let googleIntegrationRepository = SwiftDataGoogleIntegrationRepository(modelContainer: modelContainer)
+    init(modelContext: ModelContext) {
+        let measurementsRepository = SwiftDataMeasurementsRepository(modelContext: modelContext)
+        let settingsRepository = SwiftDataSettingsRepository(modelContext: modelContext)
+        let googleIntegrationRepository = SwiftDataGoogleIntegrationRepository(modelContext: modelContext)
         let notificationsRepository = UserNotificationsRepository()
         let analyticsRepository = AmplitudeAnalyticsRepository()
         let googleSheetsClient = NoopGoogleSheetsClient()
@@ -149,6 +149,10 @@ struct AppContainer {
             analyticsRepository: analyticsRepository,
             googleSheetsClient: googleSheetsClient
         )
+    }
+
+    init(modelContainer: ModelContainer) {
+        self.init(modelContext: ModelContext(modelContainer))
     }
     
     static var preview: AppContainer {
