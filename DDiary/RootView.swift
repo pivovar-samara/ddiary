@@ -11,10 +11,17 @@ struct RootView: View {
     @Environment(\.appContainer) private var container: AppContainer
 
     var body: some View {
-        Text("DDiary — Coming soon…")
-            .font(.title2)
-            .padding()
-            .navigationTitle("DDiary")
+        ZStack(alignment: .top) {
+            TabView {
+                // Menu
+                NavigationStack {
+                    TodayView().navigationTitle("Today")
+                }
+                .tabItem {
+                    Label("Today", systemImage: "calendar")
+                }
+            }
+        }
     }
 }
 

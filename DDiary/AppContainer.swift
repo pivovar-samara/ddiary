@@ -111,6 +111,7 @@ struct AppContainer {
     let notificationsRepository: any NotificationsRepository
     let analyticsRepository: any AnalyticsRepository
     let googleSheetsClient: any GoogleSheetsClient
+    let getTodayOverviewUseCase: GetTodayOverviewUseCase
 
     let logBPMeasurementUseCase: LogBPMeasurementUseCase
     let logGlucoseMeasurementUseCase: LogGlucoseMeasurementUseCase
@@ -130,6 +131,11 @@ struct AppContainer {
         self.notificationsRepository = notificationsRepository
         self.analyticsRepository = analyticsRepository
         self.googleSheetsClient = googleSheetsClient
+
+        self.getTodayOverviewUseCase = GetTodayOverviewUseCase(
+            measurementsRepository: measurementsRepository,
+            settingsRepository: settingsRepository
+        )
 
         self.logBPMeasurementUseCase = LogBPMeasurementUseCase(
             measurementsRepository: measurementsRepository,
