@@ -112,6 +112,7 @@ struct AppContainer {
     let analyticsRepository: any AnalyticsRepository
     let googleSheetsClient: any GoogleSheetsClient
     let getTodayOverviewUseCase: GetTodayOverviewUseCase
+    let getHistoryUseCase: GetHistoryUseCase
 
     let logBPMeasurementUseCase: LogBPMeasurementUseCase
     let logGlucoseMeasurementUseCase: LogGlucoseMeasurementUseCase
@@ -135,6 +136,9 @@ struct AppContainer {
         self.getTodayOverviewUseCase = GetTodayOverviewUseCase(
             measurementsRepository: measurementsRepository,
             settingsRepository: settingsRepository
+        )
+        self.getHistoryUseCase = GetHistoryUseCase(
+            measurementsRepository: measurementsRepository
         )
 
         self.logBPMeasurementUseCase = LogBPMeasurementUseCase(

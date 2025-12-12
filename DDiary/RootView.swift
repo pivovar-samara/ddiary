@@ -13,12 +13,20 @@ struct RootView: View {
     var body: some View {
         ZStack(alignment: .top) {
             TabView {
-                // Menu
+                // Today
                 NavigationStack {
                     TodayView().navigationTitle("Today")
                 }
                 .tabItem {
                     Label("Today", systemImage: "calendar")
+                }
+                
+                // History
+                NavigationStack {
+                    HistoryView().navigationTitle("History")
+                }
+                .tabItem {
+                    Label("History", systemImage: "clock")
                 }
             }
         }
