@@ -28,6 +28,14 @@ struct RootView: View {
                 .tabItem {
                     Label("History", systemImage: "clock")
                 }
+                
+                // Settings
+                NavigationStack {
+                    SettingsView().navigationTitle("Settings")
+                }
+                .tabItem {
+                    Label("Settings", systemImage: "gear")
+                }
             }
         }
     }
