@@ -1,6 +1,30 @@
 import Foundation
 import UserNotifications
 
+/*
+Usage notes:
+
+- Call `UserNotificationsRepository.registerCategories()` once at app launch to register notification categories.
+
+- Call `NotificationsRepository.scheduleAllNotifications(settings:)` whenever notification settings change to schedule or reschedule notifications.
+
+- Handle incoming notification responses in your App or Scene delegate's UNUserNotificationCenterDelegate method, e.g.:
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
+        if let action = UserNotificationsRepository.parseAction(from: response) {
+            switch action {
+            case .enter: /* handle enter action */
+            case .skip: /* handle skip action */
+            case .snooze(let minutes): /* handle snooze for given minutes */
+            case .moveToLunch: /* handle move to lunch */
+            case .moveToDinner: /* handle move to dinner */
+            }
+        }
+        completionHandler()
+    }
+
+*/
+
 struct UserNotificationsRepository: NotificationsRepository, Sendable {
     // MARK: - Identifiers
     enum IDs {
@@ -192,15 +216,49 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         center.removeAllDeliveredNotifications()
     }
 
-    // MARK: - Handling helpers for App/Scene delegate
-    enum HandledAction: Sendable {
-        case enter
-        case skip
-        case snooze(minutes: Int)
-        case moveToLunch
-        case moveToDinner
+    // MARK: - One-off helpers (snooze / move / cancel by id)
+    /// Schedule a one-off notification at the specified date with provided content.
+    /// This does not repeat and is useful for snooze/move actions.
+    public func scheduleOneOff(
+        at date: Date,
+        identifier: String,
+        title: String,
+        body: String,
+        categoryIdentifier: String
+    ) async {
+        let center = UNUserNotificationCenter.current()
+        let comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+        let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
+        let content = makeContent(title: title, body: body, categoryIdentifier: categoryIdentifier)
+        let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
+        await center.addOrReplace(request: request)
     }
 
+    /// Convenience for snoozing: schedules a one-off notification after N minutes.
+    /// Does not cancel the original repeating reminder; it simply adds a one-time reminder.
+    public func snooze(
+        originalIdentifier: String,
+        minutes: Int,
+        title: String,
+        body: String,
+        categoryIdentifier: String
+    ) async {
+        let fireDate = Date().addingTimeInterval(TimeInterval(minutes * 60))
+        let snoozedID = originalIdentifier + ".snooze.\(minutes)"
+        await scheduleOneOff(at: fireDate, identifier: snoozedID, title: title, body: body, categoryIdentifier: categoryIdentifier)
+    }
+
+    /// Cancel a specific notification by identifier (both pending and delivered).
+    public func cancel(withIdentifier id: String) async {
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: [id])
+        center.removeDeliveredNotifications(withIdentifiers: [id])
+    }
+
+    // MARK: - Handling helpers for App/Scene delegate
+
+    /// Parses the action from a UNNotificationResponse.
+    /// Use this inside your UNUserNotificationCenterDelegate's didReceive response method to handle actions.
     static func parseAction(from response: UNNotificationResponse) -> HandledAction? {
         switch response.actionIdentifier {
         case IDs.enterAction: return .enter
@@ -212,6 +270,14 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         case IDs.moveToDinnerAction: return .moveToDinner
         default: return nil
         }
+    }
+
+    enum HandledAction: Sendable {
+        case enter
+        case skip
+        case snooze(minutes: Int)
+        case moveToLunch
+        case moveToDinner
     }
 
     // MARK: - Private helpers
@@ -294,3 +360,9 @@ private extension UNUserNotificationCenter {
     }
 }
 
+private func nextDate(matching components: DateComponents, from base: Date = Date(), calendar: Calendar = .current) -> Date? {
+    var comps = DateComponents()
+    comps.hour = components.hour
+    comps.minute = components.minute
+    return calendar.nextDate(after: base, matching: comps, matchingPolicy: .nextTime, direction: .forward)
+}

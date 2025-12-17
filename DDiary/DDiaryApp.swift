@@ -7,11 +7,13 @@
 
 import SwiftUI
 import SwiftData
+import UserNotifications
 
 @main
 struct DDiaryApp: App {
     let sharedModelContainer: ModelContainer
     let appContainer: AppContainer
+    private let notificationsCoordinator: NotificationsCoordinator
 
     init() {
         let schema = Schema([
@@ -31,6 +33,13 @@ struct DDiaryApp: App {
 
         // Wire up dependencies via a single AppContainer instance.
         self.appContainer = AppContainer(modelContainer: sharedModelContainer)
+        
+        // Configure notification categories and delegate
+        UserNotificationsRepository.registerCategories()
+        let center = UNUserNotificationCenter.current()
+        let coordinator = NotificationsCoordinator(container: self.appContainer)
+        center.delegate = coordinator
+        self.notificationsCoordinator = coordinator
     }
     
     var body: some Scene {

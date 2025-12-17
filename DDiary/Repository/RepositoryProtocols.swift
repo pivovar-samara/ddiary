@@ -128,8 +128,76 @@ public protocol NotificationsRepository: Sendable {
         bedtimeTime: DateComponents?
     ) async throws
 
+    // MARK: One-off helpers for actions (snooze/move/cancel by id)
+    /// Schedule a one-off notification at a specific date (non-repeating).
+    func scheduleOneOff(
+        at date: Date,
+        identifier: String,
+        title: String,
+        body: String,
+        categoryIdentifier: String
+    ) async
+
+    /// Convenience for snoozing: schedule a one-off notification after N minutes.
+    func snooze(
+        originalIdentifier: String,
+        minutes: Int,
+        title: String,
+        body: String,
+        categoryIdentifier: String
+    ) async
+
+    /// Cancel a specific notification by identifier (pending and delivered).
+    func cancel(withIdentifier id: String) async
+
     /// Cancel all scheduled notifications (BP and Glucose).
     func cancelAll() async
+}
+
+// MARK: - Convenience APIs from UserSettings (MainActor-only)
+@MainActor
+public extension NotificationsRepository {
+    /// Convenience: Reschedule all BP notifications using the provided settings model.
+    /// Extracts only value data from `UserSettings` on the main actor and forwards
+    /// to the granular scheduling API to avoid sending `@Model` instances across actors.
+    func scheduleBPNotifications(settings: UserSettings) async throws {
+        try await rescheduleBloodPressure(
+            times: settings.bpTimes,
+            activeWeekdays: settings.bpActiveWeekdays
+        )
+    }
+
+    /// Convenience: Reschedule all Glucose notifications using the provided settings model.
+    /// Uses meal times and feature toggles from `UserSettings`.
+    func scheduleGlucoseNotifications(settings: UserSettings) async throws {
+        let breakfast = DateComponents(hour: settings.breakfastHour, minute: settings.breakfastMinute)
+        let lunch = DateComponents(hour: settings.lunchHour, minute: settings.lunchMinute)
+        let dinner = DateComponents(hour: settings.dinnerHour, minute: settings.dinnerMinute)
+        // Bedtime time isn't editable in v1; choose a sane default (22:00) when enabled.
+        let bedtimeTime: DateComponents? = settings.enableBedtime ? DateComponents(hour: 22, minute: 0) : nil
+        try await rescheduleGlucose(
+            breakfast: breakfast,
+            lunch: lunch,
+            dinner: dinner,
+            enableBeforeMeal: settings.enableBeforeMeal,
+            enableAfterMeal2h: settings.enableAfterMeal2h,
+            enableBedtime: settings.enableBedtime,
+            bedtimeTime: bedtimeTime
+        )
+    }
+
+    /// Convenience: Cancel all pending notifications (BP and Glucose).
+    func cancelAllNotifications() async {
+        await cancelAll()
+    }
+
+    /// Convenience: Cancel everything and schedule both BP and Glucose from settings.
+    /// Call this after saving settings or after first authorization is granted.
+    func scheduleAllNotifications(settings: UserSettings) async throws {
+        await cancelAll()
+        try await scheduleBPNotifications(settings: settings)
+        try await scheduleGlucoseNotifications(settings: settings)
+    }
 }
 
 // MARK: - AnalyticsRepository
@@ -244,3 +312,4 @@ public protocol GoogleSheetsClient: Sendable {
     func appendBloodPressureRow(_ row: GoogleSheetsBPRow, credentials: GoogleSheetsCredentials) async throws
     func appendGlucoseRow(_ row: GoogleSheetsGlucoseRow, credentials: GoogleSheetsCredentials) async throws
 }
+

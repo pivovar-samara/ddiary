@@ -1,4 +1,3 @@
-
 import SwiftUI
 import SwiftData
 
@@ -12,6 +11,8 @@ struct AppContainer {
     let googleSheetsClient: any GoogleSheetsClient
     let getTodayOverviewUseCase: GetTodayOverviewUseCase
     let getHistoryUseCase: GetHistoryUseCase
+    let updateSchedulesUseCase: UpdateSchedulesUseCase
+    let notificationsActionUseCase: NotificationsActionUseCase
 
     let logBPMeasurementUseCase: LogBPMeasurementUseCase
     let logGlucoseMeasurementUseCase: LogGlucoseMeasurementUseCase
@@ -58,6 +59,16 @@ struct AppContainer {
             analyticsRepository: analyticsRepository,
             googleSheetsClient: googleSheetsClient
         )
+        self.updateSchedulesUseCase = UpdateSchedulesUseCase(
+            settingsRepository: settingsRepository,
+            notificationsRepository: notificationsRepository,
+            analyticsRepository: analyticsRepository
+        )
+        self.notificationsActionUseCase = NotificationsActionUseCase(
+            settingsRepository: settingsRepository,
+            notificationsRepository: notificationsRepository,
+            analyticsRepository: analyticsRepository
+        )
     }
 
     init(modelContainer: ModelContainer) {
@@ -94,3 +105,4 @@ extension View {
         environment(\.appContainer, container)
     }
 }
+

@@ -36,5 +36,23 @@ struct NoopUserNotificationsRepository: NotificationsRepository {
         bedtimeTime: DateComponents?
     ) async throws {}
 
+    func scheduleOneOff(
+        at date: Date,
+        identifier: String,
+        title: String,
+        body: String,
+        categoryIdentifier: String
+    ) async {}
+
+    func snooze(
+        originalIdentifier: String,
+        minutes: Int,
+        title: String,
+        body: String,
+        categoryIdentifier: String
+    ) async {}
+
+    func cancel(withIdentifier id: String) async {}
+
     func cancelAll() async {}
 }

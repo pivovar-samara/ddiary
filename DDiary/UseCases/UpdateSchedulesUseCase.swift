@@ -1,0 +1,44 @@
+import Foundation
+
+@MainActor
+public final class UpdateSchedulesUseCase {
+    private let settingsRepository: any SettingsRepository
+    private let notificationsRepository: any NotificationsRepository
+    private let analyticsRepository: any AnalyticsRepository
+
+    public init(
+        settingsRepository: any SettingsRepository,
+        notificationsRepository: any NotificationsRepository,
+        analyticsRepository: any AnalyticsRepository
+    ) {
+        self.settingsRepository = settingsRepository
+        self.notificationsRepository = notificationsRepository
+        self.analyticsRepository = analyticsRepository
+    }
+
+    /// Request authorization (if needed) and schedule all notifications from the current settings.
+    /// Call this on app launch after setting up categories and a delegate.
+    public func requestAuthorizationAndSchedule() async {
+        do {
+            let granted = try await notificationsRepository.requestAuthorization()
+            guard granted else { return }
+            let settings = try await settingsRepository.getOrCreate()
+            try await notificationsRepository.scheduleAllNotifications(settings: settings)
+        } catch {
+            // For v1, fail silently. Consider logging in later releases.
+        }
+    }
+
+    /// Reschedules both BP and Glucose notifications using the current settings from the repository.
+    /// Call this after saving settings.
+    public func scheduleFromCurrentSettings() async {
+        do {
+            let settings = try await settingsRepository.getOrCreate()
+            try await notificationsRepository.scheduleAllNotifications(settings: settings)
+            await analyticsRepository.logScheduleUpdated(kind: .bloodPressure)
+            await analyticsRepository.logScheduleUpdated(kind: .glucose)
+        } catch {
+            // For v1, fail silently.
+        }
+    }
+}

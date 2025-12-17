@@ -37,6 +37,9 @@ struct RootView: View {
                     Label("Settings", systemImage: "gear")
                 }
             }
+            .task {
+                await container.updateSchedulesUseCase.requestAuthorizationAndSchedule()
+            }
         }
     }
 }
@@ -47,3 +50,4 @@ struct RootView: View {
     }
     .appContainer(.preview)
 }
+

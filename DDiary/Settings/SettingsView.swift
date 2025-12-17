@@ -175,7 +175,14 @@ struct SettingsView: View {
             }
         }
         .onAppear { Task { await vm.loadSettings() } }
-        .toolbar { Button("Save") { Task { await vm.saveSettings() } } }
+        .toolbar {
+            Button("Save") {
+                Task {
+                    await vm.saveSettings()
+                    await container.updateSchedulesUseCase.scheduleFromCurrentSettings()
+                }
+            }
+        }
         .overlay(alignment: .bottom) {
             if let error = vm.errorMessage {
                 Text(error).padding(8).background(.red.opacity(0.2)).clipShape(RoundedRectangle(cornerRadius: 8)).padding()
@@ -238,4 +245,3 @@ private struct WeekdayGrid: View {
     NavigationStack { SettingsView() }
         .appContainer(.preview)
 }
-
