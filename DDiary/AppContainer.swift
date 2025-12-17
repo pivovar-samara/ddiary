@@ -12,6 +12,7 @@ struct AppContainer {
     let getTodayOverviewUseCase: GetTodayOverviewUseCase
     let getHistoryUseCase: GetHistoryUseCase
     let updateSchedulesUseCase: UpdateSchedulesUseCase
+    let rescheduleGlucoseCycleUseCase: RescheduleGlucoseCycleUseCase
     let notificationsActionUseCase: NotificationsActionUseCase
 
     let logBPMeasurementUseCase: LogBPMeasurementUseCase
@@ -62,6 +63,10 @@ struct AppContainer {
         self.updateSchedulesUseCase = UpdateSchedulesUseCase(
             settingsRepository: settingsRepository,
             notificationsRepository: notificationsRepository,
+            analyticsRepository: analyticsRepository
+        )
+        self.rescheduleGlucoseCycleUseCase = RescheduleGlucoseCycleUseCase(
+            settingsRepository: settingsRepository,
             analyticsRepository: analyticsRepository
         )
         self.notificationsActionUseCase = NotificationsActionUseCase(
