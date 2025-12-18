@@ -311,5 +311,16 @@ public struct GoogleSheetsGlucoseRow: Sendable {
 public protocol GoogleSheetsClient: Sendable {
     func appendBloodPressureRow(_ row: GoogleSheetsBPRow, credentials: GoogleSheetsCredentials) async throws
     func appendGlucoseRow(_ row: GoogleSheetsGlucoseRow, credentials: GoogleSheetsCredentials) async throws
+
+    /// Creates a new Google Spreadsheet with required sheets and header rows and returns its `spreadsheetId`.
+    /// Implementations should use the provided refresh token to obtain an access token.
+    func createSpreadsheetAndSetup(refreshToken: String, title: String) async throws -> String
 }
 
+public enum GoogleSheetsClientProtocolError: Error { case unimplemented }
+
+public extension GoogleSheetsClient {
+    func createSpreadsheetAndSetup(refreshToken: String, title: String) async throws -> String {
+        throw GoogleSheetsClientProtocolError.unimplemented
+    }
+}

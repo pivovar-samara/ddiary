@@ -1,0 +1,11 @@
+//
+//  Base.xcconfig
+//  DDiary
+//
+//  Created by Ilia Khokhlov on 18.12.25.
+//
+
+// Configuration settings file format documentation can be found at:
+// https://developer.apple.com/documentation/xcode/adding-a-build-configuration-file-to-your-project
+
+#include "Secrets.xcconfig"

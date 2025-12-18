@@ -15,6 +15,8 @@ public enum GoogleSheetsClientError: Error, LocalizedError, Sendable {
     case invalidResponse
     case httpError(statusCode: Int, body: String?)
     case encodingError
+    case decodingError
+    case notFound
     case tokenRefreshFailed
 
     public var errorDescription: String? {
@@ -27,6 +29,10 @@ public enum GoogleSheetsClientError: Error, LocalizedError, Sendable {
             return "HTTP error (\(status)). Body: \(body ?? "<none>")"
         case .encodingError:
             return "Failed to encode request payload."
+        case .decodingError:
+            return "Failed to decode Google Sheets API response."
+        case .notFound:
+            return "Requested resource was not found."
         case .tokenRefreshFailed:
             return "Failed to refresh Google access token."
         }
@@ -62,6 +68,47 @@ public enum LiveGoogleSheetsClientConfig {
 
 public struct LiveGoogleSheetsClient: GoogleSheetsClient, Sendable {
     public init() {}
+
+    /// Creates a spreadsheet with BP and Glucose sheets and header rows. Returns spreadsheetId.
+    public func createSpreadsheetAndSetup(refreshToken: String, title: String) async throws -> String {
+        let access = try await accessToken(using: refreshToken)
+        // 1) Create spreadsheet
+        let createURL = URL(string: "https://sheets.googleapis.com/v4/spreadsheets")!
+        var createReq = URLRequest(url: createURL)
+        createReq.httpMethod = "POST"
+        createReq.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        createReq.setValue("Bearer \(access.token)", forHTTPHeaderField: "Authorization")
+        struct CreateBody: Encodable { struct Properties: Encodable { let title: String }; let properties: Properties }
+        let createBody = CreateBody(properties: .init(title: title))
+        createReq.httpBody = try JSONEncoder().encode(createBody)
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: createReq)
+            guard let http = response as? HTTPURLResponse else { throw GoogleSheetsClientError.invalidResponse }
+            if http.statusCode == 401 {
+                // Retry once after refreshing access token again
+                let refreshed = try await accessToken(using: refreshToken)
+                createReq.setValue("Bearer \(refreshed.token)", forHTTPHeaderField: "Authorization")
+                let (data2, response2) = try await URLSession.shared.data(for: createReq)
+                guard let http2 = response2 as? HTTPURLResponse, (200..<300).contains(http2.statusCode) else {
+                    let body = String(data: data2, encoding: .utf8)
+                    throw GoogleSheetsClientError.httpError(statusCode: (response2 as? HTTPURLResponse)?.statusCode ?? -1, body: body)
+                }
+                let id = try extractSpreadsheetId(from: data2)
+                try await ensureSheetsAndHeaders(spreadsheetId: id, bearerToken: refreshed.token)
+                return id
+            }
+            guard (200..<300).contains(http.statusCode) else {
+                let body = String(data: data, encoding: .utf8)
+                throw GoogleSheetsClientError.httpError(statusCode: http.statusCode, body: body)
+            }
+            let id = try extractSpreadsheetId(from: data)
+            try await ensureSheetsAndHeaders(spreadsheetId: id, bearerToken: access.token)
+            return id
+        } catch {
+            throw error
+        }
+    }
 
     public func appendBloodPressureRow(_ row: GoogleSheetsBPRow, credentials: GoogleSheetsCredentials) async throws {
         let url = try makeAppendRequestURL(spreadsheetId: credentials.spreadsheetId, sheetName: SheetNames.bloodPressure)
@@ -228,6 +275,66 @@ private extension LiveGoogleSheetsClient {
         df.locale = Locale(identifier: "en_US_POSIX")
         df.dateFormat = "HH:mm"
         return df.string(from: date)
+    }
+
+    // MARK: - Spreadsheet creation helpers
+
+    func extractSpreadsheetId(from data: Data) throws -> String {
+        struct Resp: Decodable { let spreadsheetId: String }
+        guard let decoded = try? JSONDecoder().decode(Resp.self, from: data) else {
+            throw GoogleSheetsClientError.decodingError
+        }
+        return decoded.spreadsheetId
+    }
+
+    /// Ensures two sheets exist (BP, Glucose) and writes header rows.
+    func ensureSheetsAndHeaders(spreadsheetId: String, bearerToken: String) async throws {
+        try await ensureSheetExists(spreadsheetId: spreadsheetId, bearerToken: bearerToken, title: SheetNames.bloodPressure)
+        try await ensureSheetExists(spreadsheetId: spreadsheetId, bearerToken: bearerToken, title: SheetNames.glucose)
+        // Write headers (append will create rows)
+        try await appendHeaders(spreadsheetId: spreadsheetId, bearerToken: bearerToken)
+    }
+
+    func ensureSheetExists(spreadsheetId: String, bearerToken: String, title: String) async throws {
+        // Get spreadsheet and check if sheet exists
+        let getURL = URL(string: "https://sheets.googleapis.com/v4/spreadsheets/\(spreadsheetId)?fields=sheets(properties(title))")!
+        var getReq = URLRequest(url: getURL)
+        getReq.httpMethod = "GET"
+        getReq.setValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await URLSession.shared.data(for: getReq)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            let body = String(data: data, encoding: .utf8)
+            throw GoogleSheetsClientError.httpError(statusCode: (response as? HTTPURLResponse)?.statusCode ?? -1, body: body)
+        }
+        struct GetResp: Decodable { struct Sheet: Decodable { struct Props: Decodable { let title: String }; let properties: Props }; let sheets: [Sheet]? }
+        let decoded = try JSONDecoder().decode(GetResp.self, from: data)
+        let titles = (decoded.sheets ?? []).map { $0.properties.title }
+        guard !titles.contains(title) else { return }
+        // Add sheet via batchUpdate
+        let batchURL = URL(string: "https://sheets.googleapis.com/v4/spreadsheets/\(spreadsheetId):batchUpdate")!
+        var batchReq = URLRequest(url: batchURL)
+        batchReq.httpMethod = "POST"
+        batchReq.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        batchReq.setValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+        struct AddSheetBody: Encodable { struct Request: Encodable { struct AddSheet: Encodable { struct Properties: Encodable { let title: String }; let properties: Properties }; let addSheet: AddSheet? }; let requests: [Request] }
+        let body = AddSheetBody(requests: [.init(addSheet: .init(properties: .init(title: title)))])
+        batchReq.httpBody = try JSONEncoder().encode(body)
+        let (bdata, bresp) = try await URLSession.shared.data(for: batchReq)
+        guard let bhttp = bresp as? HTTPURLResponse, (200..<300).contains(bhttp.statusCode) else {
+            let bodyStr = String(data: bdata, encoding: .utf8)
+            throw GoogleSheetsClientError.httpError(statusCode: (bresp as? HTTPURLResponse)?.statusCode ?? -1, body: bodyStr)
+        }
+    }
+
+    func appendHeaders(spreadsheetId: String, bearerToken: String) async throws {
+        let headersBP = [["timestamp","date","time","systolic","diastolic","pulse","comment","id"]]
+        let headersGl = [["timestamp","date","time","value","unit","measurementType","mealSlot","comment","id"]]
+        let bpURL = try makeAppendRequestURL(spreadsheetId: spreadsheetId, sheetName: SheetNames.bloodPressure)
+        let glURL = try makeAppendRequestURL(spreadsheetId: spreadsheetId, sheetName: SheetNames.glucose)
+        let bpReq = try buildAppendRequest(url: bpURL, bearerToken: bearerToken, values: headersBP)
+        let glReq = try buildAppendRequest(url: glURL, bearerToken: bearerToken, values: headersGl)
+        try await perform(bpReq)
+        try await perform(glReq)
     }
 }
 

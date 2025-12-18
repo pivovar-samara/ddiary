@@ -10,11 +10,13 @@ import Security
 /// - Note: You must register your bundle's redirect URI scheme in your Info.plist (URL Types).
 public enum GoogleOAuthConfig {
     /// Your OAuth 2.0 Client ID from Google Cloud Console (iOS type or Web type depending on flow).
-    public static var clientID: String = "YOUR_GOOGLE_CLIENT_ID"
+    public static var clientID: String {
+        Bundle.main.object(forInfoDictionaryKey: "GOOGLE_OAUTH_KEY") as? String ?? ""
+    }
     /// The custom URL scheme your app handles, e.g., "ddiary".
     public static var redirectScheme: String = "ddiary"
     /// The full redirect URI registered with Google, e.g., "ddiary:/goauth".
-    public static var redirectURI: String = "ddiary://goauth"
+    public static var redirectURI: String = "com.googleusercontent.apps.383781347842-eebk0q5ogjta4s85tel3dccfd8u2fj1o:/oauthredirect"
     /// Space-separated scopes. Include Sheets, and optionally OpenID/email for user id.
     public static var scope: String = "openid email profile https://www.googleapis.com/auth/spreadsheets"
 }

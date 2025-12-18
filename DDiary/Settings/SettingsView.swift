@@ -221,7 +221,8 @@ struct SettingsView: View {
                 settingsRepository: container.settingsRepository,
                 googleIntegrationRepository: container.googleIntegrationRepository,
                 exportCSVUseCase: container.exportCSVUseCase,
-                measurementsRepository: container.measurementsRepository
+                measurementsRepository: container.measurementsRepository,
+                googleSheetsClient: container.googleSheetsClient
             )
             self.viewModel = vm
             await vm.loadSettings()

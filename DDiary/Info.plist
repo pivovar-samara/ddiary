@@ -11,10 +11,12 @@
 			<string>com.pivovar.ddiary</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>ddiary</string>
+				<string>com.googleusercontent.apps.383781347842-eebk0q5ogjta4s85tel3dccfd8u2fj1o</string>
 			</array>
 		</dict>
 	</array>
+	<key>GOOGLE_OAUTH_KEY</key>
+	<string>$(GOOGLE_OAUTH_KEY)</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>

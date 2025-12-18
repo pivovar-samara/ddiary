@@ -9,6 +9,7 @@ final class SettingsViewModel {
     private let googleIntegrationRepository: any GoogleIntegrationRepository
     private let exportCSVUseCase: ExportCSVUseCase
     private let measurementsRepository: any MeasurementsRepository
+    private let googleSheetsClient: any GoogleSheetsClient
 
     // MARK: - Backing models (MainActor-bound)
     private var settingsModel: UserSettings?
@@ -65,12 +66,14 @@ final class SettingsViewModel {
         settingsRepository: any SettingsRepository,
         googleIntegrationRepository: any GoogleIntegrationRepository,
         exportCSVUseCase: ExportCSVUseCase,
-        measurementsRepository: any MeasurementsRepository
+        measurementsRepository: any MeasurementsRepository,
+        googleSheetsClient: any GoogleSheetsClient
     ) {
         self.settingsRepository = settingsRepository
         self.googleIntegrationRepository = googleIntegrationRepository
         self.exportCSVUseCase = exportCSVUseCase
         self.measurementsRepository = measurementsRepository
+        self.googleSheetsClient = googleSheetsClient
     }
 
     // MARK: - Public API
@@ -164,6 +167,18 @@ final class SettingsViewModel {
             integration.isEnabled = true
             integration.refreshToken = tokens.refreshToken
             integration.googleUserId = GoogleIDToken.userIdentifier(from: tokens.idToken)
+
+            // Create spreadsheet if missing
+            if integration.spreadsheetId == nil {
+                let title = "DDiary Backup"
+                do {
+                    let id = try await googleSheetsClient.createSpreadsheetAndSetup(refreshToken: tokens.refreshToken, title: title)
+                    integration.spreadsheetId = id
+                } catch {
+                    // Surface error but keep tokens saved; user can retry later
+                    self.errorMessage = "Failed to create spreadsheet: \(error.localizedDescription)"
+                }
+            }
 
             try await googleIntegrationRepository.update(integration)
             updateGoogleSummary(using: integration)
