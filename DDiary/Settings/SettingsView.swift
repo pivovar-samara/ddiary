@@ -132,17 +132,42 @@ struct SettingsView: View {
                 }
             }
 
-            // Google Sheets
+            // Google Sheets Backup
             Section("Google Sheets Backup") {
-                HStack {
-                    Circle().fill(bvm.isGoogleEnabled ? Color.green : Color.red).frame(width: 10, height: 10)
-                    Text(bvm.googleSummary)
-                    Spacer()
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Circle().fill(bvm.isGoogleEnabled ? Color.green : Color.red).frame(width: 10, height: 10)
+                        Text(bvm.googleSummary)
+                        Spacer()
+                    }
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Pending: \(vm.pendingCount)  Failed: \(vm.failedCount)")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                        if let last = vm.lastSyncAt {
+                            Text("Last sync: \(dateString(last))")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text("Last sync: —")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
                 HStack {
                     Button("Connect") { Task { await vm.connectGoogle() } }
                     Button("Disconnect", role: .destructive) { Task { await vm.disconnectGoogle() } }
                 }
+                Button {
+                    Task {
+                        await container.syncWithGoogleUseCase.syncPendingMeasurements()
+                        await vm.refreshSyncStatus()
+                    }
+                } label: {
+                    Label("Sync Now", systemImage: "arrow.clockwise")
+                }
+                .disabled(!bvm.isGoogleEnabled)
             }
 
             // Export
@@ -195,7 +220,8 @@ struct SettingsView: View {
             let vm = SettingsViewModel(
                 settingsRepository: container.settingsRepository,
                 googleIntegrationRepository: container.googleIntegrationRepository,
-                exportCSVUseCase: container.exportCSVUseCase
+                exportCSVUseCase: container.exportCSVUseCase,
+                measurementsRepository: container.measurementsRepository
             )
             self.viewModel = vm
             await vm.loadSettings()
@@ -210,6 +236,13 @@ struct SettingsView: View {
         let h = minutes / 60
         let m = minutes % 60
         return String(format: "%02d:%02d", h, m)
+    }
+
+    private func dateString(_ date: Date) -> String {
+        let df = DateFormatter()
+        df.dateStyle = .medium
+        df.timeStyle = .short
+        return df.string(from: date)
     }
 }
 

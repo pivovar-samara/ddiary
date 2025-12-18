@@ -27,7 +27,10 @@ final class SyncWithGoogleUseCase {
     }
 
     /// Push pending/failed measurements to Google Sheets and update their sync status.
-    func execute() async {
+    func execute() async { await syncPendingMeasurements() }
+
+    /// Push pending/failed measurements to Google Sheets and update their sync status.
+    func syncPendingMeasurements() async {
         do {
             let integration = try await googleIntegrationRepository.getOrCreate()
             guard

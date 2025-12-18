@@ -1,6 +1,10 @@
 import SwiftUI
 import SwiftData
 
+private extension Notification.Name {
+    nonisolated static let googleRefreshTokenUpdated = Notification.Name("GoogleRefreshTokenUpdated")
+}
+
 @MainActor
 struct AppContainer {
     let measurementsRepository: any MeasurementsRepository
@@ -26,7 +30,29 @@ struct AppContainer {
         let googleIntegrationRepository = SwiftDataGoogleIntegrationRepository(modelContext: modelContext)
         let notificationsRepository = UserNotificationsRepository()
         let analyticsRepository = AmplitudeAnalyticsRepository()
-        let googleSheetsClient = NoopGoogleSheetsClient()
+        let googleSheetsClient = LiveGoogleSheetsClient()
+
+        // Configure Google token persistence bridge: token center -> NotificationCenter -> MainActor repo
+        LiveGoogleSheetsClientConfig.configureTokenPersistence(onRefreshTokenUpdated: { newRT in
+            NotificationCenter.default.post(name: .googleRefreshTokenUpdated, object: nil, userInfo: ["refreshToken": newRT])
+        })
+
+        // Observe refresh token updates and persist them via SwiftData on the main actor
+        NotificationCenter.default.addObserver(forName: .googleRefreshTokenUpdated, object: nil, queue: nil) { notification in
+            guard let newRT = notification.userInfo?["refreshToken"] as? String else { return }
+            Task { @MainActor in
+                do {
+                    let integration = try await googleIntegrationRepository.getOrCreate()
+                    if integration.refreshToken != newRT {
+                        integration.refreshToken = newRT
+                        try await googleIntegrationRepository.update(integration)
+                    }
+                } catch {
+                    // Best-effort: ignore errors here
+                }
+            }
+        }
+
         self.measurementsRepository = measurementsRepository
         self.settingsRepository = settingsRepository
         self.googleIntegrationRepository = googleIntegrationRepository
@@ -110,4 +136,3 @@ extension View {
         environment(\.appContainer, container)
     }
 }
-

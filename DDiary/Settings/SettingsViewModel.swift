@@ -8,6 +8,7 @@ final class SettingsViewModel {
     private let settingsRepository: any SettingsRepository
     private let googleIntegrationRepository: any GoogleIntegrationRepository
     private let exportCSVUseCase: ExportCSVUseCase
+    private let measurementsRepository: any MeasurementsRepository
 
     // MARK: - Backing models (MainActor-bound)
     private var settingsModel: UserSettings?
@@ -54,15 +55,22 @@ final class SettingsViewModel {
     // Export state
     var isExporting: Bool = false
 
+    // MARK: - Sync status
+    var pendingCount: Int = 0
+    var failedCount: Int = 0
+    var lastSyncAt: Date? = nil
+
     // MARK: - Init
     init(
         settingsRepository: any SettingsRepository,
         googleIntegrationRepository: any GoogleIntegrationRepository,
-        exportCSVUseCase: ExportCSVUseCase
+        exportCSVUseCase: ExportCSVUseCase,
+        measurementsRepository: any MeasurementsRepository
     ) {
         self.settingsRepository = settingsRepository
         self.googleIntegrationRepository = googleIntegrationRepository
         self.exportCSVUseCase = exportCSVUseCase
+        self.measurementsRepository = measurementsRepository
     }
 
     // MARK: - Public API
@@ -103,6 +111,7 @@ final class SettingsViewModel {
 
             // Google
             updateGoogleSummary(using: integration)
+            await refreshSyncStatus()
         } catch {
             errorMessage = String(describing: error)
         }
@@ -146,22 +155,20 @@ final class SettingsViewModel {
     }
 
     func connectGoogle() async {
-        // Stub: demonstrate structure for OAuth-based connection.
-        // In production, launch ASWebAuthenticationSession to obtain tokens, then persist via repository.
         do {
             let integration = try await resolveGoogleIntegrationModel()
-            googleSummary = "Starting Google sign-in… (stub)"
-            // TODO: Implement OAuth via ASWebAuthenticationSession.
-            // On success:
-            // integration.isEnabled = true
-            // integration.refreshToken = <token>
-            // integration.spreadsheetId = <spreadsheet>
-            // integration.googleUserId = <user id>
-            // try await googleIntegrationRepository.update(integration)
-            // updateGoogleSummary(using: integration)
+            googleSummary = "Starting Google sign-in…"
 
-            // For now, just reset summary to current persisted state
+            let tokens = try await GoogleOAuth.signIn()
+
+            integration.isEnabled = true
+            integration.refreshToken = tokens.refreshToken
+            integration.googleUserId = GoogleIDToken.userIdentifier(from: tokens.idToken)
+
+            try await googleIntegrationRepository.update(integration)
             updateGoogleSummary(using: integration)
+            await refreshSyncStatus()
+            errorMessage = nil
         } catch {
             errorMessage = String(describing: error)
         }
@@ -172,6 +179,7 @@ final class SettingsViewModel {
             let integration = try await resolveGoogleIntegrationModel()
             try await googleIntegrationRepository.clearTokens(integration)
             updateGoogleSummary(using: integration)
+            await refreshSyncStatus()
         } catch {
             errorMessage = String(describing: error)
         }
@@ -231,6 +239,35 @@ final class SettingsViewModel {
             // For v1, we assume scheduling is handled by a dedicated use case from the environment.
         } catch {
             // ignore
+        }
+    }
+    
+    func refreshSyncStatus() async {
+        do {
+            // Fetch pending or failed items per type
+            let pendingOrFailedBP = try await measurementsRepository.pendingOrFailedBPSync()
+            let pendingOrFailedGlucose = try await measurementsRepository.pendingOrFailedGlucoseSync()
+
+            // Compute counts by status across both types
+            let bpPending = pendingOrFailedBP.filter { $0.googleSyncStatus == .pending }.count
+            let glPending = pendingOrFailedGlucose.filter { $0.googleSyncStatus == .pending }.count
+            let bpFailed = pendingOrFailedBP.filter { $0.googleSyncStatus == .failed }.count
+            let glFailed = pendingOrFailedGlucose.filter { $0.googleSyncStatus == .failed }.count
+
+            pendingCount = bpPending + glPending
+            failedCount = bpFailed + glFailed
+
+            // Compute last sync date from all measurements
+            let allBP = try await measurementsRepository.bpMeasurements(from: .distantPast, to: .distantFuture)
+            let allGlucose = try await measurementsRepository.glucoseMeasurements(from: .distantPast, to: .distantFuture)
+
+            let bpLastSyncDates = allBP.compactMap { $0.googleLastSyncAt }
+            let glucoseLastSyncDates = allGlucose.compactMap { $0.googleLastSyncAt }
+            let allSyncDates = bpLastSyncDates + glucoseLastSyncDates
+
+            lastSyncAt = allSyncDates.max()
+        } catch {
+            // On error, keep current values but optionally clear errorMessage
         }
     }
 }
