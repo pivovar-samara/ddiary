@@ -32,19 +32,49 @@ public final class ExportCSVUseCase {
             glucoseDTOs = []
         }
 
-        // Build CSV content off the main actor using only DTOs
+        // Build sections on the main actor to avoid calling MainActor-isolated helpers from a detached task
+        var sectionsMutable: [CSVSection] = []
+        if includeBP {
+            sectionsMutable.append(CSVBuilder.makeBPSection(rows: bpDTOs))
+        }
+        if includeGlucose {
+            sectionsMutable.append(CSVBuilder.makeGlucoseSection(rows: glucoseDTOs))
+        }
+        let sections = sectionsMutable
+
         let (csvData, fileName): (Data, String) = try await Task.detached(priority: .utility) { @Sendable () throws -> (Data, String) in
-            var sections: [CSVSection] = []
-            if includeBP {
-                sections.append(CSVBuilder.makeBPSection(rows: bpDTOs))
+            // Combine sections into CSV string off the main actor
+            func csvEscape(_ field: String) -> String {
+                var needsQuotes = false
+                var out = ""
+                for ch in field {
+                    if ch == "\"" {
+                        out.append("\"")
+                        out.append("\"")
+                        needsQuotes = true
+                    } else {
+                        if ch == "," || ch == "\n" || ch == "\r" { needsQuotes = true }
+                        out.append(ch)
+                    }
+                }
+                return needsQuotes ? "\"\(out)\"" : out
             }
-            if includeGlucose {
-                sections.append(CSVBuilder.makeGlucoseSection(rows: glucoseDTOs))
+
+            var out = ""
+            for (index, section) in sections.enumerated() {
+                out += section.header.map { csvEscape($0) }.joined(separator: ",") + "\n"
+                for row in section.rows {
+                    out += row.map { csvEscape($0) }.joined(separator: ",") + "\n"
+                }
+                if index < sections.count - 1 {
+                    out += "\n"
+                }
             }
-            let combined = CSVBuilder.combine(sections: sections)
-            guard let data = combined.data(using: .utf8) else {
+
+            guard let data = out.data(using: .utf8) else {
                 throw ExportCSVError.encodingFailed
             }
+
             let dateFormatter = ISO8601DateFormatter()
             dateFormatter.formatOptions = [.withFullDate]
             let startStr = dateFormatter.string(from: startDate)
@@ -112,14 +142,14 @@ private enum ExportCSVError: Error {
     case encodingFailed
 }
 
-private struct CSVSection {
+private struct CSVSection: Sendable {
     let title: String
     let header: [String]
     let rows: [[String]]
 }
 
 private enum CSVBuilder {
-    nonisolated static func makeBPSection(rows: [BPRowDTO]) -> CSVSection {
+    static func makeBPSection(rows: [BPRowDTO]) -> CSVSection {
         let isoFormatter = ISO8601DateFormatter()
         isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let dateFormatter = DateFormatter()
@@ -156,7 +186,7 @@ private enum CSVBuilder {
         return CSVSection(title: "BP", header: header, rows: r)
     }
 
-    nonisolated static func makeGlucoseSection(rows: [GlucoseRowDTO]) -> CSVSection {
+    static func makeGlucoseSection(rows: [GlucoseRowDTO]) -> CSVSection {
         let isoFormatter = ISO8601DateFormatter()
         isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let dateFormatter = DateFormatter()
@@ -195,12 +225,9 @@ private enum CSVBuilder {
         return CSVSection(title: "Glucose", header: header, rows: r)
     }
 
-    nonisolated static func combine(sections: [CSVSection]) -> String {
+    static func combine(sections: [CSVSection]) -> String {
         var out = ""
         for (index, section) in sections.enumerated() {
-            if !section.title.isEmpty {
-                out += "# \(section.title)\n"
-            }
             out += csvLine(from: section.header) + "\n"
             for row in section.rows {
                 out += csvLine(from: row) + "\n"
@@ -212,11 +239,11 @@ private enum CSVBuilder {
         return out
     }
 
-    nonisolated private static func csvLine(from fields: [String]) -> String {
+    private static func csvLine(from fields: [String]) -> String {
         fields.map { csvEscape($0) }.joined(separator: ",")
     }
 
-    nonisolated private static func csvEscape(_ field: String) -> String {
+    private static func csvEscape(_ field: String) -> String {
         var needsQuotes = false
         var out = ""
         for ch in field {
@@ -232,7 +259,7 @@ private enum CSVBuilder {
         return needsQuotes ? "\"\(out)\"" : out
     }
 
-    nonisolated private static func sanitize(_ value: String?) -> String {
+    private static func sanitize(_ value: String?) -> String {
         guard let value, !value.isEmpty else { return "" }
         return value
     }
