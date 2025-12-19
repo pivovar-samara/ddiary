@@ -7,10 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		483246C72EF4014900D33F53 /* Release.xcconfig in Resources */ = {isa = PBXBuildFile; fileRef = 483246C22EF4014900D33F53 /* Release.xcconfig */; };
 		483246C82EF4014900D33F53 /* Secrets.xcconfig.example in Resources */ = {isa = PBXBuildFile; fileRef = 483246C42EF4014900D33F53 /* Secrets.xcconfig.example */; };
-		483246C92EF4014900D33F53 /* Base.xcconfig in Resources */ = {isa = PBXBuildFile; fileRef = 483246C02EF4014900D33F53 /* Base.xcconfig */; };
-		483246CA2EF4014900D33F53 /* Debug.xcconfig in Resources */ = {isa = PBXBuildFile; fileRef = 483246C12EF4014900D33F53 /* Debug.xcconfig */; };
 		4849F0792ED4C31900E060BF /* AmplitudeSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 4849F0782ED4C31900E060BF /* AmplitudeSwift */; };
 /* End PBXBuildFile section */
 
@@ -208,7 +205,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 2610;
-				LastUpgradeCheck = 2610;
+				LastUpgradeCheck = 2620;
 				TargetAttributes = {
 					4849EBAE2ED4BF4F00E060BF = {
 						CreatedOnToolsVersion = 26.1.1;
@@ -252,10 +249,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				483246C72EF4014900D33F53 /* Release.xcconfig in Resources */,
 				483246C82EF4014900D33F53 /* Secrets.xcconfig.example in Resources */,
-				483246C92EF4014900D33F53 /* Base.xcconfig in Resources */,
-				483246CA2EF4014900D33F53 /* Debug.xcconfig in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -316,8 +310,9 @@
 		4849EBD42ED4BF5000E060BF /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = Icon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_ENTITLEMENTS = DDiary/DDiary.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -352,8 +347,9 @@
 		4849EBD52ED4BF5000E060BF /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = Icon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_ENTITLEMENTS = DDiary/DDiary.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
