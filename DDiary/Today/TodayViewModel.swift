@@ -69,10 +69,127 @@ public final class TodayViewModel {
 
     public private(set) var bpSlots: [BPSlotViewModel] = []
     public private(set) var glucoseSlots: [GlucoseSlotViewModel] = []
+    public var selectedGlucoseSlot: GlucoseSlotViewModel? = nil
 
     // Quick entry presentation flags (stubs for now)
     public var presentBPQuickEntry: Bool = false
     public var presentGlucoseQuickEntry: Bool = false
+
+    // MARK: - UI Grouping (computed)
+
+    public var bpDue: [BPSlotViewModel] {
+        bpSlots
+            .filter { $0.status == .due }
+            .sorted { $0.scheduledDate < $1.scheduledDate }
+    }
+
+    public var bpScheduled: [BPSlotViewModel] {
+        bpSlots
+            .filter { $0.status == .scheduled }
+            .sorted { $0.scheduledDate < $1.scheduledDate }
+    }
+
+    public var bpMissed: [BPSlotViewModel] {
+        bpSlots
+            .filter { $0.status == .missed }
+            .sorted { $0.scheduledDate < $1.scheduledDate }
+    }
+
+    public var bpCompleted: [BPSlotViewModel] {
+        bpSlots
+            .filter { $0.status == .completed }
+            .sorted { $0.scheduledDate < $1.scheduledDate }
+    }
+
+    public var glucoseDue: [GlucoseSlotViewModel] {
+        glucoseSlots
+            .filter { $0.status == .due }
+            .sorted { $0.scheduledDate < $1.scheduledDate }
+    }
+
+    public var glucoseScheduled: [GlucoseSlotViewModel] {
+        glucoseSlots
+            .filter { $0.status == .scheduled }
+            .sorted { $0.scheduledDate < $1.scheduledDate }
+    }
+
+    public var glucoseMissed: [GlucoseSlotViewModel] {
+        glucoseSlots
+            .filter { $0.status == .missed }
+            .sorted { $0.scheduledDate < $1.scheduledDate }
+    }
+
+    public var glucoseCompleted: [GlucoseSlotViewModel] {
+        glucoseSlots
+            .filter { $0.status == .completed }
+            .sorted { $0.scheduledDate < $1.scheduledDate }
+    }
+
+    // MARK: - Unified Items (UI-only)
+
+    public enum TodayItemKind: String, Sendable { case bp, glucose }
+
+    public struct TodayItem: Identifiable, Sendable, Equatable {
+        public enum Payload: Sendable, Equatable {
+            case bp(BPSlotViewModel)
+            case glucose(GlucoseSlotViewModel)
+        }
+        public let id: UUID
+        public let kind: TodayItemKind
+        public let title: String
+        public let timeText: String
+        public let scheduledDate: Date
+        public let status: SlotStatus
+        public let payload: Payload
+    }
+
+    public var itemsDue: [TodayItem] {
+        let bp = bpDue.map(mapBP)
+        let gl = glucoseDue.map(mapGlucose)
+        return (bp + gl).sorted { $0.scheduledDate < $1.scheduledDate }
+    }
+
+    public var itemsScheduled: [TodayItem] {
+        let bp = bpScheduled.map(mapBP)
+        let gl = glucoseScheduled.map(mapGlucose)
+        return (bp + gl).sorted { $0.scheduledDate < $1.scheduledDate }
+    }
+
+    public var itemsMissed: [TodayItem] {
+        let bp = bpMissed.map(mapBP)
+        let gl = glucoseMissed.map(mapGlucose)
+        return (bp + gl).sorted { $0.scheduledDate < $1.scheduledDate }
+    }
+
+    public var itemsCompleted: [TodayItem] {
+        let bp = bpCompleted.map(mapBP)
+        let gl = glucoseCompleted.map(mapGlucose)
+        return (bp + gl).sorted { $0.scheduledDate < $1.scheduledDate }
+    }
+
+    private func mapBP(_ slot: BPSlotViewModel) -> TodayItem {
+        TodayItem(
+            id: slot.id,
+            kind: .bp,
+            title: String(localized: "Blood Pressure", comment: "BP row title"),
+            timeText: slot.displayTime,
+            scheduledDate: slot.scheduledDate,
+            status: slot.status,
+            payload: .bp(slot)
+        )
+    }
+
+    private func mapGlucose(_ slot: GlucoseSlotViewModel) -> TodayItem {
+        TodayItem(
+            id: slot.id,
+            kind: .glucose,
+            title: UIStrings.glucoseTitle(mealSlot: slot.mealSlot.rawValue, measurementType: slot.measurementType.rawValue),
+            timeText: slot.displayTime,
+            scheduledDate: slot.scheduledDate,
+            status: slot.status,
+            payload: .glucose(slot)
+        )
+    }
 
     public init(
         getTodayOverviewUseCase: GetTodayOverviewUseCase,
@@ -126,6 +243,7 @@ public final class TodayViewModel {
     }
 
     public func onGlucoseSlotTapped(_ slot: GlucoseSlotViewModel) {
+        selectedGlucoseSlot = slot
         presentGlucoseQuickEntry = true
         // Later: prefill with slot.mealSlot & slot.measurementType, call logGlucoseMeasurementUseCase
     }
@@ -139,3 +257,4 @@ public final class TodayViewModel {
         return .missed
     }
 }
+
