@@ -17,10 +17,11 @@
       "blur-material" : null,
       "layers" : [
         {
+          "blend-mode" : "normal",
           "fill" : {
             "solid" : "display-p3:0.14510,0.38824,0.92157,1.00000"
           },
-          "glass" : false,
+          "glass" : true,
           "hidden" : false,
           "image-name" : "drop.png",
           "name" : "drop",
@@ -37,7 +38,19 @@
         "kind" : "neutral",
         "opacity" : 0.5
       },
-      "specular" : true,
+      "specular-specializations" : [
+        {
+          "value" : false
+        },
+        {
+          "appearance" : "dark",
+          "value" : true
+        },
+        {
+          "appearance" : "tinted",
+          "value" : true
+        }
+      ],
       "translucency" : {
         "enabled" : true,
         "value" : 0.5
