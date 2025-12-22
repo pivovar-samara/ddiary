@@ -41,6 +41,12 @@ enum DS {
         static let medium: CGFloat = r12
         static let large: CGFloat = r16
     }
+    
+    // MARK: Sizes
+    enum Sizes {
+        /// Standard input card height used for numeric entry fields
+        static let inputHeight: CGFloat = 56
+    }
 
     // MARK: Status Keys
     /// A lightweight status key used by the Design System to map semantic colors.
@@ -116,6 +122,31 @@ extension View {
         padding: CGFloat = DS.Spacing.medium
     ) -> some View {
         modifier(CardContainerModifier(cornerRadius: cornerRadius, padding: padding))
+    }
+}
+
+// MARK: - Numeric Entry Container
+
+@MainActor
+struct NumericEntryContainer<Content: View>: View {
+    var height: CGFloat = DS.Sizes.inputHeight
+    var cornerRadius: CGFloat = DS.Radius.medium
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(Color(uiColor: .secondarySystemBackground))
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .stroke(Color(uiColor: .separator), lineWidth: 1)
+
+            HStack(spacing: 0) {
+                content()
+            }
+            .padding(.horizontal, DS.Spacing.small)
+            .padding(.vertical, DS.Spacing.s8)
+        }
+        .frame(maxWidth: .infinity, minHeight: height, maxHeight: height)
     }
 }
 
