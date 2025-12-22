@@ -127,7 +127,10 @@ public struct TodayView: View {
             NavigationStack {
                 BPQuickEntryForm(
                     onCancel: { vm.presentBPQuickEntry = false },
-                    onSaved: { vm.presentBPQuickEntry = false }
+                    onSaved: {
+                        vm.presentBPQuickEntry = false
+                        Task { await viewModel.refresh() }
+                    }
                 )
                 .navigationTitle("Quick Entry")
             }
@@ -138,9 +141,22 @@ public struct TodayView: View {
                     mealSlot: viewModel.selectedGlucoseSlot?.mealSlot,
                     measurementType: viewModel.selectedGlucoseSlot?.measurementType,
                     onCancel: { vm.presentGlucoseQuickEntry = false },
-                    onSaved: { vm.presentGlucoseQuickEntry = false }
+                    onSaved: {
+                        vm.presentGlucoseQuickEntry = false
+                        Task { await viewModel.refresh() }
+                    }
                 )
                 .navigationTitle("Quick Entry")
+            }
+        }
+        .onChange(of: vm.presentBPQuickEntry) { _, isPresented in
+            if !isPresented {
+                Task { await viewModel.refresh() }
+            }
+        }
+        .onChange(of: vm.presentGlucoseQuickEntry) { _, isPresented in
+            if !isPresented {
+                Task { await viewModel.refresh() }
             }
         }
     }

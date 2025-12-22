@@ -7,6 +7,10 @@
 
 import SwiftUI
 
+extension Notification.Name {
+    static let ddDiaryDidLogMeasurement = Notification.Name("ddDiaryDidLogMeasurement")
+}
+
 @MainActor
 public struct BPQuickEntryForm: View {
     @Environment(\.appContainer) private var container
@@ -293,6 +297,7 @@ public struct BPQuickEntryForm: View {
                     UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 }
                 #endif
+                NotificationCenter.default.post(name: .ddDiaryDidLogMeasurement, object: nil)
                 onSaved()
             } catch {
                 alertMessage = (error as? LocalizedError)?.errorDescription ?? "Failed to save. Please try again."

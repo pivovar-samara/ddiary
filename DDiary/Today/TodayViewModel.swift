@@ -212,18 +212,18 @@ public final class TodayViewModel {
         timeFormatter.timeStyle = .short
 
         // BP slots
-        bpSlots = overview.bpTimes.map { date in
-            let status = Self.computeStatus(now: now, scheduled: date, completed: false)
+        bpSlots = overview.bpSlots.map { slot in
+            let status = Self.computeStatus(now: now, scheduled: slot.date, completed: slot.completed)
             return BPSlotViewModel(
-                displayTime: timeFormatter.string(from: date),
-                scheduledDate: date,
+                displayTime: timeFormatter.string(from: slot.date),
+                scheduledDate: slot.date,
                 status: status
             )
         }
 
         // Glucose slots
         glucoseSlots = overview.glucoseSlots.map { slot in
-            let status = Self.computeStatus(now: now, scheduled: slot.date, completed: false)
+            let status = Self.computeStatus(now: now, scheduled: slot.date, completed: slot.completed)
             return GlucoseSlotViewModel(
                 mealSlot: slot.mealSlot,
                 measurementType: slot.measurementType,
