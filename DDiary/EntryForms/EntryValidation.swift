@@ -8,3 +8,10 @@ enum BPConstraints {
     static let diastolicRange: ClosedRange<Int> = 30...160
     static let pulseRange: ClosedRange<Int> = 30...220
 }
+
+enum GlucoseConstraints {
+    // Range defined in mmol/L, will convert for mg/dL when needed
+    static let mmolRange: ClosedRange<Double> = 2.0...33.3
+    // Limit input length to avoid layout jumps (e.g., "33.3")
+    static let inputMaxLength: Int = 5
+}
