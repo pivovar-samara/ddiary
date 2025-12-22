@@ -13,6 +13,7 @@ public struct GlucoseQuickEntryForm: View {
 
     let mealSlot: MealSlot?
     let measurementType: GlucoseMeasurementType?
+    let existingMeasurementId: UUID?
 
     @State private var valueText: String = ""
     @State private var comment: String = ""
@@ -24,6 +25,7 @@ public struct GlucoseQuickEntryForm: View {
     @State private var validationMessage: String? = nil
     @State private var unusualConfirmMessage: String? = nil
     @State private var hasAttemptedSave: Bool = false
+    @State private var existingMeasurement: GlucoseMeasurement? = nil
     @FocusState private var isValueFocused: Bool
     @FocusState private var isCommentFocused: Bool
 
@@ -129,6 +131,7 @@ public struct GlucoseQuickEntryForm: View {
         }
         .task {
             await loadUnit()
+            await prefillIfEditing()
             // Autofocus on appear; keep field neutral until Save is tapped
             isValueFocused = true
         }
@@ -193,6 +196,21 @@ public struct GlucoseQuickEntryForm: View {
         }
     }
 
+    private func prefillIfEditing() async {
+        guard let id = existingMeasurementId else { return }
+        do {
+            if let m = try await container.measurementsRepository.glucoseMeasurement(id: id) {
+                self.existingMeasurement = m
+                self.valueText = String(format: m.unit == .mmolL ? "%.1f" : "%.0f", m.value)
+                self.comment = m.comment ?? ""
+                self.showCommentField = !(m.comment ?? "").isEmpty
+                self.unit = m.unit
+            }
+        } catch {
+            // Ignore; leave as new entry
+        }
+    }
+
     private func save() {
         hasAttemptedSave = true
         // Only guard against non-numeric (Save button is disabled in that case)
@@ -215,12 +233,23 @@ public struct GlucoseQuickEntryForm: View {
         isSaving = true
         Task {
             do {
-                try await container.logGlucoseMeasurementUseCase.execute(
-                    value: value,
-                    measurementType: mt,
-                    mealSlot: ms,
-                    comment: comment.isEmpty ? nil : comment
-                )
+                if let existing = existingMeasurement, let unit = self.unit {
+                    try await container.updateGlucoseMeasurementUseCase.execute(
+                        measurement: existing,
+                        value: value,
+                        unit: unit,
+                        measurementType: mt,
+                        mealSlot: ms,
+                        comment: comment.isEmpty ? nil : comment
+                    )
+                } else {
+                    try await container.logGlucoseMeasurementUseCase.execute(
+                        value: value,
+                        measurementType: mt,
+                        mealSlot: ms,
+                        comment: comment.isEmpty ? nil : comment
+                    )
+                }
                 #if canImport(UIKit)
                 UIImpactFeedbackGenerator(style: .soft).impactOccurred()
                 #endif

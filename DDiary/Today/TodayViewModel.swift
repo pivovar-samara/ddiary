@@ -71,6 +71,10 @@ public final class TodayViewModel {
     public private(set) var glucoseSlots: [GlucoseSlotViewModel] = []
     public var selectedGlucoseSlot: GlucoseSlotViewModel? = nil
 
+    // Optional references to existing measurements for quick editing
+    public var selectedExistingBP: BPMeasurement? = nil
+    public var selectedExistingGlucose: GlucoseMeasurement? = nil
+
     // Quick entry presentation flags (stubs for now)
     public var presentBPQuickEntry: Bool = false
     public var presentGlucoseQuickEntry: Bool = false
@@ -240,12 +244,14 @@ public final class TodayViewModel {
         // For now, just present a stub quick entry sheet.
         presentBPQuickEntry = true
         // Later: prefill with scheduledDate, and on save call logBPMeasurementUseCase
+        // No change here yet; existing measurement reference will be handled elsewhere
     }
 
     public func onGlucoseSlotTapped(_ slot: GlucoseSlotViewModel) {
         selectedGlucoseSlot = slot
         presentGlucoseQuickEntry = true
         // Later: prefill with slot.mealSlot & slot.measurementType, call logGlucoseMeasurementUseCase
+        // Existing measurement reference will be handled in the view layer
     }
 
     // MARK: - Helpers

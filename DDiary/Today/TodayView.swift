@@ -7,6 +7,8 @@ import UIKit
 public struct TodayView: View {
     @Environment(\.appContainer) private var container
     @State private var viewModel: TodayViewModel
+    @State private var editingBPMeasurementId: UUID? = nil
+    @State private var editingGlucoseMeasurementId: UUID? = nil
 
     public init() {
         _viewModel = State(initialValue: TodayViewModel(
@@ -126,9 +128,14 @@ public struct TodayView: View {
         .sheet(isPresented: $vm.presentBPQuickEntry) {
             NavigationStack {
                 BPQuickEntryForm(
-                    onCancel: { vm.presentBPQuickEntry = false },
+                    existingMeasurementId: editingBPMeasurementId,
+                    onCancel: {
+                        vm.presentBPQuickEntry = false
+                        editingBPMeasurementId = nil
+                    },
                     onSaved: {
                         vm.presentBPQuickEntry = false
+                        editingBPMeasurementId = nil
                         Task { await viewModel.refresh() }
                     }
                 )
@@ -140,9 +147,14 @@ public struct TodayView: View {
                 GlucoseQuickEntryForm(
                     mealSlot: viewModel.selectedGlucoseSlot?.mealSlot,
                     measurementType: viewModel.selectedGlucoseSlot?.measurementType,
-                    onCancel: { vm.presentGlucoseQuickEntry = false },
+                    existingMeasurementId: editingGlucoseMeasurementId,
+                    onCancel: {
+                        vm.presentGlucoseQuickEntry = false
+                        editingGlucoseMeasurementId = nil
+                    },
                     onSaved: {
                         vm.presentGlucoseQuickEntry = false
+                        editingGlucoseMeasurementId = nil
                         Task { await viewModel.refresh() }
                     }
                 )
@@ -164,10 +176,53 @@ public struct TodayView: View {
     private func handleTap(_ item: TodayViewModel.TodayItem) {
         switch item.payload {
         case .bp(let slot):
-            viewModel.onBPSlotTapped(slot)
+            Task { await prepareAndPresentBP(slot: slot) }
         case .glucose(let slot):
-            viewModel.onGlucoseSlotTapped(slot)
+            Task { await prepareAndPresentGlucose(slot: slot) }
         }
+    }
+
+    @MainActor
+    private func prepareAndPresentBP(slot: BPSlotViewModel) async {
+        // Find the nearest BP measurement for today to edit, if any
+        editingBPMeasurementId = await findNearestBPMeasurementId(to: slot.scheduledDate)
+        viewModel.onBPSlotTapped(slot)
+    }
+
+    @MainActor
+    private func prepareAndPresentGlucose(slot: GlucoseSlotViewModel) async {
+        // Find a matching glucose measurement for this slot (by type & mealSlot), nearest to scheduled time
+        editingGlucoseMeasurementId = await findGlucoseMeasurementId(for: slot)
+        viewModel.onGlucoseSlotTapped(slot)
+    }
+
+    private func findNearestBPMeasurementId(to scheduledDate: Date) async -> UUID? {
+        let cal = Calendar.current
+        let start = cal.startOfDay(for: scheduledDate)
+        let end = cal.date(byAdding: DateComponents(day: 1, second: -1), to: start) ?? scheduledDate
+        do {
+            let items = try await container.measurementsRepository.bpMeasurements(from: start, to: end)
+            guard !items.isEmpty else { return nil }
+            let nearest = items.min(by: { lhs, rhs in
+                abs(lhs.timestamp.timeIntervalSince(scheduledDate)) < abs(rhs.timestamp.timeIntervalSince(scheduledDate))
+            })
+            return nearest?.id
+        } catch { return nil }
+    }
+
+    private func findGlucoseMeasurementId(for slot: GlucoseSlotViewModel) async -> UUID? {
+        let cal = Calendar.current
+        let start = cal.startOfDay(for: slot.scheduledDate)
+        let end = cal.date(byAdding: DateComponents(day: 1, second: -1), to: start) ?? slot.scheduledDate
+        do {
+            let items = try await container.measurementsRepository.glucoseMeasurements(from: start, to: end)
+            let filtered = items.filter { $0.measurementType == slot.measurementType && $0.mealSlot == slot.mealSlot }
+            guard !filtered.isEmpty else { return nil }
+            let nearest = filtered.min(by: { lhs, rhs in
+                abs(lhs.timestamp.timeIntervalSince(slot.scheduledDate)) < abs(rhs.timestamp.timeIntervalSince(slot.scheduledDate))
+            })
+            return nearest?.id
+        } catch { return nil }
     }
 
     private func stableId(for item: TodayViewModel.TodayItem) -> String {

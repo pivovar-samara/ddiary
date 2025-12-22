@@ -15,6 +15,8 @@ extension Notification.Name {
 public struct BPQuickEntryForm: View {
     @Environment(\.appContainer) private var container
 
+    let existingMeasurementId: UUID?
+
     @State private var systolicText: String = ""
     @State private var diastolicText: String = ""
     @State private var pulseText: String = ""
@@ -25,6 +27,7 @@ public struct BPQuickEntryForm: View {
     @State private var invalidFields: Set<Field> = []
     @State private var unusualConfirmMessage: String? = nil
     @State private var hasAttemptedSave: Bool = false
+    @State private var existingMeasurement: BPMeasurement? = nil
 
     @FocusState private var focusedField: Field?
     @FocusState private var isCommentFocused: Bool
@@ -148,6 +151,7 @@ public struct BPQuickEntryForm: View {
             Text(unusualConfirmMessage ?? "")
         }
         .task {
+            await prefillIfEditing()
             // Autofocus SYS on appear for fast entry
             focusedField = .systolic
         }
@@ -284,12 +288,22 @@ public struct BPQuickEntryForm: View {
         isSaving = true
         Task {
             do {
-                try await container.logBPMeasurementUseCase.execute(
-                    systolic: sys,
-                    diastolic: dia,
-                    pulse: pulse,
-                    comment: comment.isEmpty ? nil : comment
-                )
+                if let existing = existingMeasurement {
+                    try await container.updateBPMeasurementUseCase.execute(
+                        measurement: existing,
+                        systolic: sys,
+                        diastolic: dia,
+                        pulse: pulse,
+                        comment: comment.isEmpty ? nil : comment
+                    )
+                } else {
+                    try await container.logBPMeasurementUseCase.execute(
+                        systolic: sys,
+                        diastolic: dia,
+                        pulse: pulse,
+                        comment: comment.isEmpty ? nil : comment
+                    )
+                }
                 #if canImport(UIKit)
                 if #available(iOS 13.0, *) {
                     UIImpactFeedbackGenerator(style: .soft).impactOccurred()
@@ -297,12 +311,27 @@ public struct BPQuickEntryForm: View {
                     UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 }
                 #endif
-                NotificationCenter.default.post(name: .ddDiaryDidLogMeasurement, object: nil)
                 onSaved()
             } catch {
                 alertMessage = (error as? LocalizedError)?.errorDescription ?? "Failed to save. Please try again."
             }
             isSaving = false
+        }
+    }
+
+    private func prefillIfEditing() async {
+        guard let id = existingMeasurementId else { return }
+        do {
+            if let m = try await container.measurementsRepository.bpMeasurement(id: id) {
+                self.existingMeasurement = m
+                self.systolicText = String(m.systolic)
+                self.diastolicText = String(m.diastolic)
+                self.pulseText = String(m.pulse)
+                self.comment = m.comment ?? ""
+                self.showCommentField = !(m.comment ?? "").isEmpty
+            }
+        } catch {
+            // Ignore prefill errors; form remains empty for new entry
         }
     }
 }

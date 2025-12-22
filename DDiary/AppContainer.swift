@@ -21,6 +21,8 @@ struct AppContainer {
 
     let logBPMeasurementUseCase: LogBPMeasurementUseCase
     let logGlucoseMeasurementUseCase: LogGlucoseMeasurementUseCase
+    let updateBPMeasurementUseCase: UpdateBPMeasurementUseCase
+    let updateGlucoseMeasurementUseCase: UpdateGlucoseMeasurementUseCase
     let exportCSVUseCase: ExportCSVUseCase
     let syncWithGoogleUseCase: SyncWithGoogleUseCase
 
@@ -75,6 +77,14 @@ struct AppContainer {
         self.logGlucoseMeasurementUseCase = LogGlucoseMeasurementUseCase(
             measurementsRepository: measurementsRepository,
             settingsRepository: settingsRepository,
+            analyticsRepository: analyticsRepository
+        )
+        self.updateBPMeasurementUseCase = UpdateBPMeasurementUseCase(
+            measurementsRepository: measurementsRepository,
+            analyticsRepository: analyticsRepository
+        )
+        self.updateGlucoseMeasurementUseCase = UpdateGlucoseMeasurementUseCase(
+            measurementsRepository: measurementsRepository,
             analyticsRepository: analyticsRepository
         )
         self.exportCSVUseCase = ExportCSVUseCase(
