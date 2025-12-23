@@ -7,6 +7,11 @@
 
 import SwiftUI
 import UIKit
+import Foundation
+
+extension Notification.Name {
+    static let measurementsDidChange = Notification.Name("MeasurementsDidChange")
+}
 
 // MARK: - DDiary Design System
 
@@ -242,6 +247,59 @@ enum UIFormatters {
     /// Format a date into HH:mm (24-hour) string.
     static func formatTime(_ date: Date) -> String {
         timeFormatter.string(from: date)
+    }
+    
+    static let dateMediumShortTime: DateFormatter = {
+        let df = DateFormatter()
+        df.dateStyle = .medium
+        df.timeStyle = .short
+        return df
+    }()
+    
+    static let dateMedium: DateFormatter = {
+        let df = DateFormatter()
+        df.dateStyle = .medium
+        df.timeStyle = .none
+        return df
+    }()
+
+    static let numberInt: NumberFormatter = {
+        let nf = NumberFormatter()
+        nf.numberStyle = .decimal
+        nf.maximumFractionDigits = 0
+        nf.usesGroupingSeparator = true
+        return nf
+    }()
+
+    static let numberOneDecimal: NumberFormatter = {
+        let nf = NumberFormatter()
+        nf.numberStyle = .decimal
+        nf.minimumFractionDigits = 1
+        nf.maximumFractionDigits = 1
+        nf.usesGroupingSeparator = true
+        return nf
+    }()
+
+    static let numberTwoDecimals: NumberFormatter = {
+        let nf = NumberFormatter()
+        nf.numberStyle = .decimal
+        nf.minimumFractionDigits = 2
+        nf.maximumFractionDigits = 2
+        nf.usesGroupingSeparator = true
+        return nf
+    }()
+
+    /// Formats a glucose value for display using locale-aware NumberFormatter.
+    /// - Shows two decimals for mmol/L and 0 decimals for mg/dL.
+    /// - Returns "—" for NaN/inf or values outside a conservative valid range.
+    static func formatGlucoseValue(_ value: Double, unit: GlucoseUnit) -> String {
+        guard value.isFinite else { return "—" }
+        switch unit {
+        case .mmolL:
+            return numberTwoDecimals.string(from: NSNumber(value: value)) ?? String(format: "%.2f", value)
+        case .mgdL:
+            return numberInt.string(from: NSNumber(value: value)) ?? String(Int(value.rounded()))
+        }
     }
 }
 

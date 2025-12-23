@@ -5,10 +5,18 @@ struct HistoryView: View {
     @Environment(\.appContainer) private var container
     @State private var viewModel: HistoryViewModel? = nil
 
+    @State private var presentBPQuickEntry: Bool = false
+    @State private var presentGlucoseQuickEntry: Bool = false
+    @State private var editingBPMeasurementId: UUID? = nil
+    @State private var editingGlucoseMeasurementId: UUID? = nil
+    @State private var editingGlucoseMealSlot: MealSlot? = nil
+    @State private var editingGlucoseMeasurementType: GlucoseMeasurementType? = nil
+
     var body: some View {
         Group {
             if let vm = viewModel {
                 content(for: vm)
+                    .task { await vm.listenForChanges() }
             } else {
                 ProgressView()
                     .task { await initializeViewModelIfNeeded() }
@@ -20,95 +28,175 @@ struct HistoryView: View {
     @ViewBuilder
     private func content(for vm: HistoryViewModel) -> some View {
         @Bindable var bvm = vm
-        VStack(spacing: 12) {
-            Picker("Filter", selection: $bvm.selectedFilter) {
-                ForEach(HistoryViewModel.Filter.allCases) { f in
-                    Text(f.title).tag(f)
+
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: DS.Spacing.large) {
+                HistoryControlsBar(
+                    selectedFilter: $bvm.selectedFilter,
+                    selectedDateRange: vm.selectedDateRange,
+                    onFilterChange: { newFilter in Task { await vm.updateFilter(newFilter) } },
+                    onRangeChange: { newRange in Task { await vm.updateDateRange(newRange) } }
+                )
+                if vm.isLoading {
+                    ProgressView("Loading…")
                 }
+                if let error = vm.errorMessage {
+                    Text(error)
+                        .foregroundStyle(.red)
+                }
+                summarySection(vm)
+                historySection(vm)
+                Spacer(minLength: 0)
             }
-            .pickerStyle(.segmented)
-            .onChange(of: bvm.selectedFilter) { _, newValue in
-                Task { await vm.updateFilter(newValue) }
-            }
-
-            HStack {
-                Button("Today") { Task { await vm.updateDateRange(HistoryViewModel.defaultRange(.today)) } }
-                Button("7 days") { Task { await vm.updateDateRange(HistoryViewModel.defaultRange(.days7)) } }
-                Button("30 days") { Task { await vm.updateDateRange(HistoryViewModel.defaultRange(.days30)) } }
-                Spacer()
-            }
-            .buttonStyle(.bordered)
-
-            summarySection(vm)
-            listSection(vm)
+            .padding()
         }
-        .padding()
-        .task { await vm.loadHistory() }
+        .sheet(isPresented: $presentBPQuickEntry) {
+            NavigationStack {
+                BPQuickEntryForm(
+                    existingMeasurementId: editingBPMeasurementId,
+                    onCancel: {
+                        presentBPQuickEntry = false
+                        editingBPMeasurementId = nil
+                    },
+                    onSaved: {
+                        presentBPQuickEntry = false
+                        editingBPMeasurementId = nil
+                    }
+                )
+                .navigationTitle("Quick Entry")
+            }
+        }
+        .sheet(isPresented: $presentGlucoseQuickEntry) {
+            NavigationStack {
+                GlucoseQuickEntryForm(
+                    mealSlot: editingGlucoseMealSlot,
+                    measurementType: editingGlucoseMeasurementType,
+                    existingMeasurementId: editingGlucoseMeasurementId,
+                    onCancel: {
+                        presentGlucoseQuickEntry = false
+                        editingGlucoseMeasurementId = nil
+                        editingGlucoseMealSlot = nil
+                        editingGlucoseMeasurementType = nil
+                    },
+                    onSaved: {
+                        presentGlucoseQuickEntry = false
+                        editingGlucoseMeasurementId = nil
+                        editingGlucoseMealSlot = nil
+                        editingGlucoseMeasurementType = nil
+                    }
+                )
+                .navigationTitle("Quick Entry")
+            }
+        }
+        .onChange(of: presentBPQuickEntry) { _, isPresented in
+            if !isPresented {
+                Task { await vm.loadHistory() }
+            }
+        }
+        .onChange(of: presentGlucoseQuickEntry) { _, isPresented in
+            if !isPresented {
+                Task { await vm.loadHistory() }
+            }
+        }
     }
 
     @ViewBuilder
     private func summarySection(_ vm: HistoryViewModel) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Summary").font(.headline)
-            if vm.selectedFilter == .both || vm.selectedFilter == .bp {
-                VStack(alignment: .leading) {
-                    Text("BP count: \(vm.bpCount)")
-                    if let min = vm.bpSystolicMin, let max = vm.bpSystolicMax, let avg = vm.bpSystolicAvg {
-                        Text("SYS min/max/avg: \(min)/\(max)/\(String(format: "%.1f", avg))")
-                    }
-                    if let min = vm.bpDiastolicMin, let max = vm.bpDiastolicMax, let avg = vm.bpDiastolicAvg {
-                        Text("DIA min/max/avg: \(min)/\(max)/\(String(format: "%.1f", avg))")
-                    }
-                    if let min = vm.pulseMin, let max = vm.pulseMax, let avg = vm.pulseAvg {
-                        Text("Pulse min/max/avg: \(min)/\(max)/\(String(format: "%.1f", avg))")
-                    }
-                }
-            }
-            if vm.selectedFilter == .both || vm.selectedFilter == .glucose {
-                VStack(alignment: .leading) {
-                    Text("Glucose count: \(vm.glucoseCount)")
-                    if let min = vm.glucoseMin, let max = vm.glucoseMax, let avg = vm.glucoseAvg {
-                        Text("Glucose min/max/avg: \(String(format: "%.2f", min))/\(String(format: "%.2f", max))/\(String(format: "%.2f", avg))")
-                    }
-                }
-            }
-        }
+        SummaryCard(vm: vm)
     }
 
     @ViewBuilder
-    private func listSection(_ vm: HistoryViewModel) -> some View {
-        List {
-            if vm.selectedFilter == .both || vm.selectedFilter == .bp {
-                Section("Blood Pressure") {
-                    ForEach(vm.bpMeasurements, id: \.id) { m in
-                        VStack(alignment: .leading) {
-                            Text(dateString(m.timestamp)).font(.subheadline)
-                            Text("SYS/DIA: \(m.systolic)/\(m.diastolic)  Pulse: \(m.pulse)")
-                            if let c = m.comment, !c.isEmpty { Text(c).foregroundStyle(.secondary) }
-                        }
-                    }
-                }
+    private func historySection(_ vm: HistoryViewModel) -> some View {
+        let groups = makeDayGroups(vm: vm)
+        if groups.isEmpty && !vm.isLoading && vm.errorMessage == nil {
+            VStack(alignment: .leading, spacing: DS.Spacing.small) {
+                Text("No measurements")
+                    .font(.headline)
+                Text("There are no entries for the selected filter and date range.")
+                    .foregroundStyle(.secondary)
             }
-            if vm.selectedFilter == .both || vm.selectedFilter == .glucose {
-                Section("Glucose") {
-                    ForEach(vm.glucoseMeasurements, id: \.id) { m in
-                        VStack(alignment: .leading) {
-                            Text(dateString(m.timestamp)).font(.subheadline)
-                            Text("Value: \(String(format: "%.2f", m.value)) \(m.unit.rawValue)")
-                            Text("Type: \(m.measurementType.rawValue)  Slot: \(m.mealSlot.rawValue)")
-                            if let c = m.comment, !c.isEmpty { Text(c).foregroundStyle(.secondary) }
+            .cardContainer()
+        } else {
+            VStack(alignment: .leading, spacing: DS.Spacing.large) {
+                ForEach(groups, id: \.day) { group in
+                    VStack(alignment: .leading, spacing: DS.Spacing.small) {
+                        Text(UIFormatters.dateMedium.string(from: group.day))
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: DS.Spacing.small) {
+                            ForEach(group.items, id: \.id) { item in
+                                switch item {
+                                case .bp(let m):
+                                    BPHistoryRow(measurement: m, onTap: {
+                                        editingBPMeasurementId = m.id
+                                        presentBPQuickEntry = true
+                                    })
+                                case .glucose(let m):
+                                    GlucoseHistoryRow(measurement: m, onTap: {
+                                        editingGlucoseMeasurementId = m.id
+                                        editingGlucoseMealSlot = m.mealSlot
+                                        editingGlucoseMeasurementType = m.measurementType
+                                        presentGlucoseQuickEntry = true
+                                    })
+                                }
+                            }
                         }
                     }
                 }
             }
         }
-        .listStyle(.insetGrouped)
+    }
+
+    private enum HistoryItem {
+        case bp(BPMeasurement)
+        case glucose(GlucoseMeasurement)
+
+        var id: String {
+            switch self {
+            case .bp(let m): return "bp:\(m.id.uuidString)"
+            case .glucose(let m): return "glucose:\(m.id.uuidString)"
+            }
+        }
+
+        var timestamp: Date {
+            switch self {
+            case .bp(let m): return m.timestamp
+            case .glucose(let m): return m.timestamp
+            }
+        }
+    }
+
+    private struct DayGroup {
+        let day: Date
+        let items: [HistoryItem]
+    }
+
+    private func makeDayGroups(vm: HistoryViewModel) -> [DayGroup] {
+        let includeBP = vm.selectedFilter == .both || vm.selectedFilter == .bp
+        let includeGlucose = vm.selectedFilter == .both || vm.selectedFilter == .glucose
+
+        var items: [HistoryItem] = []
+        if includeBP { items += vm.bpMeasurements.map { .bp($0) } }
+        if includeGlucose { items += vm.glucoseMeasurements.map { .glucose($0) } }
+
+        // Sort all items by timestamp descending to ensure stable ordering
+        items.sort { $0.timestamp > $1.timestamp }
+
+        let cal = Calendar.current
+        var grouped: [Date: [HistoryItem]] = [:]
+        for item in items {
+            let day = cal.startOfDay(for: item.timestamp)
+            grouped[day, default: []].append(item)
+        }
+
+        let sortedDays = grouped.keys.sorted(by: >)
+        return sortedDays.map { day in
+            DayGroup(day: day, items: grouped[day] ?? [])
+        }
     }
 
     private func dateString(_ date: Date) -> String {
-        let df = DateFormatter()
-        df.dateStyle = .medium
-        df.timeStyle = .short
+        let df = UIFormatters.dateMediumShortTime
         return df.string(from: date)
     }
 
@@ -128,3 +216,4 @@ struct HistoryView: View {
     NavigationStack { HistoryView() }
         .appContainer(.preview)
 }
+

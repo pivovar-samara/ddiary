@@ -52,7 +52,7 @@ public struct SlotRow: View {
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
                         if let badge = leadingBadgeText {
-                            KindBadgeView(text: badge)
+                            TypeBadgeView(text: badge)
                         }
                         Text(title)
                             .font(.body)
@@ -79,27 +79,6 @@ public struct SlotRow: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier(accessibilityId)
-    }
-}
-
-private struct KindBadgeView: View {
-    let text: String
-    // Fixed width to align titles across rows regardless of text length.
-    // Chosen to comfortably fit "GLU" at typical Dynamic Type sizes.
-    private let width: CGFloat = 36
-
-    var body: some View {
-        Text(text)
-            .font(.caption2)
-            .fontWeight(.medium)
-            .foregroundStyle(.secondary)
-            .lineLimit(1)
-            .minimumScaleFactor(0.85)
-            .padding(.horizontal, 5)
-            .padding(.vertical, 1)
-            .frame(width: width, alignment: .center)
-            .background(.ultraThinMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 }
 

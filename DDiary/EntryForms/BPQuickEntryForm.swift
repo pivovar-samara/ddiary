@@ -7,10 +7,6 @@
 
 import SwiftUI
 
-extension Notification.Name {
-    static let ddDiaryDidLogMeasurement = Notification.Name("ddDiaryDidLogMeasurement")
-}
-
 @MainActor
 public struct BPQuickEntryForm: View {
     @Environment(\.appContainer) private var container
@@ -304,6 +300,7 @@ public struct BPQuickEntryForm: View {
                         comment: comment.isEmpty ? nil : comment
                     )
                 }
+                NotificationCenter.default.post(name: .measurementsDidChange, object: nil)
                 #if canImport(UIKit)
                 if #available(iOS 13.0, *) {
                     UIImpactFeedbackGenerator(style: .soft).impactOccurred()
@@ -335,3 +332,4 @@ public struct BPQuickEntryForm: View {
         }
     }
 }
+

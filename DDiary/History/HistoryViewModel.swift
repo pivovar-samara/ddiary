@@ -28,6 +28,9 @@ final class HistoryViewModel {
     var selectedFilter: Filter = .both
     var selectedDateRange: DateRange
 
+    var isLoading: Bool = false
+    var errorMessage: String? = nil
+
     var bpMeasurements: [BPMeasurement] = []
     var glucoseMeasurements: [GlucoseMeasurement] = []
 
@@ -48,6 +51,10 @@ final class HistoryViewModel {
     var glucoseMax: Double?
     var glucoseAvg: Double?
 
+    // Change propagation
+    private var pendingReload = false
+    private var reloadDebounceTask: Task<Void, Never>?
+
     // MARK: - Dependencies
     private let getHistory: GetHistoryUseCase
 
@@ -59,23 +66,32 @@ final class HistoryViewModel {
 
     // MARK: - Public API
     func loadHistory() async {
+        isLoading = true
+        errorMessage = nil
         do {
+            let now = Date()
+            let endNearNow = abs(selectedDateRange.endDate.timeIntervalSince(now)) < 12 * 3600
+            let effectiveEnd = endNearNow ? now : selectedDateRange.endDate
+
             let includeBP = selectedFilter == .both || selectedFilter == .bp
             let includeGlucose = selectedFilter == .both || selectedFilter == .glucose
             let (bp, glucose) = try await getHistory.fetch(
                 from: selectedDateRange.startDate,
-                to: selectedDateRange.endDate,
+                to: effectiveEnd,
                 includeBP: includeBP,
                 includeGlucose: includeGlucose
             )
             self.bpMeasurements = bp
             self.glucoseMeasurements = glucose
             computeAggregates()
+            isLoading = false
         } catch {
-            // For v1, swallow errors; UI can show empty state. In later versions, expose an error state.
+            // For v1, expose a lightweight error message for UI; keep arrays empty.
             self.bpMeasurements = []
             self.glucoseMeasurements = []
             resetAggregates()
+            errorMessage = (error as NSError).localizedDescription
+            isLoading = false
         }
     }
 
@@ -114,10 +130,16 @@ final class HistoryViewModel {
         // Glucose
         glucoseCount = glucoseMeasurements.count
         if !glucoseMeasurements.isEmpty {
-            let values = glucoseMeasurements.map { $0.value }
-            glucoseMin = values.min()
-            glucoseMax = values.max()
-            glucoseAvg = average(values)
+            let values: [Double] = glucoseMeasurements.map { $0.value }
+            let validValues = values.filter { $0.isFinite && $0 >= 0 }
+            if validValues.isEmpty {
+                glucoseMin = nil; glucoseMax = nil; glucoseAvg = nil
+            } else {
+                glucoseMin = validValues.min()
+                glucoseMax = validValues.max()
+                let sum: Double = validValues.reduce(0.0, +)
+                glucoseAvg = sum / Double(validValues.count)
+            }
         } else {
             glucoseMin = nil; glucoseMax = nil; glucoseAvg = nil
         }
@@ -135,6 +157,37 @@ final class HistoryViewModel {
     private func average(_ values: [Double]) -> Double? {
         guard !values.isEmpty else { return nil }
         return values.reduce(0, +) / Double(values.count)
+    }
+
+    func listenForChanges() async {
+        for await _ in NotificationCenter.default.notifications(named: .measurementsDidChange) {
+            scheduleReloadDebounced()
+        }
+    }
+    
+    private func scheduleReloadDebounced() {
+        reloadDebounceTask?.cancel()
+        reloadDebounceTask = Task { [weak self] in
+            guard let self else { return }
+            try? await Task.sleep(nanoseconds: 200_000_000)
+            await self.requestReload()
+        }
+    }
+    
+    private func requestReload() async {
+        // Если уже грузим — пометим, что надо перезагрузить после
+        if isLoading {
+            pendingReload = true
+            return
+        }
+
+        await loadHistory()
+
+        // Если во время загрузки прилетели изменения — один догоняющий reload
+        if pendingReload {
+            pendingReload = false
+            await loadHistory()
+        }
     }
 }
 

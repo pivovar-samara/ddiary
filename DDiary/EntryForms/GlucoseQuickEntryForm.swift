@@ -250,6 +250,7 @@ public struct GlucoseQuickEntryForm: View {
                         comment: comment.isEmpty ? nil : comment
                     )
                 }
+                NotificationCenter.default.post(name: .measurementsDidChange, object: nil)
                 #if canImport(UIKit)
                 UIImpactFeedbackGenerator(style: .soft).impactOccurred()
                 #endif
@@ -261,3 +262,4 @@ public struct GlucoseQuickEntryForm: View {
         }
     }
 }
+
