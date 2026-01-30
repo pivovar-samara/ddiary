@@ -26,6 +26,8 @@ public struct GlucoseQuickEntryForm: View {
     @State private var unusualConfirmMessage: String? = nil
     @State private var hasAttemptedSave: Bool = false
     @State private var existingMeasurement: GlucoseMeasurement? = nil
+    @State private var glucoseMin: Double = GlucoseConstraints.mmolRange.lowerBound
+    @State private var glucoseMax: Double = GlucoseConstraints.mmolRange.upperBound
     @FocusState private var isValueFocused: Bool
     @FocusState private var isCommentFocused: Bool
 
@@ -48,48 +50,57 @@ public struct GlucoseQuickEntryForm: View {
             isCommentFocused: $isCommentFocused,
             commentFieldAnchorId: "glucose.comment.field"
         ) {
-            HStack(alignment: .firstTextBaseline, spacing: DS.Spacing.small) {
-                TextField("Value", text: $valueText)
-                    .keyboardType(.decimalPad)
-                    .multilineTextAlignment(.center)
-                    .font(.system(size: 44, weight: .semibold))
-                    .monospacedDigit()
-                    .frame(minWidth: 100)
-                    .lineLimit(1)
-                    .focused($isValueFocused)
-                    .autocorrectionDisabled(true)
-                    .textInputAutocapitalization(.never)
-                    .accessibilityIdentifier("quickEntry.glucose.valueField")
-                    .onChange(of: valueText) { oldValue, newValue in
-                        // Sanitize input (allow digits and one decimal separator, max 1 fractional digit)
-                        let sanitized = sanitizeInput(newValue)
-                        if sanitized != newValue {
-                            valueText = sanitized
-                            return
-                        }
-                        // Only compute warnings after first save attempt
-                        if hasAttemptedSave {
-                            if let val = parseValue(from: sanitized) {
-                                let valueInMmol = (unit == .mmolL) ? val : (val / 18.0)
-                                if GlucoseConstraints.mmolRange.contains(valueInMmol) {
+            VStack(alignment: .center, spacing: DS.Spacing.small) {
+                HStack(alignment: .firstTextBaseline, spacing: DS.Spacing.small) {
+                    TextField("Value", text: $valueText)
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.center)
+                        .font(.system(size: 44, weight: .semibold))
+                        .monospacedDigit()
+                        .frame(minWidth: 100)
+                        .lineLimit(1)
+                        .focused($isValueFocused)
+                        .autocorrectionDisabled(true)
+                        .textInputAutocapitalization(.never)
+                        .accessibilityIdentifier("quickEntry.glucose.valueField")
+                        .onChange(of: valueText) { oldValue, newValue in
+                            // Sanitize input (allow digits and one decimal separator, max 1 fractional digit)
+                            let sanitized = sanitizeInput(newValue)
+                            if sanitized != newValue {
+                                valueText = sanitized
+                                return
+                            }
+                            // Only compute warnings after first save attempt
+                            if hasAttemptedSave {
+                                if let val = parseValue(from: sanitized) {
+                                    let valueInMmol = (unit == .mmolL) ? val : (val / 18.0)
+                                    if glucoseRangeMmol.contains(valueInMmol) {
+                                        invalidValue = false
+                                        validationMessage = nil
+                                    } else {
+                                        invalidValue = true
+                                        validationMessage = rangeMessage(for: unit)
+                                    }
+                                } else {
                                     invalidValue = false
                                     validationMessage = nil
-                                } else {
-                                    invalidValue = true
-                                    validationMessage = rangeMessage(for: unit)
                                 }
-                            } else {
-                                invalidValue = false
-                                validationMessage = nil
                             }
                         }
-                    }
 
-                if let unit = unit {
-                    Text(unit == .mmolL ? "mmol/L" : "mg/dL")
-                        .font(.title3)
+                    if let unit = unit {
+                        Text(unit == .mmolL ? "mmol/L" : "mg/dL")
+                            .font(.title3)
+                            .foregroundStyle(.secondary)
+                            .accessibilityIdentifier("quickEntry.glucose.unitLabel")
+                    }
+                }
+
+                if invalidValue, let validationMessage {
+                    Text(validationMessage)
+                        .font(.footnote)
                         .foregroundStyle(.secondary)
-                        .accessibilityIdentifier("quickEntry.glucose.unitLabel")
+                        .accessibilityIdentifier("quickEntry.glucose.validationMessage")
                 }
             }
         }
@@ -130,7 +141,7 @@ public struct GlucoseQuickEntryForm: View {
             Text(unusualConfirmMessage ?? "")
         }
         .task {
-            await loadUnit()
+            await loadSettings()
             await prefillIfEditing()
             // Autofocus on appear; keep field neutral until Save is tapped
             isValueFocused = true
@@ -171,8 +182,8 @@ public struct GlucoseQuickEntryForm: View {
 
     private func formattedRange(for unit: GlucoseUnit?) -> (low: String, high: String) {
         let isMmol = (unit == .mmolL)
-        let low = GlucoseConstraints.mmolRange.lowerBound * (isMmol ? 1.0 : 18.0)
-        let high = GlucoseConstraints.mmolRange.upperBound * (isMmol ? 1.0 : 18.0)
+        let low = glucoseRangeMmol.lowerBound * (isMmol ? 1.0 : 18.0)
+        let high = glucoseRangeMmol.upperBound * (isMmol ? 1.0 : 18.0)
         let formatter = NumberFormatter()
         formatter.minimumFractionDigits = isMmol ? 1 : 0
         formatter.maximumFractionDigits = isMmol ? 1 : 0
@@ -187,10 +198,12 @@ public struct GlucoseQuickEntryForm: View {
     }
 
     @MainActor
-    private func loadUnit() async {
+    private func loadSettings() async {
         do {
             let settings = try await container.settingsRepository.getOrCreate()
             unit = settings.glucoseUnit
+            glucoseMin = settings.glucoseMin
+            glucoseMax = settings.glucoseMax
         } catch {
             unit = .mmolL
         }
@@ -218,7 +231,7 @@ public struct GlucoseQuickEntryForm: View {
 
         // Build warning if out of expected range
         let valueInMmol = (unit == .mmolL) ? value : (value / 18.0)
-        if !GlucoseConstraints.mmolRange.contains(valueInMmol) {
+        if !glucoseRangeMmol.contains(valueInMmol) {
             unusualConfirmMessage = "Glucose: \(rangeMessage(for: unit))"
             invalidValue = true
             validationMessage = rangeMessage(for: unit)
@@ -261,5 +274,11 @@ public struct GlucoseQuickEntryForm: View {
             isSaving = false
         }
     }
-}
 
+    private var glucoseRangeMmol: ClosedRange<Double> {
+        let low = Swift.min(glucoseMin, glucoseMax)
+        let high = Swift.max(glucoseMin, glucoseMax)
+        guard low > 0, high > 0 else { return GlucoseConstraints.mmolRange }
+        return low...high
+    }
+}

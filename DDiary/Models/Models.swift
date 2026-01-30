@@ -151,6 +151,8 @@ public final class UserSettings {
     var dinnerMinute: Int = 0
 
     var bedtimeSlotEnabled: Bool = false
+    var bedtimeHour: Int = 22
+    var bedtimeMinute: Int = 0
 
     var bpTimes: [Int] = []
     var bpActiveWeekdays: Set<Int> = []
@@ -178,6 +180,8 @@ public final class UserSettings {
         dinnerHour: Int,
         dinnerMinute: Int,
         bedtimeSlotEnabled: Bool,
+        bedtimeHour: Int,
+        bedtimeMinute: Int,
         bpTimes: [Int],
         bpActiveWeekdays: Set<Int>,
         enableBeforeMeal: Bool,
@@ -201,6 +205,8 @@ public final class UserSettings {
         self.dinnerHour = dinnerHour
         self.dinnerMinute = dinnerMinute
         self.bedtimeSlotEnabled = bedtimeSlotEnabled
+        self.bedtimeHour = bedtimeHour
+        self.bedtimeMinute = bedtimeMinute
         self.bpTimes = bpTimes
         self.bpActiveWeekdays = bpActiveWeekdays
         self.enableBeforeMeal = enableBeforeMeal
@@ -231,6 +237,8 @@ extension UserSettings {
             dinnerHour: 19,
             dinnerMinute: 0,
             bedtimeSlotEnabled: false,
+            bedtimeHour: 22,
+            bedtimeMinute: 0,
             bpTimes: [bpMorning, bpEvening],
             bpActiveWeekdays: Set(1...7),
             enableBeforeMeal: true,

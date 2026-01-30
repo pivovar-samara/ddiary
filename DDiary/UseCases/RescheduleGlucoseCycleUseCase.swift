@@ -64,7 +64,7 @@ public final class RescheduleGlucoseCycleUseCase {
     // MARK: - Helpers
     private func cycleOrder(from settings: UserSettings) -> [MealSlot] {
         var order: [MealSlot] = [.breakfast, .lunch, .dinner]
-        if settings.enableBedtime {
+        if settings.bedtimeSlotEnabled {
             order.append(.none) // use `.none` to denote bedtime slot in v1
         }
         return order

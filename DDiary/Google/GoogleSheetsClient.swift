@@ -122,6 +122,33 @@ public struct LiveGoogleSheetsClient: GoogleSheetsClient, Sendable {
         try await performAppend(url: url, values: values, credentials: credentials)
     }
 
+    public func upsertBloodPressureRow(_ row: GoogleSheetsBPRow, credentials: GoogleSheetsCredentials) async throws {
+        try await upsertRow(
+            sheetName: SheetNames.bloodPressure,
+            rowId: row.id.uuidString,
+            values: valuesForBP(row),
+            columnCount: 8,
+            credentials: credentials
+        )
+    }
+
+    public func upsertGlucoseRow(_ row: GoogleSheetsGlucoseRow, credentials: GoogleSheetsCredentials) async throws {
+        try await upsertRow(
+            sheetName: SheetNames.glucose,
+            rowId: row.id.uuidString,
+            values: valuesForGlucose(row),
+            columnCount: 9,
+            credentials: credentials
+        )
+    }
+
+    public func ensureSheetsAndHeaders(credentials: GoogleSheetsCredentials) async throws {
+        log("Ensuring sheets/headers for spreadsheetId=\(credentials.spreadsheetId)")
+        try await withAccessToken(refreshToken: credentials.refreshToken) { token in
+            try await ensureSheetsAndHeaders(spreadsheetId: credentials.spreadsheetId, bearerToken: token)
+        }
+    }
+
     // MARK: - Core append with 401 retry
     private func performAppend(url: URL, values: [[String]], credentials: GoogleSheetsCredentials) async throws {
         // First attempt with current refresh token
@@ -185,6 +212,23 @@ private extension LiveGoogleSheetsClient {
         return request
     }
 
+    func buildUpdateRequest(url: URL, bearerToken: String, values: [[String]]) throws -> URLRequest {
+        struct UpdateBody: Encodable { let values: [[String]] }
+        let body = UpdateBody(values: values)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.withoutEscapingSlashes]
+        guard let data = try? encoder.encode(body) else {
+            throw GoogleSheetsClientError.encodingError
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "PUT"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+        request.httpBody = data
+        return request
+    }
+
     func perform(_ request: URLRequest) async throws {
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw GoogleSheetsClientError.invalidResponse }
@@ -193,6 +237,26 @@ private extension LiveGoogleSheetsClient {
             throw GoogleSheetsClientError.httpError(statusCode: http.statusCode, body: bodyString)
         }
         // Optionally decode response (e.g., updatedRange). Not required for minimal client.
+    }
+
+    func fetchData(_ request: URLRequest) async throws -> Data {
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw GoogleSheetsClientError.invalidResponse }
+        guard (200..<300).contains(http.statusCode) else {
+            let bodyString = String(data: data, encoding: .utf8)
+            throw GoogleSheetsClientError.httpError(statusCode: http.statusCode, body: bodyString)
+        }
+        return data
+    }
+
+    func withAccessToken<T>(refreshToken: String, _ body: @Sendable (String) async throws -> T) async throws -> T {
+        do {
+            let access = try await accessToken(using: refreshToken)
+            return try await body(access.token)
+        } catch GoogleSheetsClientError.httpError(let status, _) where status == 401 {
+            let refreshed = try await accessToken(using: refreshToken)
+            return try await body(refreshed.token)
+        }
     }
 
     /// Exchange a refresh token for an access token. If Google returns a new refresh_token, persist it.
@@ -257,6 +321,87 @@ private extension LiveGoogleSheetsClient {
         return [[iso, dateStr, timeStr, value, unit, type, meal, comment, row.id.uuidString]]
     }
 
+    func upsertRow(
+        sheetName: String,
+        rowId: String,
+        values: [[String]],
+        columnCount: Int,
+        credentials: GoogleSheetsCredentials
+    ) async throws {
+        let idColumn = columnLetter(for: columnCount)
+        let rowIndex = try await withAccessToken(refreshToken: credentials.refreshToken) { token in
+            try await findRowIndex(
+                spreadsheetId: credentials.spreadsheetId,
+                sheetName: sheetName,
+                idColumn: idColumn,
+                rowId: rowId,
+                bearerToken: token
+            )
+        }
+
+        if let rowIndex {
+            try await withAccessToken(refreshToken: credentials.refreshToken) { token in
+                try await updateRow(
+                    spreadsheetId: credentials.spreadsheetId,
+                    sheetName: sheetName,
+                    rowIndex: rowIndex,
+                    columnCount: columnCount,
+                    values: values,
+                    bearerToken: token
+                )
+            }
+        } else {
+            let url = try makeAppendRequestURL(spreadsheetId: credentials.spreadsheetId, sheetName: sheetName)
+            try await performAppend(url: url, values: values, credentials: credentials)
+        }
+    }
+
+    func findRowIndex(
+        spreadsheetId: String,
+        sheetName: String,
+        idColumn: String,
+        rowId: String,
+        bearerToken: String
+    ) async throws -> Int? {
+        let range = "\(sheetName)!\(idColumn):\(idColumn)"
+        let url = URL(string: "https://sheets.googleapis.com/v4/spreadsheets/\(spreadsheetId)/values/\(range)")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+        let data = try await fetchData(request)
+        struct ValuesResponse: Decodable { let values: [[String]]? }
+        let decoded = try JSONDecoder().decode(ValuesResponse.self, from: data)
+        let values = decoded.values ?? []
+        for (index, row) in values.enumerated() {
+            guard let cell = row.first, !cell.isEmpty else { continue }
+            if cell == "id" { continue }
+            if cell == rowId {
+                return index + 1
+            }
+        }
+        return nil
+    }
+
+    func updateRow(
+        spreadsheetId: String,
+        sheetName: String,
+        rowIndex: Int,
+        columnCount: Int,
+        values: [[String]],
+        bearerToken: String
+    ) async throws {
+        let lastColumn = columnLetter(for: columnCount)
+        let range = "\(sheetName)!A\(rowIndex):\(lastColumn)\(rowIndex)"
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = "sheets.googleapis.com"
+        components.path = "/v4/spreadsheets/\(spreadsheetId)/values/\(range)"
+        components.queryItems = [URLQueryItem(name: "valueInputOption", value: "USER_ENTERED")]
+        guard let url = components.url else { throw GoogleSheetsClientError.invalidURL }
+        let request = try buildUpdateRequest(url: url, bearerToken: bearerToken, values: values)
+        try await perform(request)
+    }
+
     func iso8601String(from date: Date) -> String {
         ISO8601DateFormatter.sharedWithFractionalSeconds.string(from: date)
     }
@@ -277,6 +422,12 @@ private extension LiveGoogleSheetsClient {
         return df.string(from: date)
     }
 
+    func columnLetter(for index: Int) -> String {
+        precondition(index > 0 && index <= 26)
+        let scalar = UnicodeScalar(64 + index)!
+        return String(Character(scalar))
+    }
+
     // MARK: - Spreadsheet creation helpers
 
     func extractSpreadsheetId(from data: Data) throws -> String {
@@ -291,8 +442,18 @@ private extension LiveGoogleSheetsClient {
     func ensureSheetsAndHeaders(spreadsheetId: String, bearerToken: String) async throws {
         try await ensureSheetExists(spreadsheetId: spreadsheetId, bearerToken: bearerToken, title: SheetNames.bloodPressure)
         try await ensureSheetExists(spreadsheetId: spreadsheetId, bearerToken: bearerToken, title: SheetNames.glucose)
-        // Write headers (append will create rows)
-        try await appendHeaders(spreadsheetId: spreadsheetId, bearerToken: bearerToken)
+        try await ensureHeaderRow(
+            spreadsheetId: spreadsheetId,
+            sheetName: SheetNames.bloodPressure,
+            headers: ["timestamp","date","time","systolic","diastolic","pulse","comment","id"],
+            bearerToken: bearerToken
+        )
+        try await ensureHeaderRow(
+            spreadsheetId: spreadsheetId,
+            sheetName: SheetNames.glucose,
+            headers: ["timestamp","date","time","value","unit","measurementType","mealSlot","comment","id"],
+            bearerToken: bearerToken
+        )
     }
 
     func ensureSheetExists(spreadsheetId: String, bearerToken: String, title: String) async throws {
@@ -326,15 +487,41 @@ private extension LiveGoogleSheetsClient {
         }
     }
 
-    func appendHeaders(spreadsheetId: String, bearerToken: String) async throws {
-        let headersBP = [["timestamp","date","time","systolic","diastolic","pulse","comment","id"]]
-        let headersGl = [["timestamp","date","time","value","unit","measurementType","mealSlot","comment","id"]]
-        let bpURL = try makeAppendRequestURL(spreadsheetId: spreadsheetId, sheetName: SheetNames.bloodPressure)
-        let glURL = try makeAppendRequestURL(spreadsheetId: spreadsheetId, sheetName: SheetNames.glucose)
-        let bpReq = try buildAppendRequest(url: bpURL, bearerToken: bearerToken, values: headersBP)
-        let glReq = try buildAppendRequest(url: glURL, bearerToken: bearerToken, values: headersGl)
-        try await perform(bpReq)
-        try await perform(glReq)
+    func ensureHeaderRow(
+        spreadsheetId: String,
+        sheetName: String,
+        headers: [String],
+        bearerToken: String
+    ) async throws {
+        let lastColumn = columnLetter(for: headers.count)
+        let range = "\(sheetName)!A1:\(lastColumn)1"
+        let url = URL(string: "https://sheets.googleapis.com/v4/spreadsheets/\(spreadsheetId)/values/\(range)")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+        let data = try await fetchData(request)
+        struct ValuesResponse: Decodable { let values: [[String]]? }
+        let decoded = try JSONDecoder().decode(ValuesResponse.self, from: data)
+        if let row = decoded.values?.first, row == headers {
+            log("Headers already present for \(sheetName)")
+            return
+        }
+
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = "sheets.googleapis.com"
+        components.path = "/v4/spreadsheets/\(spreadsheetId)/values/\(range)"
+        components.queryItems = [URLQueryItem(name: "valueInputOption", value: "USER_ENTERED")]
+        guard let updateURL = components.url else { throw GoogleSheetsClientError.invalidURL }
+        let updateRequest = try buildUpdateRequest(url: updateURL, bearerToken: bearerToken, values: [headers])
+        try await perform(updateRequest)
+        log("Header row written for \(sheetName)")
+    }
+
+    func log(_ message: String) {
+        #if DEBUG
+        print("[GoogleSheets] \(message)")
+        #endif
     }
 }
 

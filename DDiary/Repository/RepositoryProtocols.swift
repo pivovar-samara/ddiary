@@ -173,15 +173,18 @@ public extension NotificationsRepository {
         let breakfast = DateComponents(hour: settings.breakfastHour, minute: settings.breakfastMinute)
         let lunch = DateComponents(hour: settings.lunchHour, minute: settings.lunchMinute)
         let dinner = DateComponents(hour: settings.dinnerHour, minute: settings.dinnerMinute)
-        // Bedtime time isn't editable in v1; choose a sane default (22:00) when enabled.
-        let bedtimeTime: DateComponents? = settings.enableBedtime ? DateComponents(hour: 22, minute: 0) : nil
+        // Use the user-configured bedtime time when the slot and reminders are enabled.
+        let bedtimeEnabled = settings.enableBedtime && settings.bedtimeSlotEnabled
+        let bedtimeTime: DateComponents? = bedtimeEnabled
+            ? DateComponents(hour: settings.bedtimeHour, minute: settings.bedtimeMinute)
+            : nil
         try await rescheduleGlucose(
             breakfast: breakfast,
             lunch: lunch,
             dinner: dinner,
             enableBeforeMeal: settings.enableBeforeMeal,
             enableAfterMeal2h: settings.enableAfterMeal2h,
-            enableBedtime: settings.enableBedtime,
+            enableBedtime: bedtimeEnabled,
             bedtimeTime: bedtimeTime
         )
     }
@@ -311,6 +314,12 @@ public struct GoogleSheetsGlucoseRow: Sendable {
 public protocol GoogleSheetsClient: Sendable {
     func appendBloodPressureRow(_ row: GoogleSheetsBPRow, credentials: GoogleSheetsCredentials) async throws
     func appendGlucoseRow(_ row: GoogleSheetsGlucoseRow, credentials: GoogleSheetsCredentials) async throws
+    /// Updates an existing row if the id is present, otherwise appends a new row.
+    func upsertBloodPressureRow(_ row: GoogleSheetsBPRow, credentials: GoogleSheetsCredentials) async throws
+    /// Updates an existing row if the id is present, otherwise appends a new row.
+    func upsertGlucoseRow(_ row: GoogleSheetsGlucoseRow, credentials: GoogleSheetsCredentials) async throws
+    /// Ensures spreadsheet sheets and header rows exist.
+    func ensureSheetsAndHeaders(credentials: GoogleSheetsCredentials) async throws
 
     /// Creates a new Google Spreadsheet with required sheets and header rows and returns its `spreadsheetId`.
     /// Implementations should use the provided refresh token to obtain an access token.
@@ -320,6 +329,18 @@ public protocol GoogleSheetsClient: Sendable {
 public enum GoogleSheetsClientProtocolError: Error { case unimplemented }
 
 public extension GoogleSheetsClient {
+    func upsertBloodPressureRow(_ row: GoogleSheetsBPRow, credentials: GoogleSheetsCredentials) async throws {
+        try await appendBloodPressureRow(row, credentials: credentials)
+    }
+
+    func upsertGlucoseRow(_ row: GoogleSheetsGlucoseRow, credentials: GoogleSheetsCredentials) async throws {
+        try await appendGlucoseRow(row, credentials: credentials)
+    }
+
+    func ensureSheetsAndHeaders(credentials: GoogleSheetsCredentials) async throws {
+        // Default no-op for non-live implementations.
+    }
+
     func createSpreadsheetAndSetup(refreshToken: String, title: String) async throws -> String {
         throw GoogleSheetsClientProtocolError.unimplemented
     }

@@ -31,13 +31,16 @@ final class SyncWithGoogleUseCase {
 
     /// Push pending/failed measurements to Google Sheets and update their sync status.
     func syncPendingMeasurements() async {
+        log("Starting sync")
         do {
             let integration = try await googleIntegrationRepository.getOrCreate()
+            log("Integration enabled=\(integration.isEnabled) spreadsheetId=\(integration.spreadsheetId ?? "nil") refreshToken=\(integration.refreshToken != nil)")
             guard
                 integration.isEnabled,
                 let spreadsheetId = integration.spreadsheetId,
                 let refreshToken = integration.refreshToken
             else {
+                log("Missing credentials or disabled; aborting")
                 await analyticsRepository.logGoogleSyncFailure(reason: "Integration disabled or missing credentials")
                 return
             }
@@ -48,9 +51,18 @@ final class SyncWithGoogleUseCase {
                 googleUserId: integration.googleUserId
             )
 
+            do {
+                try await googleSheetsClient.ensureSheetsAndHeaders(credentials: credentials)
+                log("Ensured sheets and headers")
+            } catch {
+                log("Failed ensuring sheets/headers: \(error)")
+                throw error
+            }
+
             // Fetch pending/failed items
             let pendingBP = try await measurementsRepository.pendingOrFailedBPSync()
             let pendingGlucose = try await measurementsRepository.pendingOrFailedGlucoseSync()
+            log("Pending BP=\(pendingBP.count) Glucose=\(pendingGlucose.count)")
 
             // Sync BP
             for m in pendingBP.sorted(by: { $0.timestamp < $1.timestamp }) {
@@ -63,17 +75,19 @@ final class SyncWithGoogleUseCase {
                         pulse: m.pulse,
                         comment: m.comment
                     )
-                    try await googleSheetsClient.appendBloodPressureRow(row, credentials: credentials)
+                    try await googleSheetsClient.upsertBloodPressureRow(row, credentials: credentials)
                     m.googleSyncStatus = .success
                     m.googleLastError = nil
                     m.googleLastSyncAt = Date()
                     try await measurementsRepository.updateBP(m)
+                    log("BP synced id=\(m.id.uuidString)")
                     await analyticsRepository.logGoogleSyncSuccess()
                 } catch {
                     m.googleSyncStatus = .failed
                     m.googleLastError = String(describing: error)
                     m.googleLastSyncAt = Date()
                     try? await measurementsRepository.updateBP(m)
+                    log("BP sync failed id=\(m.id.uuidString) error=\(m.googleLastError ?? "unknown")")
                     await analyticsRepository.logGoogleSyncFailure(reason: m.googleLastError)
                 }
             }
@@ -90,23 +104,32 @@ final class SyncWithGoogleUseCase {
                         mealSlot: m.mealSlot,
                         comment: m.comment
                     )
-                    try await googleSheetsClient.appendGlucoseRow(row, credentials: credentials)
+                    try await googleSheetsClient.upsertGlucoseRow(row, credentials: credentials)
                     m.googleSyncStatus = .success
                     m.googleLastError = nil
                     m.googleLastSyncAt = Date()
                     try await measurementsRepository.updateGlucose(m)
+                    log("Glucose synced id=\(m.id.uuidString)")
                     await analyticsRepository.logGoogleSyncSuccess()
                 } catch {
                     m.googleSyncStatus = .failed
                     m.googleLastError = String(describing: error)
                     m.googleLastSyncAt = Date()
                     try? await measurementsRepository.updateGlucose(m)
+                    log("Glucose sync failed id=\(m.id.uuidString) error=\(m.googleLastError ?? "unknown")")
                     await analyticsRepository.logGoogleSyncFailure(reason: m.googleLastError)
                 }
             }
         } catch {
+            log("Sync failed: \(error)")
             // Repository-level failure: surface as analytics failure; individual records remain unchanged.
             await analyticsRepository.logGoogleSyncFailure(reason: String(describing: error))
         }
+    }
+
+    private func log(_ message: String) {
+        #if DEBUG
+        print("[GoogleSync] \(message)")
+        #endif
     }
 }

@@ -24,6 +24,12 @@ public struct BPQuickEntryForm: View {
     @State private var unusualConfirmMessage: String? = nil
     @State private var hasAttemptedSave: Bool = false
     @State private var existingMeasurement: BPMeasurement? = nil
+    @State private var bpSystolicMin: Int = BPConstraints.systolicRange.lowerBound
+    @State private var bpSystolicMax: Int = BPConstraints.systolicRange.upperBound
+    @State private var bpDiastolicMin: Int = BPConstraints.diastolicRange.lowerBound
+    @State private var bpDiastolicMax: Int = BPConstraints.diastolicRange.upperBound
+    @State private var bpPulseMin: Int = BPConstraints.pulseRange.lowerBound
+    @State private var bpPulseMax: Int = BPConstraints.pulseRange.upperBound
 
     @FocusState private var focusedField: Field?
     @FocusState private var isCommentFocused: Bool
@@ -147,6 +153,7 @@ public struct BPQuickEntryForm: View {
             Text(unusualConfirmMessage ?? "")
         }
         .task {
+            await loadThresholds()
             await prefillIfEditing()
             // Autofocus SYS on appear for fast entry
             focusedField = .systolic
@@ -185,11 +192,11 @@ public struct BPQuickEntryForm: View {
                         if let intVal = Int(capped) {
                             switch field {
                             case .systolic:
-                                if BPConstraints.systolicRange.contains(intVal) { invalidFields.remove(.systolic) } else { invalidFields.insert(.systolic) }
+                                if systolicRange.contains(intVal) { invalidFields.remove(.systolic) } else { invalidFields.insert(.systolic) }
                             case .diastolic:
-                                if BPConstraints.diastolicRange.contains(intVal) { invalidFields.remove(.diastolic) } else { invalidFields.insert(.diastolic) }
+                                if diastolicRange.contains(intVal) { invalidFields.remove(.diastolic) } else { invalidFields.insert(.diastolic) }
                             case .pulse:
-                                if BPConstraints.pulseRange.contains(intVal) { invalidFields.remove(.pulse) } else { invalidFields.insert(.pulse) }
+                                if pulseRange.contains(intVal) { invalidFields.remove(.pulse) } else { invalidFields.insert(.pulse) }
                             }
                         } else {
                             invalidFields.remove(field)
@@ -242,11 +249,11 @@ public struct BPQuickEntryForm: View {
     private func perFieldWarningMessage(for field: Field) -> String {
         switch field {
         case .systolic:
-            return "Expected \(BPConstraints.systolicRange.lowerBound)–\(BPConstraints.systolicRange.upperBound)"
+            return "Expected \(systolicRange.lowerBound)–\(systolicRange.upperBound)"
         case .diastolic:
-            return "Expected \(BPConstraints.diastolicRange.lowerBound)–\(BPConstraints.diastolicRange.upperBound)"
+            return "Expected \(diastolicRange.lowerBound)–\(diastolicRange.upperBound)"
         case .pulse:
-            return "Expected \(BPConstraints.pulseRange.lowerBound)–\(BPConstraints.pulseRange.upperBound)"
+            return "Expected \(pulseRange.lowerBound)–\(pulseRange.upperBound)"
         }
     }
 
@@ -257,23 +264,23 @@ public struct BPQuickEntryForm: View {
 
         // Build warnings (out-of-range only)
         var warnings: [String] = []
-        if !BPConstraints.systolicRange.contains(sys) {
-            warnings.append("Systolic: Expected \(BPConstraints.systolicRange.lowerBound)–\(BPConstraints.systolicRange.upperBound)")
+        if !systolicRange.contains(sys) {
+            warnings.append("Systolic: Expected \(systolicRange.lowerBound)–\(systolicRange.upperBound)")
         }
-        if !BPConstraints.diastolicRange.contains(dia) {
-            warnings.append("Diastolic: Expected \(BPConstraints.diastolicRange.lowerBound)–\(BPConstraints.diastolicRange.upperBound)")
+        if !diastolicRange.contains(dia) {
+            warnings.append("Diastolic: Expected \(diastolicRange.lowerBound)–\(diastolicRange.upperBound)")
         }
-        if !BPConstraints.pulseRange.contains(pulse) {
-            warnings.append("Pulse: Expected \(BPConstraints.pulseRange.lowerBound)–\(BPConstraints.pulseRange.upperBound)")
+        if !pulseRange.contains(pulse) {
+            warnings.append("Pulse: Expected \(pulseRange.lowerBound)–\(pulseRange.upperBound)")
         }
 
         if !warnings.isEmpty {
             unusualConfirmMessage = warnings.joined(separator: "\n")
             // Reflect in per-field warnings for immediate visual feedback
             invalidFields = []
-            if !BPConstraints.systolicRange.contains(sys) { invalidFields.insert(.systolic) }
-            if !BPConstraints.diastolicRange.contains(dia) { invalidFields.insert(.diastolic) }
-            if !BPConstraints.pulseRange.contains(pulse) { invalidFields.insert(.pulse) }
+            if !systolicRange.contains(sys) { invalidFields.insert(.systolic) }
+            if !diastolicRange.contains(dia) { invalidFields.insert(.diastolic) }
+            if !pulseRange.contains(pulse) { invalidFields.insert(.pulse) }
             return
         }
 
@@ -331,5 +338,38 @@ public struct BPQuickEntryForm: View {
             // Ignore prefill errors; form remains empty for new entry
         }
     }
-}
 
+    private var systolicRange: ClosedRange<Int> {
+        normalizedRange(min: bpSystolicMin, max: bpSystolicMax, fallback: BPConstraints.systolicRange)
+    }
+
+    private var diastolicRange: ClosedRange<Int> {
+        normalizedRange(min: bpDiastolicMin, max: bpDiastolicMax, fallback: BPConstraints.diastolicRange)
+    }
+
+    private var pulseRange: ClosedRange<Int> {
+        normalizedRange(min: bpPulseMin, max: bpPulseMax, fallback: BPConstraints.pulseRange)
+    }
+
+    private func normalizedRange(min: Int, max: Int, fallback: ClosedRange<Int>) -> ClosedRange<Int> {
+        let low = Swift.min(min, max)
+        let high = Swift.max(min, max)
+        guard low > 0, high > 0 else { return fallback }
+        return low...high
+    }
+
+    @MainActor
+    private func loadThresholds() async {
+        do {
+            let settings = try await container.settingsRepository.getOrCreate()
+            bpSystolicMin = settings.bpSystolicMin
+            bpSystolicMax = settings.bpSystolicMax
+            bpDiastolicMin = settings.bpDiastolicMin
+            bpDiastolicMax = settings.bpDiastolicMax
+            bpPulseMin = BPConstraints.pulseRange.lowerBound
+            bpPulseMax = BPConstraints.pulseRange.upperBound
+        } catch {
+            // Keep defaults
+        }
+    }
+}

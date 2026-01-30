@@ -73,7 +73,15 @@ struct SettingsView: View {
                             MealOffsetEditor(hours: $bvm.dinnerHour, minutes: $bvm.dinnerMinute)
                         }
                         SettingsDivider()
-                        SettingsToggleRow(title: "Bedtime slot enabled", isOn: $bvm.bedtimeSlotEnabled)
+                        SettingsRow(title: "Bedtime") {
+                            MealOffsetEditor(hours: $bvm.bedtimeHour, minutes: $bvm.bedtimeMinute)
+                        }
+                        SettingsDivider()
+                        SettingsToggleRow(
+                            title: "Bedtime slot enabled",
+                            isOn: $bvm.bedtimeSlotEnabled,
+                            toggleAccessibilityId: "settings.bedtimeSlotEnabled"
+                        )
                     }
                 }
 
@@ -121,13 +129,29 @@ struct SettingsView: View {
                 // Glucose Reminders
                 SettingsSectionCard(title: "Glucose Reminders") {
                     VStack(spacing: 0) {
-                        SettingsToggleRow(title: "Before meal", isOn: $bvm.enableBeforeMeal)
+                        SettingsToggleRow(
+                            title: "Before meal",
+                            isOn: $bvm.enableBeforeMeal,
+                            toggleAccessibilityId: "settings.glucose.beforeMeal"
+                        )
                         SettingsDivider()
-                        SettingsToggleRow(title: "After meal (2h)", isOn: $bvm.enableAfterMeal2h)
+                        SettingsToggleRow(
+                            title: "After meal (2h)",
+                            isOn: $bvm.enableAfterMeal2h,
+                            toggleAccessibilityId: "settings.glucose.afterMeal2h"
+                        )
                         SettingsDivider()
-                        SettingsToggleRow(title: "Bedtime", isOn: $bvm.enableBedtime)
+                        SettingsToggleRow(
+                            title: "Bedtime",
+                            isOn: $bvm.enableBedtime,
+                            toggleAccessibilityId: "settings.glucose.bedtime"
+                        )
                         SettingsDivider()
-                        SettingsToggleRow(title: "Daily cycle mode (1 per day)", isOn: $bvm.enableDailyCycleMode)
+                        SettingsToggleRow(
+                            title: "Daily cycle mode (1 per day)",
+                            isOn: $bvm.enableDailyCycleMode,
+                            toggleAccessibilityId: "settings.glucose.dailyCycle"
+                        )
                     }
                 }
 
@@ -209,7 +233,11 @@ struct SettingsView: View {
                         if !bvm.isGoogleEnabled {
                             // Primary action when not connected
                             SettingsActionRow(icon: "link", title: "Connect", role: .none) {
-                                Task { await vm.connectGoogle() }
+                                Task {
+                                    await vm.connectGoogle()
+                                    await container.syncWithGoogleUseCase.syncPendingMeasurements()
+                                    await vm.refreshSyncStatus()
+                                }
                             }
                         } else {
                             // Primary action when connected
@@ -380,6 +408,7 @@ private struct SettingsRow<Trailing: View>: View {
 private struct SettingsToggleRow: View {
     let title: String
     @Binding var isOn: Bool
+    var toggleAccessibilityId: String? = nil
 
     var body: some View {
         HStack(spacing: DS.Spacing.small) {
@@ -387,10 +416,21 @@ private struct SettingsToggleRow: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
             Spacer(minLength: DS.Spacing.small)
+            toggleView
+        }
+        .frame(minHeight: 48)
+    }
+
+    @ViewBuilder
+    private var toggleView: some View {
+        if let id = toggleAccessibilityId {
+            Toggle("", isOn: $isOn)
+                .labelsHidden()
+                .accessibilityIdentifier(id)
+        } else {
             Toggle("", isOn: $isOn)
                 .labelsHidden()
         }
-        .frame(minHeight: 48)
     }
 }
 
@@ -639,4 +679,3 @@ private struct WeekdayGrid: View {
     NavigationStack { SettingsView() }
         .appContainer(.preview)
 }
-

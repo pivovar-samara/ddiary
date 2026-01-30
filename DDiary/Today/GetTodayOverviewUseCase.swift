@@ -108,8 +108,9 @@ public final class GetTodayOverviewUseCase {
                 glucosePlanned.append((GlucosePlannedSlot(mealSlot: .dinner, measurementType: .afterMeal2h, date: after, completed: false, matchedMeasurementId: nil), after))
             }
         }
-        // Bedtime (use 22:00 if enabled)
-        if settings.enableBedtime, let bedtime = Self.date(on: today, using: DateComponents(hour: 22, minute: 0), calendar: calendar) {
+        // Bedtime (use user-configured time when slot enabled)
+        if settings.bedtimeSlotEnabled,
+           let bedtime = Self.date(on: today, using: DateComponents(hour: settings.bedtimeHour, minute: settings.bedtimeMinute), calendar: calendar) {
             glucosePlanned.append((GlucosePlannedSlot(mealSlot: .none, measurementType: .bedtime, date: bedtime, completed: false, matchedMeasurementId: nil), bedtime))
         }
 
@@ -160,13 +161,16 @@ public final class GetTodayOverviewUseCase {
             return BPScheduledSlot(date: date, completed: id != nil, matchedMeasurementId: id)
         }
 
-        // Mark Glucose completion by slot kind (ignore time-of-day), greedily assigning unique measurements per slot
+        // Mark Glucose completion by slot kind, picking the nearest measurement per slot
         var unmatchedGlucose = glucoseMeasurements.sorted { $0.timestamp < $1.timestamp }
         let glSlots: [GlucosePlannedSlot] = glucosePlanned.map { (slot, baseDate) in
-            if let idx = unmatchedGlucose.firstIndex(where: { m in
+            let candidates = unmatchedGlucose.enumerated().filter { _, m in
                 m.measurementType == slot.measurementType && m.mealSlot == slot.mealSlot
+            }
+            if let nearest = candidates.min(by: { lhs, rhs in
+                abs(lhs.element.timestamp.timeIntervalSince(baseDate)) < abs(rhs.element.timestamp.timeIntervalSince(baseDate))
             }) {
-                let matched = unmatchedGlucose.remove(at: idx)
+                let matched = unmatchedGlucose.remove(at: nearest.offset)
                 return GlucosePlannedSlot(mealSlot: slot.mealSlot, measurementType: slot.measurementType, date: baseDate, completed: true, matchedMeasurementId: matched.id)
             } else {
                 return GlucosePlannedSlot(mealSlot: slot.mealSlot, measurementType: slot.measurementType, date: baseDate, completed: false, matchedMeasurementId: nil)
@@ -221,10 +225,6 @@ public final class GetTodayOverviewUseCase {
                 glucose.append(GlucosePlannedSlot(mealSlot: .dinner, measurementType: .afterMeal2h, date: after, completed: false, matchedMeasurementId: nil))
             }
         }
-        if let bedtime = date(on: today, using: DateComponents(hour: 22, minute: 0), calendar: calendar) {
-            glucose.append(GlucosePlannedSlot(mealSlot: .none, measurementType: .bedtime, date: bedtime, completed: false, matchedMeasurementId: nil))
-        }
-
         let bpSlots = bpDates.map { BPScheduledSlot(date: $0, completed: false, matchedMeasurementId: nil) }
         return TodayOverview(bpSlots: bpSlots, glucoseSlots: glucose.sorted { $0.date < $1.date })
     }

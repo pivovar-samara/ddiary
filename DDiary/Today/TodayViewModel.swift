@@ -17,12 +17,20 @@ public struct BPSlotViewModel: Identifiable, Sendable, Equatable {
     public let displayTime: String
     public let scheduledDate: Date
     public let status: SlotStatus
+    public let matchedMeasurementId: UUID?
 
-    public init(id: UUID = UUID(), displayTime: String, scheduledDate: Date, status: SlotStatus) {
+    public init(
+        id: UUID = UUID(),
+        displayTime: String,
+        scheduledDate: Date,
+        status: SlotStatus,
+        matchedMeasurementId: UUID?
+    ) {
         self.id = id
         self.displayTime = displayTime
         self.scheduledDate = scheduledDate
         self.status = status
+        self.matchedMeasurementId = matchedMeasurementId
     }
 }
 
@@ -35,6 +43,7 @@ public struct GlucoseSlotViewModel: Identifiable, Sendable, Equatable {
     public let displayTime: String
     public let scheduledDate: Date
     public let status: SlotStatus
+    public let matchedMeasurementId: UUID?
 
     public init(
         id: UUID = UUID(),
@@ -42,7 +51,8 @@ public struct GlucoseSlotViewModel: Identifiable, Sendable, Equatable {
         measurementType: GlucoseMeasurementType,
         displayTime: String,
         scheduledDate: Date,
-        status: SlotStatus
+        status: SlotStatus,
+        matchedMeasurementId: UUID?
     ) {
         self.id = id
         self.mealSlot = mealSlot
@@ -50,6 +60,7 @@ public struct GlucoseSlotViewModel: Identifiable, Sendable, Equatable {
         self.displayTime = displayTime
         self.scheduledDate = scheduledDate
         self.status = status
+        self.matchedMeasurementId = matchedMeasurementId
     }
 }
 
@@ -221,7 +232,8 @@ public final class TodayViewModel {
             return BPSlotViewModel(
                 displayTime: timeFormatter.string(from: slot.date),
                 scheduledDate: slot.date,
-                status: status
+                status: status,
+                matchedMeasurementId: slot.matchedMeasurementId
             )
         }
 
@@ -233,7 +245,8 @@ public final class TodayViewModel {
                 measurementType: slot.measurementType,
                 displayTime: timeFormatter.string(from: slot.date),
                 scheduledDate: slot.date,
-                status: status
+                status: status,
+                matchedMeasurementId: slot.matchedMeasurementId
             )
         }
 
@@ -263,4 +276,3 @@ public final class TodayViewModel {
         return .missed
     }
 }
-

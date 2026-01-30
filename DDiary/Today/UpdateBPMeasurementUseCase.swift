@@ -26,6 +26,8 @@ public final class UpdateBPMeasurementUseCase {
         measurement.diastolic = diastolic
         measurement.pulse = pulse
         measurement.comment = comment
+        measurement.googleSyncStatus = .pending
+        measurement.googleLastError = nil
         try await measurementsRepository.updateBP(measurement)
         // Optional analytics: treat as a measurement interaction
         await analyticsRepository.logMeasurementLogged(kind: .bloodPressure)

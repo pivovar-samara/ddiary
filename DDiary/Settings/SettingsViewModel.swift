@@ -29,6 +29,8 @@ final class SettingsViewModel {
     var dinnerHour: Int = 19
     var dinnerMinute: Int = 0
     var bedtimeSlotEnabled: Bool = false
+    var bedtimeHour: Int = 22
+    var bedtimeMinute: Int = 0
 
     // Blood pressure reminder times (minutes since midnight) and active weekdays (1...7)
     var bpTimes: [Int] = []
@@ -95,6 +97,8 @@ final class SettingsViewModel {
             dinnerHour = settings.dinnerHour
             dinnerMinute = settings.dinnerMinute
             bedtimeSlotEnabled = settings.bedtimeSlotEnabled
+            bedtimeHour = settings.bedtimeHour
+            bedtimeMinute = settings.bedtimeMinute
 
             bpTimes = settings.bpTimes
             bpActiveWeekdays = settings.bpActiveWeekdays
@@ -133,6 +137,8 @@ final class SettingsViewModel {
             settings.dinnerHour = dinnerHour
             settings.dinnerMinute = dinnerMinute
             settings.bedtimeSlotEnabled = bedtimeSlotEnabled
+            settings.bedtimeHour = bedtimeHour
+            settings.bedtimeMinute = bedtimeMinute
 
             settings.bpTimes = bpTimes
             settings.bpActiveWeekdays = bpActiveWeekdays
@@ -174,9 +180,11 @@ final class SettingsViewModel {
                 do {
                     let id = try await googleSheetsClient.createSpreadsheetAndSetup(refreshToken: tokens.refreshToken, title: title)
                     integration.spreadsheetId = id
+                    log("Created spreadsheet id=\(id)")
                 } catch {
                     // Surface error but keep tokens saved; user can retry later
                     self.errorMessage = "Failed to create spreadsheet: \(error.localizedDescription)"
+                    log("Spreadsheet creation failed: \(error)")
                 }
             }
 
@@ -186,6 +194,7 @@ final class SettingsViewModel {
             errorMessage = nil
         } catch {
             errorMessage = String(describing: error)
+            log("Google connect failed: \(error)")
         }
     }
 
@@ -284,5 +293,11 @@ final class SettingsViewModel {
         } catch {
             // On error, keep current values but optionally clear errorMessage
         }
+    }
+
+    private func log(_ message: String) {
+        #if DEBUG
+        print("[Settings] \(message)")
+        #endif
     }
 }

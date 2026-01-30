@@ -21,6 +21,7 @@ final class DDiaryUITests: XCTestCase {
         enum Tab {
             static let today = "tab.today" // fallback to label "Today"
             static let history = "tab.history" // fallback to label "History"
+            static let settings = "tab.settings" // fallback to label "Settings"
         }
         enum TodayRowPrefix {
             static let bp = "today.row.bp."
@@ -34,13 +35,23 @@ final class DDiaryUITests: XCTestCase {
         }
         enum Action {
             static let save = "quickEntry.save"
+            static let cancel = "quickEntry.cancel"
+        }
+        enum Settings {
+            static let bedtimeSlotEnabled = "settings.bedtimeSlotEnabled"
+            static let glucoseBeforeMeal = "settings.glucose.beforeMeal"
+            static let glucoseAfterMeal2h = "settings.glucose.afterMeal2h"
+            static let glucoseBedtime = "settings.glucose.bedtime"
+        }
+        enum Today {
+            static let completedDisclosure = "today.completedDisclosure"
         }
     }
 
     @MainActor
     func testQuickEntryAndHistoryFlow() throws {
         // 1) Launch app
-        let app = XCUIApplication()
+        let app = makeApp()
         app.launch()
 
         // 2) Navigate to Today (if tab bar exists)
@@ -52,6 +63,7 @@ final class DDiaryUITests: XCTestCase {
         }
 
         // 3) Open BP Quick Entry by tapping a Today BP row and enter values
+        ensureBPSlotExists(app: app)
         let bpRow = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", A11y.TodayRowPrefix.bp)).firstMatch
         XCTAssertTrue(waitForExistence(bpRow, timeout: 10), "A BP slot row should exist on Today")
         bpRow.tap()
@@ -78,14 +90,19 @@ final class DDiaryUITests: XCTestCase {
         _ = waitForNonExistence(systolicField, timeout: 5)
 
         // 4) Open Glucose Quick Entry by tapping a Today Glucose row and enter values
+        ensureGlucoseSlotExists(app: app)
         let glucoseRow = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", A11y.TodayRowPrefix.glucose)).firstMatch
         XCTAssertTrue(waitForExistence(glucoseRow, timeout: 10), "A Glucose slot row should exist on Today")
         glucoseRow.tap()
 
         let glucoseField = app.textFields[A11y.Field.glucose]
         XCTAssertTrue(waitForExistence(glucoseField, timeout: 5), "Glucose value field should exist")
-        // Enter a simple integer to avoid locale-specific decimal keypad issues
-        glucoseField.clearAndTypeText("6")
+        // Enter a value that matches the current unit to avoid out-of-range warnings
+        let unitLabel = app.staticTexts["quickEntry.glucose.unitLabel"]
+        XCTAssertTrue(waitForExistence(unitLabel, timeout: 5), "Glucose unit label should exist")
+        let unitText = unitLabel.label.lowercased()
+        let glucoseValue = unitText.contains("mg/dl") ? "100" : "6"
+        glucoseField.clearAndTypeText(glucoseValue)
 
         let glucoseSaveButton = firstExisting(in: [
             app.buttons[A11y.Action.save],
@@ -94,6 +111,7 @@ final class DDiaryUITests: XCTestCase {
         ])
         XCTAssertTrue(waitForExistence(glucoseSaveButton, timeout: 5), "Save button should exist on Glucose Quick Entry")
         glucoseSaveButton.tap()
+        dismissUnusualValuesAlertIfPresent(app: app)
         _ = waitForNonExistence(glucoseField, timeout: 5)
 
         // 5) Navigate to History
@@ -116,8 +134,133 @@ final class DDiaryUITests: XCTestCase {
     @MainActor
     func testLaunchPerformance() throws {
         measure(metrics: [XCTApplicationLaunchMetric()]) {
-            XCUIApplication().launch()
+            let app = makeApp()
+            app.launch()
         }
+    }
+
+    @MainActor
+    func testBPOutOfRangeShowsAlert() throws {
+        let app = makeApp()
+        app.launch()
+
+        navigateToTab(app: app, tabId: A11y.Tab.today, fallbackLabel: "Today")
+
+        let bpRow = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", A11y.TodayRowPrefix.bp)).firstMatch
+        XCTAssertTrue(waitForExistence(bpRow, timeout: 10), "A BP slot row should exist on Today")
+        bpRow.tap()
+
+        let systolicField = app.textFields[A11y.Field.systolic]
+        XCTAssertTrue(waitForExistence(systolicField, timeout: 5), "Systolic field should exist")
+        systolicField.clearAndTypeText("20")
+
+        let diastolicField = app.textFields[A11y.Field.diastolic]
+        XCTAssertTrue(waitForExistence(diastolicField, timeout: 5), "Diastolic field should exist")
+        diastolicField.clearAndTypeText("20")
+
+        let pulseField = app.textFields[A11y.Field.pulse]
+        XCTAssertTrue(waitForExistence(pulseField, timeout: 5), "Pulse field should exist")
+        pulseField.clearAndTypeText("20")
+
+        let saveButton = firstExisting(in: [
+            app.buttons[A11y.Action.save],
+            app.navigationBars.buttons[A11y.Action.save],
+            app.buttons["Save"]
+        ])
+        XCTAssertTrue(waitForExistence(saveButton, timeout: 5), "Save button should exist")
+        saveButton.tap()
+
+        let alert = app.alerts["Unusual values"]
+        XCTAssertTrue(waitForExistence(alert, timeout: 5), "Unusual values alert should appear")
+        alert.buttons["Cancel"].tap()
+
+        let cancelButton = firstExisting(in: [
+            app.buttons[A11y.Action.cancel],
+            app.navigationBars.buttons["Cancel"],
+            app.buttons["Cancel"]
+        ])
+        XCTAssertTrue(waitForExistence(cancelButton, timeout: 5), "Cancel button should exist")
+        cancelButton.tap()
+    }
+
+    @MainActor
+    func testGlucoseOutOfRangeShowsAlertAndInlineMessage() throws {
+        let app = makeApp()
+        app.launch()
+
+        navigateToTab(app: app, tabId: A11y.Tab.today, fallbackLabel: "Today")
+
+        let glucoseRow = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", A11y.TodayRowPrefix.glucose)).firstMatch
+        XCTAssertTrue(waitForExistence(glucoseRow, timeout: 10), "A Glucose slot row should exist on Today")
+        glucoseRow.tap()
+
+        let glucoseField = app.textFields[A11y.Field.glucose]
+        XCTAssertTrue(waitForExistence(glucoseField, timeout: 5), "Glucose value field should exist")
+        glucoseField.clearAndTypeText("1")
+
+        let saveButton = firstExisting(in: [
+            app.buttons[A11y.Action.save],
+            app.navigationBars.buttons[A11y.Action.save],
+            app.buttons["Save"]
+        ])
+        XCTAssertTrue(waitForExistence(saveButton, timeout: 5), "Save button should exist")
+        saveButton.tap()
+
+        let alert = app.alerts["Unusual values"]
+        XCTAssertTrue(waitForExistence(alert, timeout: 5), "Unusual values alert should appear")
+        alert.buttons["Cancel"].tap()
+
+        let inlineWarning = app.staticTexts["quickEntry.glucose.validationMessage"]
+        XCTAssertTrue(waitForExistence(inlineWarning, timeout: 5), "Inline range warning should appear")
+
+        let cancelButton = firstExisting(in: [
+            app.buttons[A11y.Action.cancel],
+            app.navigationBars.buttons["Cancel"],
+            app.buttons["Cancel"]
+        ])
+        XCTAssertTrue(waitForExistence(cancelButton, timeout: 5), "Cancel button should exist")
+        cancelButton.tap()
+    }
+
+    @MainActor
+    func testBedtimeSlotToggleAffectsToday() throws {
+        let app = makeApp()
+        app.launch()
+
+        navigateToTab(app: app, tabId: A11y.Tab.settings, fallbackLabel: "Settings")
+
+        let bedtimeToggle = app.switches[A11y.Settings.bedtimeSlotEnabled]
+        scrollToElement(bedtimeToggle, in: app)
+        XCTAssertTrue(waitForExistence(bedtimeToggle, timeout: 5), "Bedtime slot toggle should exist")
+
+        if (bedtimeToggle.value as? String) == "1" {
+            bedtimeToggle.tap()
+        }
+
+        tapSaveIfPresent(app: app)
+        navigateToTab(app: app, tabId: A11y.Tab.today, fallbackLabel: "Today")
+
+        let bedtimeRow = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Bedtime")).firstMatch
+        XCTAssertTrue(waitForNonExistence(bedtimeRow, timeout: 5), "Bedtime slot should not appear when disabled")
+
+        navigateToTab(app: app, tabId: A11y.Tab.settings, fallbackLabel: "Settings")
+        scrollToElement(bedtimeToggle, in: app)
+        if (bedtimeToggle.value as? String) == "0" {
+            bedtimeToggle.tap()
+        }
+
+        tapSaveIfPresent(app: app)
+        navigateToTab(app: app, tabId: A11y.Tab.today, fallbackLabel: "Today")
+
+        XCTAssertTrue(waitForExistence(bedtimeRow, timeout: 5), "Bedtime slot should appear when enabled")
+
+        // Cleanup: disable again to avoid affecting other tests
+        navigateToTab(app: app, tabId: A11y.Tab.settings, fallbackLabel: "Settings")
+        scrollToElement(bedtimeToggle, in: app)
+        if (bedtimeToggle.value as? String) == "1" {
+            bedtimeToggle.tap()
+        }
+        tapSaveIfPresent(app: app)
     }
 
     // MARK: - Helpers
@@ -142,6 +285,89 @@ final class DDiaryUITests: XCTestCase {
         }
         return elements.first!
     }
+
+    private func makeApp() -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments.append("UITESTING")
+        return app
+    }
+
+    @MainActor
+    private func dismissUnusualValuesAlertIfPresent(app: XCUIApplication) {
+        let alert = app.alerts["Unusual values"]
+        guard waitForExistence(alert, timeout: 2) else { return }
+        let saveAnyway = alert.buttons["Save anyway"]
+        if saveAnyway.exists {
+            saveAnyway.tap()
+            return
+        }
+        let ok = alert.buttons["OK"]
+        if ok.exists {
+            ok.tap()
+            return
+        }
+    }
+
+    @MainActor
+    private func navigateToTab(app: XCUIApplication, tabId: String, fallbackLabel: String) {
+        guard app.tabBars.firstMatch.exists else { return }
+        let button = app.tabBars.buttons[tabId].exists
+        ? app.tabBars.buttons[tabId]
+        : app.tabBars.buttons[fallbackLabel]
+        if waitForExistence(button, timeout: 5) { button.tap() }
+    }
+
+    @MainActor
+    private func scrollToElement(_ element: XCUIElement, in app: XCUIApplication, maxSwipes: Int = 6) {
+        var swipes = 0
+        while !element.isHittable && swipes < maxSwipes {
+            app.swipeUp()
+            swipes += 1
+        }
+    }
+
+    @MainActor
+    private func tapSaveIfPresent(app: XCUIApplication) {
+        let saveButton = firstExisting(in: [
+            app.navigationBars.buttons["Save"],
+            app.buttons["Save"]
+        ])
+        if saveButton.exists {
+            saveButton.tap()
+        }
+    }
+
+    @MainActor
+    private func ensureBPSlotExists(app: XCUIApplication) {
+        let bpRow = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", A11y.TodayRowPrefix.bp)).firstMatch
+        if waitForExistence(bpRow, timeout: 5) { return }
+
+        navigateToTab(app: app, tabId: A11y.Tab.settings, fallbackLabel: "Settings")
+        let addTimeButton = app.buttons["Add time"]
+        scrollToElement(addTimeButton, in: app)
+        XCTAssertTrue(waitForExistence(addTimeButton, timeout: 5), "Add time button should exist in Settings")
+        addTimeButton.tap()
+        tapSaveIfPresent(app: app)
+
+        navigateToTab(app: app, tabId: A11y.Tab.today, fallbackLabel: "Today")
+    }
+
+    @MainActor
+    private func ensureGlucoseSlotExists(app: XCUIApplication) {
+        let glucoseRow = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", A11y.TodayRowPrefix.glucose)).firstMatch
+        if waitForExistence(glucoseRow, timeout: 5) { return }
+
+        navigateToTab(app: app, tabId: A11y.Tab.settings, fallbackLabel: "Settings")
+        let beforeMealToggle = app.switches[A11y.Settings.glucoseBeforeMeal]
+        scrollToElement(beforeMealToggle, in: app)
+        XCTAssertTrue(waitForExistence(beforeMealToggle, timeout: 5), "Before meal toggle should exist in Settings")
+        if (beforeMealToggle.value as? String) == "0" {
+            beforeMealToggle.tap()
+        }
+        tapSaveIfPresent(app: app)
+
+        navigateToTab(app: app, tabId: A11y.Tab.today, fallbackLabel: "Today")
+    }
 }
 
 private extension XCUIElement {
@@ -154,4 +380,3 @@ private extension XCUIElement {
         typeText(text)
     }
 }
-

@@ -14,15 +14,23 @@ struct DDiaryApp: App {
     let sharedModelContainer: ModelContainer
     let appContainer: AppContainer
     private let notificationsCoordinator: NotificationsCoordinator
+    private let isUITesting: Bool
 
     init() {
+        let args = ProcessInfo.processInfo.arguments
+        let env = ProcessInfo.processInfo.environment
+        self.isUITesting = args.contains("UITESTING") || env["UITESTING"] == "1"
+
         let schema = Schema([
             BPMeasurement.self,
             GlucoseMeasurement.self,
             UserSettings.self,
             GoogleIntegration.self,
         ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+        let modelConfiguration = ModelConfiguration(
+            schema: schema,
+            isStoredInMemoryOnly: isUITesting
+        )
 
         do {
             let container = try ModelContainer(for: schema, configurations: [modelConfiguration])

@@ -28,6 +28,8 @@ public final class UpdateGlucoseMeasurementUseCase {
         measurement.measurementType = measurementType
         measurement.mealSlot = mealSlot
         measurement.comment = comment
+        measurement.googleSyncStatus = .pending
+        measurement.googleLastError = nil
         try await measurementsRepository.updateGlucose(measurement)
         // Optional analytics: treat as a measurement interaction
         await analyticsRepository.logMeasurementLogged(kind: .glucose)
