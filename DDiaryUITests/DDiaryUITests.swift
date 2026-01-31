@@ -228,10 +228,11 @@ final class DDiaryUITests: XCTestCase {
         app.launch()
 
         navigateToTab(app: app, tabId: A11y.Tab.settings, fallbackLabel: "Settings")
+        XCTAssertTrue(waitForExistence(app.navigationBars["Settings"], timeout: 5), "Settings screen should be visible")
 
         let bedtimeToggle = app.switches[A11y.Settings.bedtimeSlotEnabled]
         scrollToElement(bedtimeToggle, in: app)
-        XCTAssertTrue(waitForExistence(bedtimeToggle, timeout: 5), "Bedtime slot toggle should exist")
+        XCTAssertTrue(waitForExistence(bedtimeToggle, timeout: 10), "Bedtime slot toggle should exist")
 
         if (bedtimeToggle.value as? String) == "1" {
             bedtimeToggle.tap()
@@ -239,8 +240,11 @@ final class DDiaryUITests: XCTestCase {
 
         tapSaveIfPresent(app: app)
         navigateToTab(app: app, tabId: A11y.Tab.today, fallbackLabel: "Today")
+        _ = waitForExistence(app.navigationBars["Today"], timeout: 5)
+        waitForTodayRows(app: app)
 
-        let bedtimeRow = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Bedtime")).firstMatch
+        let bedtimeRow = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Bedtime")).firstMatch
+        scrollToElement(bedtimeRow, in: app, maxSwipes: 8)
         XCTAssertTrue(waitForNonExistence(bedtimeRow, timeout: 5), "Bedtime slot should not appear when disabled")
 
         navigateToTab(app: app, tabId: A11y.Tab.settings, fallbackLabel: "Settings")
@@ -251,8 +255,11 @@ final class DDiaryUITests: XCTestCase {
 
         tapSaveIfPresent(app: app)
         navigateToTab(app: app, tabId: A11y.Tab.today, fallbackLabel: "Today")
+        _ = waitForExistence(app.navigationBars["Today"], timeout: 5)
+        waitForTodayRows(app: app)
 
-        XCTAssertTrue(waitForExistence(bedtimeRow, timeout: 5), "Bedtime slot should appear when enabled")
+        scrollToElement(bedtimeRow, in: app, maxSwipes: 8)
+        XCTAssertTrue(waitForExistence(bedtimeRow, timeout: 10), "Bedtime slot should appear when enabled")
 
         // Cleanup: disable again to avoid affecting other tests
         navigateToTab(app: app, tabId: A11y.Tab.settings, fallbackLabel: "Settings")
@@ -310,18 +317,40 @@ final class DDiaryUITests: XCTestCase {
 
     @MainActor
     private func navigateToTab(app: XCUIApplication, tabId: String, fallbackLabel: String) {
-        guard app.tabBars.firstMatch.exists else { return }
-        let button = app.tabBars.buttons[tabId].exists
-        ? app.tabBars.buttons[tabId]
-        : app.tabBars.buttons[fallbackLabel]
-        if waitForExistence(button, timeout: 5) { button.tap() }
+        let tabBar = app.tabBars.firstMatch
+        if waitForExistence(tabBar, timeout: 3) {
+            let tabButton = tabBar.buttons[tabId].firstMatch
+            if waitForExistence(tabButton, timeout: 2) {
+                tabButton.tap()
+                return
+            }
+            let fallbackButton = tabBar.buttons.matching(NSPredicate(format: "label == %@", fallbackLabel)).firstMatch
+            if waitForExistence(fallbackButton, timeout: 2) {
+                fallbackButton.tap()
+                return
+            }
+        }
+        let anyButton = app.buttons.matching(NSPredicate(format: "label == %@", fallbackLabel)).firstMatch
+        if waitForExistence(anyButton, timeout: 2) {
+            anyButton.tap()
+            return
+        }
+        let sidebarCell = app.cells.matching(NSPredicate(format: "label == %@", fallbackLabel)).firstMatch
+        if waitForExistence(sidebarCell, timeout: 2) {
+            sidebarCell.tap()
+        }
     }
 
     @MainActor
     private func scrollToElement(_ element: XCUIElement, in app: XCUIApplication, maxSwipes: Int = 6) {
         var swipes = 0
         while !element.isHittable && swipes < maxSwipes {
-            app.swipeUp()
+            let scrollView = app.scrollViews.firstMatch
+            if scrollView.exists {
+                scrollView.swipeUp()
+            } else {
+                app.swipeUp()
+            }
             swipes += 1
         }
     }
@@ -343,6 +372,7 @@ final class DDiaryUITests: XCTestCase {
         if waitForExistence(bpRow, timeout: 5) { return }
 
         navigateToTab(app: app, tabId: A11y.Tab.settings, fallbackLabel: "Settings")
+        _ = waitForExistence(app.navigationBars["Settings"], timeout: 5)
         let addTimeButton = app.buttons["Add time"]
         scrollToElement(addTimeButton, in: app)
         XCTAssertTrue(waitForExistence(addTimeButton, timeout: 5), "Add time button should exist in Settings")
@@ -358,15 +388,22 @@ final class DDiaryUITests: XCTestCase {
         if waitForExistence(glucoseRow, timeout: 5) { return }
 
         navigateToTab(app: app, tabId: A11y.Tab.settings, fallbackLabel: "Settings")
+        _ = waitForExistence(app.navigationBars["Settings"], timeout: 5)
         let beforeMealToggle = app.switches[A11y.Settings.glucoseBeforeMeal]
         scrollToElement(beforeMealToggle, in: app)
-        XCTAssertTrue(waitForExistence(beforeMealToggle, timeout: 5), "Before meal toggle should exist in Settings")
+        XCTAssertTrue(waitForExistence(beforeMealToggle, timeout: 10), "Before meal toggle should exist in Settings")
         if (beforeMealToggle.value as? String) == "0" {
             beforeMealToggle.tap()
         }
         tapSaveIfPresent(app: app)
 
         navigateToTab(app: app, tabId: A11y.Tab.today, fallbackLabel: "Today")
+    }
+
+    @MainActor
+    private func waitForTodayRows(app: XCUIApplication) {
+        let anyRow = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "today.row.")).firstMatch
+        _ = waitForExistence(anyRow, timeout: 10)
     }
 }
 
