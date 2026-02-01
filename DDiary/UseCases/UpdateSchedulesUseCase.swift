@@ -5,6 +5,10 @@ public final class UpdateSchedulesUseCase {
     private let settingsRepository: any SettingsRepository
     private let notificationsRepository: any NotificationsRepository
     private let analyticsRepository: any AnalyticsRepository
+    private var isUITesting: Bool {
+        ProcessInfo.processInfo.arguments.contains("UITESTING")
+        || ProcessInfo.processInfo.environment["UITESTING"] == "1"
+    }
 
     public init(
         settingsRepository: any SettingsRepository,
@@ -19,6 +23,7 @@ public final class UpdateSchedulesUseCase {
     /// Request authorization (if needed) and schedule all notifications from the current settings.
     /// Call this on app launch after setting up categories and a delegate.
     public func requestAuthorizationAndSchedule() async {
+        guard !isUITesting else { return }
         do {
             let granted = try await notificationsRepository.requestAuthorization()
             guard granted else { return }
