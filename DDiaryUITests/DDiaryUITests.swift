@@ -324,18 +324,18 @@ final class DDiaryUITests: XCTestCase {
                 tabButton.tap()
                 return
             }
-            let fallbackButton = tabBar.buttons.matching(NSPredicate(format: "label == %@", fallbackLabel)).firstMatch
+            let fallbackButton = tabBar.buttons[fallbackLabel].firstMatch
             if waitForExistence(fallbackButton, timeout: 2) {
                 fallbackButton.tap()
                 return
             }
         }
-        let anyButton = app.buttons.matching(NSPredicate(format: "label == %@", fallbackLabel)).firstMatch
+        let anyButton = app.buttons[fallbackLabel].firstMatch
         if waitForExistence(anyButton, timeout: 2) {
             anyButton.tap()
             return
         }
-        let sidebarCell = app.cells.matching(NSPredicate(format: "label == %@", fallbackLabel)).firstMatch
+        let sidebarCell = app.cells[fallbackLabel].firstMatch
         if waitForExistence(sidebarCell, timeout: 2) {
             sidebarCell.tap()
         }
