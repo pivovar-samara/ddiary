@@ -38,6 +38,7 @@
 		484314DC2EDAE34000ECF66A /* DDiaryTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DDiaryTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		484314DD2EDAE34000ECF66A /* DDiaryUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DDiaryUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		484315052EDAEC2D00ECF66A /* DDiary_Development_Plan.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = DDiary_Development_Plan.md; sourceTree = "<group>"; };
+		4885FF7E2F332B1300674DF9 /* DDiary.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = DDiary.xctestplan; sourceTree = "<group>"; };
 		48F9A6952ED7763600C114DB /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -113,6 +114,7 @@
 		4849EBA62ED4BF4F00E060BF = {
 			isa = PBXGroup;
 			children = (
+				4885FF7E2F332B1300674DF9 /* DDiary.xctestplan */,
 				484315052EDAEC2D00ECF66A /* DDiary_Development_Plan.md */,
 				48F9A6952ED7763600C114DB /* README.md */,
 				483246C52EF4014900D33F53 /* Configs */,
