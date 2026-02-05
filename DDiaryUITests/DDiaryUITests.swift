@@ -11,9 +11,16 @@ final class DDiaryUITests: XCTestCase {
 
     override func setUpWithError() throws {
         continueAfterFailure = false
+        let shouldLandscape = ProcessInfo.processInfo.environment["UITEST_LANDSCAPE"] == "1"
+        Task { @MainActor in
+            XCUIDevice.shared.orientation = shouldLandscape ? .landscapeLeft : .portrait
+        }
     }
 
     override func tearDownWithError() throws {
+        Task { @MainActor in
+            XCUIDevice.shared.orientation = .portrait
+        }
     }
 
     // Accessibility identifiers used by the app UI.
