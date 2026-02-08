@@ -19,6 +19,7 @@ struct HistoryView: View {
                     .task { await vm.listenForChanges() }
             } else {
                 ProgressView()
+                    .accessibilityIdentifier("history.scroll")
                     .task { await initializeViewModelIfNeeded() }
             }
         }
@@ -50,6 +51,7 @@ struct HistoryView: View {
             }
             .padding()
         }
+        .accessibilityIdentifier("history.scroll")
         .sheet(isPresented: $presentBPQuickEntry) {
             NavigationStack {
                 BPQuickEntryForm(
@@ -103,6 +105,7 @@ struct HistoryView: View {
     @ViewBuilder
     private func summarySection(_ vm: HistoryViewModel) -> some View {
         SummaryCard(vm: vm)
+            .accessibilityIdentifier("history.summary")
     }
 
     @ViewBuilder
@@ -116,6 +119,8 @@ struct HistoryView: View {
                     .foregroundStyle(.secondary)
             }
             .cardContainer()
+            .accessibilityIdentifier("history.list")
+            .accessibilityElement(children: .contain)
         } else {
             VStack(alignment: .leading, spacing: DS.Spacing.large) {
                 ForEach(groups, id: \.day) { group in
@@ -144,6 +149,8 @@ struct HistoryView: View {
                     }
                 }
             }
+            .accessibilityIdentifier("history.list")
+            .accessibilityElement(children: .contain)
         }
     }
 

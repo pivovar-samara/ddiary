@@ -42,6 +42,7 @@ struct BPHistoryRow: View {
             .cardContainer(padding: DS.Spacing.small)
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("history.row.bp.\(measurement.id.uuidString)")
     }
 
     private var showOutlierWarning: Bool {
@@ -114,6 +115,7 @@ struct GlucoseHistoryRow: View {
             .cardContainer(padding: DS.Spacing.small)
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("history.row.glucose.\(measurement.id.uuidString)")
     }
 
     private var isMissing: Bool {

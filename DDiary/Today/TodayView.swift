@@ -117,6 +117,7 @@ public struct TodayView: View {
             }
             .padding()
         }
+        .accessibilityIdentifier("today.scroll")
         .onAppear {
             _viewModel.wrappedValue = TodayViewModel(
                 getTodayOverviewUseCase: container.getTodayOverviewUseCase,

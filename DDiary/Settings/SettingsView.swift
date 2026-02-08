@@ -303,6 +303,7 @@ struct SettingsView: View {
             .padding(.horizontal, DS.Spacing.medium)
             .padding(.vertical, DS.Spacing.large)
         }
+        .accessibilityIdentifier("settings.scroll")
         .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
         .onAppear { Task { await vm.loadSettings() } }
         .toolbar {
@@ -312,6 +313,7 @@ struct SettingsView: View {
                     await container.updateSchedulesUseCase.scheduleFromCurrentSettings()
                 }
             }
+            .accessibilityIdentifier("settings.save")
         }
         .overlay(alignment: .bottom) {
             if let error = vm.errorMessage {

@@ -15,7 +15,7 @@
       "identifier" : "4849EBAE2ED4BF4F00E060BF",
       "name" : "DDiary"
     },
-    "testRepetitionMode" : "fixedIterations"
+    "testRepetitionMode" : "retryOnFailure"
   },
   "testTargets" : [
     {

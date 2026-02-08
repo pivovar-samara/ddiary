@@ -68,6 +68,7 @@ final class DDiaryUITests: XCTestCase {
             : app.tabBars.buttons["Today"]
             if waitForExistence(todayButton, timeout: 5) { todayButton.tap() }
         }
+        _ = waitForExistence(app.scrollViews["today.scroll"], timeout: 5)
 
         // 3) Open BP Quick Entry by tapping a Today BP row and enter values
         ensureBPSlotExists(app: app)
@@ -121,21 +122,33 @@ final class DDiaryUITests: XCTestCase {
         dismissUnusualValuesAlertIfPresent(app: app)
         _ = waitForNonExistence(glucoseField, timeout: 5)
 
-        // 5) Navigate to History
-        if app.tabBars.firstMatch.exists {
-            let historyButton = app.tabBars.buttons[A11y.Tab.history].exists
-            ? app.tabBars.buttons[A11y.Tab.history]
-            : app.tabBars.buttons["History"]
-            XCTAssertTrue(waitForExistence(historyButton, timeout: 5), "History tab button should exist")
-            historyButton.tap()
-        }
+        // 5) Navigate to History (robust helper waits for screen)
+        navigateToTab(app: app, tabId: A11y.Tab.history, fallbackLabel: "History")
+        let historyList = app.otherElements["history.list"]
+        let historyScroll = app.scrollViews["history.scroll"]
+        XCTAssertTrue(waitForExistence(historyList, timeout: 10) || waitForExistence(historyScroll, timeout: 10), "History list should be visible")
 
-        // 6) Verify at least one BP and one Glucose entry appear in History
-        // History uses custom rows without explicit identifiers; verify by badge texts
-        let bpBadge = app.staticTexts["BP"].firstMatch
-        let gluBadge = app.staticTexts["GLU"].firstMatch
-        XCTAssertTrue(waitForExistence(bpBadge, timeout: 10), "Expected at least one BP entry in History")
-        XCTAssertTrue(waitForExistence(gluBadge, timeout: 10), "Expected at least one Glucose entry in History")
+        // 6) Verify at least one BP and one Glucose entry appear in History using stable row identifiers
+        let bpHistoryRow = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", "history.row.bp.")).firstMatch
+        scrollToElement(bpHistoryRow, in: app, maxSwipes: 8)
+        var bpFound = waitForExistence(bpHistoryRow, timeout: 10)
+        if !bpFound {
+            // Fallback to badge text if row identifiers are not available yet
+            let bpBadge = app.staticTexts["BP"].firstMatch
+            scrollToElement(bpBadge, in: app, maxSwipes: 8)
+            bpFound = waitForExistence(bpBadge, timeout: 5)
+        }
+        XCTAssertTrue(bpFound, "Expected at least one BP entry in History")
+
+        let gluHistoryRow = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", "history.row.glucose.")).firstMatch
+        scrollToElement(gluHistoryRow, in: app, maxSwipes: 8)
+        var gluFound = waitForExistence(gluHistoryRow, timeout: 10)
+        if !gluFound {
+            let gluBadge = app.staticTexts["GLU"].firstMatch
+            scrollToElement(gluBadge, in: app, maxSwipes: 8)
+            gluFound = waitForExistence(gluBadge, timeout: 5)
+        }
+        XCTAssertTrue(gluFound, "Expected at least one Glucose entry in History")
     }
 
     @MainActor
@@ -236,6 +249,7 @@ final class DDiaryUITests: XCTestCase {
 
         navigateToTab(app: app, tabId: A11y.Tab.settings, fallbackLabel: "Settings")
         XCTAssertTrue(waitForExistence(app.navigationBars["Settings"], timeout: 5), "Settings screen should be visible")
+        _ = waitForExistence(app.scrollViews["settings.scroll"], timeout: 5)
 
         let bedtimeToggle = app.switches[A11y.Settings.bedtimeSlotEnabled]
         scrollToElement(bedtimeToggle, in: app)
@@ -248,6 +262,7 @@ final class DDiaryUITests: XCTestCase {
         tapSaveIfPresent(app: app)
         navigateToTab(app: app, tabId: A11y.Tab.today, fallbackLabel: "Today")
         _ = waitForExistence(app.navigationBars["Today"], timeout: 5)
+        _ = waitForExistence(app.scrollViews["today.scroll"], timeout: 5)
         waitForTodayRows(app: app)
 
         let bedtimeRow = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Bedtime")).firstMatch
@@ -263,6 +278,7 @@ final class DDiaryUITests: XCTestCase {
         tapSaveIfPresent(app: app)
         navigateToTab(app: app, tabId: A11y.Tab.today, fallbackLabel: "Today")
         _ = waitForExistence(app.navigationBars["Today"], timeout: 5)
+        _ = waitForExistence(app.scrollViews["today.scroll"], timeout: 5)
         waitForTodayRows(app: app)
 
         scrollToElement(bedtimeRow, in: app, maxSwipes: 8)
@@ -329,22 +345,42 @@ final class DDiaryUITests: XCTestCase {
             let tabButton = tabBar.buttons[tabId].firstMatch
             if waitForExistence(tabButton, timeout: 2) {
                 tabButton.tap()
+                waitForScreen(app: app, label: fallbackLabel)
                 return
             }
             let fallbackButton = tabBar.buttons[fallbackLabel].firstMatch
             if waitForExistence(fallbackButton, timeout: 2) {
                 fallbackButton.tap()
+                waitForScreen(app: app, label: fallbackLabel)
                 return
             }
         }
         let anyButton = app.buttons[fallbackLabel].firstMatch
         if waitForExistence(anyButton, timeout: 2) {
             anyButton.tap()
+            waitForScreen(app: app, label: fallbackLabel)
             return
         }
         let sidebarCell = app.cells[fallbackLabel].firstMatch
         if waitForExistence(sidebarCell, timeout: 2) {
             sidebarCell.tap()
+            waitForScreen(app: app, label: fallbackLabel)
+        }
+    }
+
+    @MainActor
+    private func waitForScreen(app: XCUIApplication, label: String) {
+        switch label {
+        case "Today":
+            _ = waitForExistence(app.scrollViews["today.scroll"], timeout: 5)
+        case "Settings":
+            _ = waitForExistence(app.scrollViews["settings.scroll"], timeout: 5)
+        case "History":
+            if !waitForExistence(app.scrollViews["history.scroll"], timeout: 3) {
+                _ = waitForExistence(app.otherElements["history.list"], timeout: 7)
+            }
+        default:
+            break
         }
     }
 
@@ -352,9 +388,14 @@ final class DDiaryUITests: XCTestCase {
     private func scrollToElement(_ element: XCUIElement, in app: XCUIApplication, maxSwipes: Int = 6) {
         var swipes = 0
         while !element.isHittable && swipes < maxSwipes {
-            let scrollView = app.scrollViews.firstMatch
-            if scrollView.exists {
-                scrollView.swipeUp()
+            if app.scrollViews["settings.scroll"].exists {
+                app.scrollViews["settings.scroll"].swipeUp()
+            } else if app.scrollViews["today.scroll"].exists {
+                app.scrollViews["today.scroll"].swipeUp()
+            } else if app.scrollViews["history.scroll"].exists {
+                app.scrollViews["history.scroll"].swipeUp()
+            } else if app.scrollViews.firstMatch.exists {
+                app.scrollViews.firstMatch.swipeUp()
             } else {
                 app.swipeUp()
             }
@@ -365,6 +406,7 @@ final class DDiaryUITests: XCTestCase {
     @MainActor
     private func tapSaveIfPresent(app: XCUIApplication) {
         let saveButton = firstExisting(in: [
+            app.buttons["settings.save"],
             app.navigationBars.buttons["Save"],
             app.buttons["Save"]
         ])
@@ -380,6 +422,7 @@ final class DDiaryUITests: XCTestCase {
 
         navigateToTab(app: app, tabId: A11y.Tab.settings, fallbackLabel: "Settings")
         _ = waitForExistence(app.navigationBars["Settings"], timeout: 5)
+        _ = waitForExistence(app.scrollViews["settings.scroll"], timeout: 5)
         let addTimeButton = app.buttons["Add time"]
         scrollToElement(addTimeButton, in: app)
         XCTAssertTrue(waitForExistence(addTimeButton, timeout: 5), "Add time button should exist in Settings")
@@ -396,6 +439,7 @@ final class DDiaryUITests: XCTestCase {
 
         navigateToTab(app: app, tabId: A11y.Tab.settings, fallbackLabel: "Settings")
         _ = waitForExistence(app.navigationBars["Settings"], timeout: 5)
+        _ = waitForExistence(app.scrollViews["settings.scroll"], timeout: 5)
         let beforeMealToggle = app.switches[A11y.Settings.glucoseBeforeMeal]
         scrollToElement(beforeMealToggle, in: app)
         XCTAssertTrue(waitForExistence(beforeMealToggle, timeout: 10), "Before meal toggle should exist in Settings")
@@ -409,6 +453,7 @@ final class DDiaryUITests: XCTestCase {
 
     @MainActor
     private func waitForTodayRows(app: XCUIApplication) {
+        _ = waitForExistence(app.scrollViews["today.scroll"], timeout: 5)
         let anyRow = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "today.row.")).firstMatch
         _ = waitForExistence(anyRow, timeout: 10)
     }
@@ -424,3 +469,4 @@ private extension XCUIElement {
         typeText(text)
     }
 }
+
