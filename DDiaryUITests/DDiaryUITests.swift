@@ -316,7 +316,7 @@ final class DDiaryUITests: XCTestCase {
         return elements.first!
     }
 
-    private func makeApp() -> XCUIApplication {
+    @MainActor private func makeApp() -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments.append("UITESTING")
         return app
