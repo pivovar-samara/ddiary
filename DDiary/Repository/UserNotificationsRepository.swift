@@ -52,14 +52,14 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
 
     // MARK: - Public category registration
     static func registerCategories() {
-        let enter = UNNotificationAction(identifier: IDs.enterAction, title: "Enter", options: [.foreground])
-        let skip = UNNotificationAction(identifier: IDs.skipAction, title: "Skip", options: [])
-        let snooze15 = UNNotificationAction(identifier: IDs.snooze15Action, title: "Snooze 15m", options: [])
-        let snooze30 = UNNotificationAction(identifier: IDs.snooze30Action, title: "Snooze 30m", options: [])
-        let snooze60 = UNNotificationAction(identifier: IDs.snooze60Action, title: "Snooze 60m", options: [])
+        let enter = UNNotificationAction(identifier: IDs.enterAction, title: L10n.notificationActionEnter, options: [.foreground])
+        let skip = UNNotificationAction(identifier: IDs.skipAction, title: L10n.notificationActionSkip, options: [])
+        let snooze15 = UNNotificationAction(identifier: IDs.snooze15Action, title: L10n.notificationActionSnooze(15), options: [])
+        let snooze30 = UNNotificationAction(identifier: IDs.snooze30Action, title: L10n.notificationActionSnooze(30), options: [])
+        let snooze60 = UNNotificationAction(identifier: IDs.snooze60Action, title: L10n.notificationActionSnooze(60), options: [])
 
-        let moveToLunch = UNNotificationAction(identifier: IDs.moveToLunchAction, title: "Move to lunch", options: [])
-        let moveToDinner = UNNotificationAction(identifier: IDs.moveToDinnerAction, title: "Move to dinner", options: [])
+        let moveToLunch = UNNotificationAction(identifier: IDs.moveToLunchAction, title: L10n.notificationActionMoveToLunch, options: [])
+        let moveToDinner = UNNotificationAction(identifier: IDs.moveToDinnerAction, title: L10n.notificationActionMoveToDinner, options: [])
 
         let bpCategory = UNNotificationCategory(
             identifier: IDs.bpCategory,
@@ -119,8 +119,8 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
                 let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: true)
                 let id = identifier(prefix: IDs.bpPrefix, components: comps, weekday: weekday)
                 let content = makeContent(
-                    title: "Blood Pressure",
-                    body: "Time to measure your blood pressure.",
+                    title: L10n.notificationBPTitle,
+                    body: L10n.notificationBPBody,
                     categoryIdentifier: IDs.bpCategory
                 )
                 let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
@@ -142,9 +142,9 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         guard isEnabled else { return }
         let center = UNUserNotificationCenter.current()
         let items: [(String, String, DateComponents)] = [
-            ("Glucose — Before Breakfast", "Log glucose before breakfast.", breakfast),
-            ("Glucose — Before Lunch", "Log glucose before lunch.", lunch),
-            ("Glucose — Before Dinner", "Log glucose before dinner.", dinner)
+            (L10n.notificationGlucoseBeforeBreakfastTitle, L10n.notificationGlucoseBeforeBreakfastBody, breakfast),
+            (L10n.notificationGlucoseBeforeLunchTitle, L10n.notificationGlucoseBeforeLunchBody, lunch),
+            (L10n.notificationGlucoseBeforeDinnerTitle, L10n.notificationGlucoseBeforeDinnerBody, dinner)
         ]
         for (title, body, comps) in items {
             var dc = DateComponents()
@@ -162,9 +162,9 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         guard isEnabled else { return }
         let center = UNUserNotificationCenter.current()
         let items: [(String, String, DateComponents)] = [
-            ("Glucose — After Breakfast (2h)", "Log glucose 2 hours after breakfast.", addingHours(breakfast, hours: 2)),
-            ("Glucose — After Lunch (2h)", "Log glucose 2 hours after lunch.", addingHours(lunch, hours: 2)),
-            ("Glucose — After Dinner (2h)", "Log glucose 2 hours after dinner.", addingHours(dinner, hours: 2))
+            (L10n.notificationGlucoseAfterBreakfast2hTitle, L10n.notificationGlucoseAfterBreakfast2hBody, addingHours(breakfast, hours: 2)),
+            (L10n.notificationGlucoseAfterLunch2hTitle, L10n.notificationGlucoseAfterLunch2hBody, addingHours(lunch, hours: 2)),
+            (L10n.notificationGlucoseAfterDinner2hTitle, L10n.notificationGlucoseAfterDinner2hBody, addingHours(dinner, hours: 2))
         ]
         for (title, body, comps) in items {
             var dc = DateComponents()
@@ -186,7 +186,7 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         dc.minute = time.minute
         let trigger = UNCalendarNotificationTrigger(dateMatching: dc, repeats: true)
         let id = identifier(prefix: IDs.glucoseBedtimePrefix, components: dc)
-        let content = makeContent(title: "Glucose — Bedtime", body: "Log bedtime glucose.", categoryIdentifier: IDs.glucoseBedtimeCategory)
+        let content = makeContent(title: L10n.notificationGlucoseBedtimeTitle, body: L10n.notificationGlucoseBedtimeBody, categoryIdentifier: IDs.glucoseBedtimeCategory)
         let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
         await center.addOrReplace(request: request)
     }

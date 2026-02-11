@@ -22,7 +22,28 @@ final class ExportCSVUseCaseTests: XCTestCase {
         let url = try await sut.exportCSV(from: Date.distantPast, to: Date.distantFuture, includeBP: true, includeGlucose: true)
         let data = try Data(contentsOf: url)
         let text = String(decoding: data, as: UTF8.self)
-        XCTAssertTrue(text.contains("timestamp,date,time,systolic,diastolic,pulse,comment,id"))
-        XCTAssertTrue(text.contains("timestamp,date,time,value,unit,measurementType,mealSlot,comment,id"))
+        let bpHeader = [
+            L10n.exportHeaderTimestamp,
+            L10n.exportHeaderDate,
+            L10n.exportHeaderTime,
+            L10n.exportHeaderSystolic,
+            L10n.exportHeaderDiastolic,
+            L10n.exportHeaderPulse,
+            L10n.exportHeaderComment,
+            L10n.exportHeaderId
+        ].joined(separator: ",")
+        let glucoseHeader = [
+            L10n.exportHeaderTimestamp,
+            L10n.exportHeaderDate,
+            L10n.exportHeaderTime,
+            L10n.exportHeaderValue,
+            L10n.exportHeaderUnit,
+            L10n.exportHeaderMeasurementType,
+            L10n.exportHeaderMealSlot,
+            L10n.exportHeaderComment,
+            L10n.exportHeaderId
+        ].joined(separator: ",")
+        XCTAssertTrue(text.contains(bpHeader))
+        XCTAssertTrue(text.contains(glucoseHeader))
     }
 }

@@ -40,10 +40,10 @@ public final class NotificationsActionUseCase {
             switch meal {
             case .lunch:
                 comps = DateComponents(hour: settings.lunchHour, minute: settings.lunchMinute)
-                title = "Glucose — Before Lunch"
+                title = L10n.notificationGlucoseBeforeLunchTitle
             case .dinner:
                 comps = DateComponents(hour: settings.dinnerHour, minute: settings.dinnerMinute)
-                title = "Glucose — Before Dinner"
+                title = L10n.notificationGlucoseBeforeDinnerTitle
             default:
                 return
             }
@@ -53,7 +53,7 @@ public final class NotificationsActionUseCase {
                     at: date,
                     identifier: id,
                     title: title,
-                    body: "Rescheduled from breakfast.",
+                    body: L10n.notificationRescheduledFromBreakfast,
                     categoryIdentifier: UserNotificationsRepository.IDs.glucoseBeforeCategory
                 )
             }

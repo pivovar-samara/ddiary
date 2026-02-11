@@ -162,14 +162,14 @@ private enum CSVBuilder {
         timeFormatter.dateFormat = "HH:mm"
 
         let header = [
-            "timestamp",
-            "date",
-            "time",
-            "systolic",
-            "diastolic",
-            "pulse",
-            "comment",
-            "id"
+            L10n.exportHeaderTimestamp,
+            L10n.exportHeaderDate,
+            L10n.exportHeaderTime,
+            L10n.exportHeaderSystolic,
+            L10n.exportHeaderDiastolic,
+            L10n.exportHeaderPulse,
+            L10n.exportHeaderComment,
+            L10n.exportHeaderId
         ]
         let r = rows.sorted { $0.timestamp < $1.timestamp }.map { row in
             [
@@ -183,7 +183,7 @@ private enum CSVBuilder {
                 row.id.uuidString
             ]
         }
-        return CSVSection(title: "BP", header: header, rows: r)
+        return CSVSection(title: L10n.exportSectionBP, header: header, rows: r)
     }
 
     static func makeGlucoseSection(rows: [GlucoseRowDTO]) -> CSVSection {
@@ -199,15 +199,15 @@ private enum CSVBuilder {
         timeFormatter.dateFormat = "HH:mm"
 
         let header = [
-            "timestamp",
-            "date",
-            "time",
-            "value",
-            "unit",
-            "measurementType",
-            "mealSlot",
-            "comment",
-            "id"
+            L10n.exportHeaderTimestamp,
+            L10n.exportHeaderDate,
+            L10n.exportHeaderTime,
+            L10n.exportHeaderValue,
+            L10n.exportHeaderUnit,
+            L10n.exportHeaderMeasurementType,
+            L10n.exportHeaderMealSlot,
+            L10n.exportHeaderComment,
+            L10n.exportHeaderId
         ]
         let r = rows.sorted { $0.timestamp < $1.timestamp }.map { row in
             [
@@ -222,7 +222,7 @@ private enum CSVBuilder {
                 row.id.uuidString
             ]
         }
-        return CSVSection(title: "Glucose", header: header, rows: r)
+        return CSVSection(title: L10n.exportSectionGlucose, header: header, rows: r)
     }
 
     static func combine(sections: [CSVSection]) -> String {
@@ -264,4 +264,3 @@ private enum CSVBuilder {
         return value
     }
 }
-

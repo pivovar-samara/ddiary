@@ -173,6 +173,55 @@ enum L10n {
     static let measurementTypeCapillary = tr("measurement.type.capillary", "Capillary")
     static let measurementTypeVenous = tr("measurement.type.venous", "Venous")
 
+    // MARK: - Notifications
+    static let notificationActionEnter = tr("notification.action.enter", "Enter")
+    static let notificationActionSkip = tr("notification.action.skip", "Skip")
+    static func notificationActionSnooze(_ minutes: Int) -> String {
+        String(
+            format: tr("notification.action.snooze_format", "Snooze %dm"),
+            minutes
+        )
+    }
+    static let notificationActionMoveToLunch = tr("notification.action.move_to_lunch", "Move to lunch")
+    static let notificationActionMoveToDinner = tr("notification.action.move_to_dinner", "Move to dinner")
+
+    static let notificationBPTitle = tr("notification.bp.title", "Blood Pressure")
+    static let notificationBPBody = tr("notification.bp.body", "Time to measure your blood pressure.")
+
+    static let notificationGlucoseBeforeBreakfastTitle = tr("notification.glucose.before_breakfast.title", "Glucose - Before Breakfast")
+    static let notificationGlucoseBeforeBreakfastBody = tr("notification.glucose.before_breakfast.body", "Log glucose before breakfast.")
+    static let notificationGlucoseBeforeLunchTitle = tr("notification.glucose.before_lunch.title", "Glucose - Before Lunch")
+    static let notificationGlucoseBeforeLunchBody = tr("notification.glucose.before_lunch.body", "Log glucose before lunch.")
+    static let notificationGlucoseBeforeDinnerTitle = tr("notification.glucose.before_dinner.title", "Glucose - Before Dinner")
+    static let notificationGlucoseBeforeDinnerBody = tr("notification.glucose.before_dinner.body", "Log glucose before dinner.")
+
+    static let notificationGlucoseAfterBreakfast2hTitle = tr("notification.glucose.after_breakfast_2h.title", "Glucose - After Breakfast (2h)")
+    static let notificationGlucoseAfterBreakfast2hBody = tr("notification.glucose.after_breakfast_2h.body", "Log glucose 2 hours after breakfast.")
+    static let notificationGlucoseAfterLunch2hTitle = tr("notification.glucose.after_lunch_2h.title", "Glucose - After Lunch (2h)")
+    static let notificationGlucoseAfterLunch2hBody = tr("notification.glucose.after_lunch_2h.body", "Log glucose 2 hours after lunch.")
+    static let notificationGlucoseAfterDinner2hTitle = tr("notification.glucose.after_dinner_2h.title", "Glucose - After Dinner (2h)")
+    static let notificationGlucoseAfterDinner2hBody = tr("notification.glucose.after_dinner_2h.body", "Log glucose 2 hours after dinner.")
+
+    static let notificationGlucoseBedtimeTitle = tr("notification.glucose.bedtime.title", "Glucose - Bedtime")
+    static let notificationGlucoseBedtimeBody = tr("notification.glucose.bedtime.body", "Log bedtime glucose.")
+    static let notificationRescheduledFromBreakfast = tr("notification.glucose.rescheduled_from_breakfast", "Rescheduled from breakfast.")
+
+    // MARK: - Export
+    static let exportSectionBP = tr("export.section.bp", "BP")
+    static let exportSectionGlucose = tr("export.section.glucose", "Glucose")
+    static let exportHeaderTimestamp = tr("export.header.timestamp", "timestamp")
+    static let exportHeaderDate = tr("export.header.date", "date")
+    static let exportHeaderTime = tr("export.header.time", "time")
+    static let exportHeaderSystolic = tr("export.header.systolic", "systolic")
+    static let exportHeaderDiastolic = tr("export.header.diastolic", "diastolic")
+    static let exportHeaderPulse = tr("export.header.pulse", "pulse")
+    static let exportHeaderComment = tr("export.header.comment", "comment")
+    static let exportHeaderId = tr("export.header.id", "id")
+    static let exportHeaderValue = tr("export.header.value", "value")
+    static let exportHeaderUnit = tr("export.header.unit", "unit")
+    static let exportHeaderMeasurementType = tr("export.header.measurement_type", "measurementType")
+    static let exportHeaderMealSlot = tr("export.header.meal_slot", "mealSlot")
+
     // MARK: - Settings dynamic text
     static func settingsPendingFailed(pending: Int, failed: Int) -> String {
         String(
