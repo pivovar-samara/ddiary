@@ -23,7 +23,8 @@ public final class RescheduleGlucoseCycleUseCase {
             guard settings.enableDailyCycleMode else { return }
             let order = cycleOrder(from: settings)
             guard !order.isEmpty else { return }
-            let next = (settings.currentCycleIndex + 1) % order.count
+            let current = positiveModulo(settings.currentCycleIndex, order.count)
+            let next = (current + 1) % order.count
             settings.currentCycleIndex = next
             try await settingsRepository.save(settings)
             await analyticsRepository.logScheduleUpdated(kind: .glucose)
@@ -54,7 +55,7 @@ public final class RescheduleGlucoseCycleUseCase {
             guard settings.enableDailyCycleMode else { return nil }
             let order = cycleOrder(from: settings)
             guard !order.isEmpty else { return nil }
-            let idx = settings.currentCycleIndex % order.count
+            let idx = positiveModulo(settings.currentCycleIndex, order.count)
             return order[idx]
         } catch {
             return nil
@@ -68,5 +69,10 @@ public final class RescheduleGlucoseCycleUseCase {
             order.append(.none) // use `.none` to denote bedtime slot in v1
         }
         return order
+    }
+
+    private func positiveModulo(_ value: Int, _ modulus: Int) -> Int {
+        let remainder = value % modulus
+        return remainder >= 0 ? remainder : remainder + modulus
     }
 }

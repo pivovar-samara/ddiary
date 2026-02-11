@@ -1,6 +1,83 @@
 import Foundation
 import UserNotifications
 
+protocol UserNotificationCentering: Sendable {
+    func requestAuthorization(options: UNAuthorizationOptions) async throws -> Bool
+    func setNotificationCategories(_ categories: Set<UNNotificationCategory>)
+    func addOrReplace(request: UNNotificationRequest) async
+    func removePendingNotificationRequests(withIdentifiers ids: [String])
+    func removeDeliveredNotifications(withIdentifiers ids: [String])
+    func removeAllPendingNotificationRequests()
+    func removeAllDeliveredNotifications()
+    func pendingRequestIdentifiers() async -> [String]
+    func deliveredNotificationIdentifiers() async -> [String]
+}
+
+struct LiveUserNotificationCenter: UserNotificationCentering, @unchecked Sendable {
+    private let center: UNUserNotificationCenter
+
+    init(center: UNUserNotificationCenter = .current()) {
+        self.center = center
+    }
+
+    func requestAuthorization(options: UNAuthorizationOptions) async throws -> Bool {
+        try await withCheckedThrowingContinuation { continuation in
+            center.requestAuthorization(options: options) { granted, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: granted)
+                }
+            }
+        }
+    }
+
+    func setNotificationCategories(_ categories: Set<UNNotificationCategory>) {
+        center.setNotificationCategories(categories)
+    }
+
+    func addOrReplace(request: UNNotificationRequest) async {
+        center.removePendingNotificationRequests(withIdentifiers: [request.identifier])
+        await withCheckedContinuation { continuation in
+            center.add(request) { _ in
+                continuation.resume()
+            }
+        }
+    }
+
+    func removePendingNotificationRequests(withIdentifiers ids: [String]) {
+        center.removePendingNotificationRequests(withIdentifiers: ids)
+    }
+
+    func removeDeliveredNotifications(withIdentifiers ids: [String]) {
+        center.removeDeliveredNotifications(withIdentifiers: ids)
+    }
+
+    func removeAllPendingNotificationRequests() {
+        center.removeAllPendingNotificationRequests()
+    }
+
+    func removeAllDeliveredNotifications() {
+        center.removeAllDeliveredNotifications()
+    }
+
+    func pendingRequestIdentifiers() async -> [String] {
+        await withCheckedContinuation { continuation in
+            center.getPendingNotificationRequests { requests in
+                continuation.resume(returning: requests.map(\.identifier))
+            }
+        }
+    }
+
+    func deliveredNotificationIdentifiers() async -> [String] {
+        await withCheckedContinuation { continuation in
+            center.getDeliveredNotifications { notifications in
+                continuation.resume(returning: notifications.map { $0.request.identifier })
+            }
+        }
+    }
+}
+
 /*
 Usage notes:
 
@@ -26,6 +103,12 @@ Usage notes:
 */
 
 struct UserNotificationsRepository: NotificationsRepository, Sendable {
+    private let center: any UserNotificationCentering
+
+    init(center: any UserNotificationCentering = LiveUserNotificationCenter()) {
+        self.center = center
+    }
+
     // MARK: - Identifiers
     enum IDs {
         // Categories
@@ -51,7 +134,7 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
     }
 
     // MARK: - Public category registration
-    static func registerCategories() {
+    static func registerCategories(center: any UserNotificationCentering = LiveUserNotificationCenter()) {
         let enter = UNNotificationAction(identifier: IDs.enterAction, title: L10n.notificationActionEnter, options: [.foreground])
         let skip = UNNotificationAction(identifier: IDs.skipAction, title: L10n.notificationActionSkip, options: [])
         let snooze15 = UNNotificationAction(identifier: IDs.snooze15Action, title: L10n.notificationActionSnooze(15), options: [])
@@ -89,25 +172,15 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
             options: [.customDismissAction]
         )
 
-        let center = UNUserNotificationCenter.current()
         center.setNotificationCategories([bpCategory, glucoseBeforeCategory, glucoseAfterCategory, glucoseBedtimeCategory])
     }
 
     // MARK: - NotificationsRepository
     func requestAuthorization() async throws -> Bool {
-        try await withCheckedThrowingContinuation { continuation in
-            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                } else {
-                    continuation.resume(returning: granted)
-                }
-            }
-        }
+        try await center.requestAuthorization(options: [.alert, .sound, .badge])
     }
 
     func scheduleBloodPressure(times: [Int], activeWeekdays: Set<Int>) async throws {
-        let center = UNUserNotificationCenter.current()
         for weekday in activeWeekdays.sorted() {
             for minutes in times {
                 let hm = minutesToHourMinute(minutes)
@@ -140,7 +213,6 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
 
     func scheduleGlucoseBeforeMeal(breakfast: DateComponents, lunch: DateComponents, dinner: DateComponents, isEnabled: Bool) async throws {
         guard isEnabled else { return }
-        let center = UNUserNotificationCenter.current()
         let items: [(String, String, DateComponents)] = [
             (L10n.notificationGlucoseBeforeBreakfastTitle, L10n.notificationGlucoseBeforeBreakfastBody, breakfast),
             (L10n.notificationGlucoseBeforeLunchTitle, L10n.notificationGlucoseBeforeLunchBody, lunch),
@@ -160,7 +232,6 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
 
     func scheduleGlucoseAfterMeal2h(breakfast: DateComponents, lunch: DateComponents, dinner: DateComponents, isEnabled: Bool) async throws {
         guard isEnabled else { return }
-        let center = UNUserNotificationCenter.current()
         let items: [(String, String, DateComponents)] = [
             (L10n.notificationGlucoseAfterBreakfast2hTitle, L10n.notificationGlucoseAfterBreakfast2hBody, addingHours(breakfast, hours: 2)),
             (L10n.notificationGlucoseAfterLunch2hTitle, L10n.notificationGlucoseAfterLunch2hBody, addingHours(lunch, hours: 2)),
@@ -180,7 +251,6 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
 
     func scheduleGlucoseBedtime(isEnabled: Bool, time: DateComponents?) async throws {
         guard isEnabled, let time else { return }
-        let center = UNUserNotificationCenter.current()
         var dc = DateComponents()
         dc.hour = time.hour
         dc.minute = time.minute
@@ -211,7 +281,6 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
     }
 
     func cancelAll() async {
-        let center = UNUserNotificationCenter.current()
         center.removeAllPendingNotificationRequests()
         center.removeAllDeliveredNotifications()
     }
@@ -226,7 +295,6 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         body: String,
         categoryIdentifier: String
     ) async {
-        let center = UNUserNotificationCenter.current()
         let comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: date)
         let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
         let content = makeContent(title: title, body: body, categoryIdentifier: categoryIdentifier)
@@ -250,7 +318,6 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
 
     /// Cancel a specific notification by identifier (both pending and delivered).
     public func cancel(withIdentifier id: String) async {
-        let center = UNUserNotificationCenter.current()
         center.removePendingNotificationRequests(withIdentifiers: [id])
         center.removeDeliveredNotifications(withIdentifiers: [id])
     }
@@ -315,48 +382,12 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
     }
 
     private func removeAll(withPrefixes prefixes: [String]) async {
-        let center = UNUserNotificationCenter.current()
-        let pendingIDs = await pendingRequests()
+        let pendingIDs = await center.pendingRequestIdentifiers()
             .filter { id in prefixes.contains(where: { id.hasPrefix($0) }) }
-        let deliveredIDs = await deliveredNotifications()
+        let deliveredIDs = await center.deliveredNotificationIdentifiers()
             .filter { id in prefixes.contains(where: { id.hasPrefix($0) }) }
         center.removePendingNotificationRequests(withIdentifiers: pendingIDs)
         center.removeDeliveredNotifications(withIdentifiers: deliveredIDs)
-    }
-
-    private func pendingRequests() async -> [String] {
-        await withCheckedContinuation { continuation in
-            UNUserNotificationCenter.current().getPendingNotificationRequests { requests in
-                let ids = requests.map { $0.identifier }
-                continuation.resume(returning: ids)
-            }
-        }
-    }
-
-    private func deliveredNotifications() async -> [String] {
-        await withCheckedContinuation { continuation in
-            UNUserNotificationCenter.current().getDeliveredNotifications { notifications in
-                let ids = notifications.map { $0.request.identifier }
-                continuation.resume(returning: ids)
-            }
-        }
-    }
-}
-
-// MARK: - UNUserNotificationCenter convenience
-private extension UNUserNotificationCenter {
-    func addOrReplace(request: UNNotificationRequest) async {
-        // Remove any existing with the same identifier, then add.
-        removePendingNotificationRequests(withIdentifiers: [request.identifier])
-        await addAsync(request)
-    }
-
-    func addAsync(_ request: UNNotificationRequest) async {
-        await withCheckedContinuation { continuation in
-            add(request) { _ in
-                continuation.resume()
-            }
-        }
     }
 }
 
