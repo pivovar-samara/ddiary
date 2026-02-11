@@ -59,19 +59,19 @@ public struct BPQuickEntryForm: View {
             // Horizontal, equal-width fields
             HStack(spacing: DS.Spacing.small) {
                 fieldColumn(
-                    title: "Systolic",
+                    title: L10n.quickEntryBpFieldSystolic,
                     text: $systolicText,
                     field: .systolic,
                     minDigitsToAdvance: 3
                 )
                 fieldColumn(
-                    title: "Diastolic",
+                    title: L10n.quickEntryBpFieldDiastolic,
                     text: $diastolicText,
                     field: .diastolic,
                     minDigitsToAdvance: 2
                 )
                 fieldColumn(
-                    title: "Pulse",
+                    title: L10n.quickEntryBpFieldPulse,
                     text: $pulseText,
                     field: .pulse,
                     minDigitsToAdvance: 0
@@ -80,11 +80,11 @@ public struct BPQuickEntryForm: View {
         }
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
-                Button("Cancel") { onCancel() }
+                Button(L10n.quickEntryActionCancel) { onCancel() }
                     .accessibilityIdentifier("quickEntry.cancel")
             }
             ToolbarItem(placement: .confirmationAction) {
-                Button("Save") { save() }
+                Button(L10n.quickEntryActionSave) { save() }
                     .disabled(isSaveDisabled)
                     .buttonStyle(.borderedProminent)
                     .fontWeight(.semibold)
@@ -129,21 +129,21 @@ public struct BPQuickEntryForm: View {
             ToolbarItemGroup(placement: .keyboard) {
                 if focusedField != nil {
                     Spacer()
-                    Button("Done") {
+                    Button(L10n.quickEntryActionDone) {
                         focusedField = nil
                     }
                     .accessibilityIdentifier("quickEntry.bp.toolbar.done")
                 }
             }
         }
-        .alert("Error", isPresented: Binding(get: { alertMessage != nil }, set: { _ in alertMessage = nil })) {
-            Button("OK", role: .cancel) { }
+        .alert(L10n.quickEntryAlertErrorTitle, isPresented: Binding(get: { alertMessage != nil }, set: { _ in alertMessage = nil })) {
+            Button(L10n.quickEntryAlertOK, role: .cancel) { }
         } message: {
             Text(alertMessage ?? "")
         }
-        .alert("Unusual values", isPresented: Binding(get: { unusualConfirmMessage != nil }, set: { _ in unusualConfirmMessage = nil })) {
-            Button("Cancel", role: .cancel) { }
-            Button("Save anyway", role: .destructive) {
+        .alert(L10n.quickEntryAlertUnusualValuesTitle, isPresented: Binding(get: { unusualConfirmMessage != nil }, set: { _ in unusualConfirmMessage = nil })) {
+            Button(L10n.quickEntryActionCancel, role: .cancel) { }
+            Button(L10n.quickEntryAlertSaveAnyway, role: .destructive) {
                 // Proceed with current parsed values if possible
                 if let sys = Int(systolicText), let dia = Int(diastolicText), let pulse = Int(pulseText) {
                     performSaveBP(sys: sys, dia: dia, pulse: pulse)
@@ -220,7 +220,7 @@ public struct BPQuickEntryForm: View {
 
             if isInvalid {
                 HStack(spacing: DS.Spacing.s8) {
-                    Text("Unusual")
+                    Text(L10n.quickEntryBadgeUnusual)
                         .font(.caption2)
                         .fontWeight(.semibold)
                         .foregroundStyle(.secondary)
@@ -249,11 +249,11 @@ public struct BPQuickEntryForm: View {
     private func perFieldWarningMessage(for field: Field) -> String {
         switch field {
         case .systolic:
-            return "Expected \(systolicRange.lowerBound)–\(systolicRange.upperBound)"
+            return L10n.quickEntryExpectedRange(min: systolicRange.lowerBound, max: systolicRange.upperBound)
         case .diastolic:
-            return "Expected \(diastolicRange.lowerBound)–\(diastolicRange.upperBound)"
+            return L10n.quickEntryExpectedRange(min: diastolicRange.lowerBound, max: diastolicRange.upperBound)
         case .pulse:
-            return "Expected \(pulseRange.lowerBound)–\(pulseRange.upperBound)"
+            return L10n.quickEntryExpectedRange(min: pulseRange.lowerBound, max: pulseRange.upperBound)
         }
     }
 
@@ -265,13 +265,31 @@ public struct BPQuickEntryForm: View {
         // Build warnings (out-of-range only)
         var warnings: [String] = []
         if !systolicRange.contains(sys) {
-            warnings.append("Systolic: Expected \(systolicRange.lowerBound)–\(systolicRange.upperBound)")
+            warnings.append(
+                L10n.quickEntryFieldExpected(
+                    L10n.quickEntryBpFieldSystolic,
+                    min: systolicRange.lowerBound,
+                    max: systolicRange.upperBound
+                )
+            )
         }
         if !diastolicRange.contains(dia) {
-            warnings.append("Diastolic: Expected \(diastolicRange.lowerBound)–\(diastolicRange.upperBound)")
+            warnings.append(
+                L10n.quickEntryFieldExpected(
+                    L10n.quickEntryBpFieldDiastolic,
+                    min: diastolicRange.lowerBound,
+                    max: diastolicRange.upperBound
+                )
+            )
         }
         if !pulseRange.contains(pulse) {
-            warnings.append("Pulse: Expected \(pulseRange.lowerBound)–\(pulseRange.upperBound)")
+            warnings.append(
+                L10n.quickEntryFieldExpected(
+                    L10n.quickEntryBpFieldPulse,
+                    min: pulseRange.lowerBound,
+                    max: pulseRange.upperBound
+                )
+            )
         }
 
         if !warnings.isEmpty {
@@ -317,7 +335,7 @@ public struct BPQuickEntryForm: View {
                 #endif
                 onSaved()
             } catch {
-                alertMessage = (error as? LocalizedError)?.errorDescription ?? "Failed to save. Please try again."
+                alertMessage = (error as? LocalizedError)?.errorDescription ?? L10n.quickEntryErrorSaveFailed
             }
             isSaving = false
         }

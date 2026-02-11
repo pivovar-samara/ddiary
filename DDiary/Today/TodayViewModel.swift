@@ -186,7 +186,7 @@ public final class TodayViewModel {
         TodayItem(
             id: slot.id,
             kind: .bp,
-            title: String(localized: "Blood Pressure", comment: "BP row title"),
+            title: L10n.settingsRowBloodPressure,
             timeText: slot.displayTime,
             scheduledDate: slot.scheduledDate,
             status: slot.status,

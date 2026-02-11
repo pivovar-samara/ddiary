@@ -1,7 +1,12 @@
 import Foundation
 
 @MainActor
-public final class UpdateSchedulesUseCase {
+public protocol SchedulesUpdating {
+    func scheduleFromCurrentSettings() async throws
+}
+
+@MainActor
+public final class UpdateSchedulesUseCase: SchedulesUpdating {
     private let settingsRepository: any SettingsRepository
     private let notificationsRepository: any NotificationsRepository
     private let analyticsRepository: any AnalyticsRepository
@@ -36,14 +41,10 @@ public final class UpdateSchedulesUseCase {
 
     /// Reschedules both BP and Glucose notifications using the current settings from the repository.
     /// Call this after saving settings.
-    public func scheduleFromCurrentSettings() async {
-        do {
-            let settings = try await settingsRepository.getOrCreate()
-            try await notificationsRepository.scheduleAllNotifications(settings: settings)
-            await analyticsRepository.logScheduleUpdated(kind: .bloodPressure)
-            await analyticsRepository.logScheduleUpdated(kind: .glucose)
-        } catch {
-            // For v1, fail silently.
-        }
+    public func scheduleFromCurrentSettings() async throws {
+        let settings = try await settingsRepository.getOrCreate()
+        try await notificationsRepository.scheduleAllNotifications(settings: settings)
+        await analyticsRepository.logScheduleUpdated(kind: .bloodPressure)
+        await analyticsRepository.logScheduleUpdated(kind: .glucose)
     }
 }

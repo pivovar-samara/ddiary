@@ -42,7 +42,7 @@ public struct GlucoseQuickEntryForm: View {
 
     public var body: some View {
         MeasurementInputLayout(
-            title: "Glucose",
+            title: L10n.quickEntryGlucoseTitle,
             showCommentField: $showCommentField,
             commentText: $comment,
             commentFieldAccessibilityId: "quickEntry.glucose.commentField",
@@ -52,7 +52,7 @@ public struct GlucoseQuickEntryForm: View {
         ) {
             VStack(alignment: .center, spacing: DS.Spacing.small) {
                 HStack(alignment: .firstTextBaseline, spacing: DS.Spacing.small) {
-                    TextField("Value", text: $valueText)
+                    TextField(L10n.quickEntryGlucoseValuePlaceholder, text: $valueText)
                         .keyboardType(.decimalPad)
                         .multilineTextAlignment(.center)
                         .font(.system(size: 44, weight: .semibold))
@@ -89,7 +89,7 @@ public struct GlucoseQuickEntryForm: View {
                         }
 
                     if let unit = unit {
-                        Text(unit == .mmolL ? "mmol/L" : "mg/dL")
+                        Text(unit == .mmolL ? L10n.unitMmolL : L10n.unitMgDL)
                             .font(.title3)
                             .foregroundStyle(.secondary)
                             .accessibilityIdentifier("quickEntry.glucose.unitLabel")
@@ -106,11 +106,11 @@ public struct GlucoseQuickEntryForm: View {
         }
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
-                Button("Cancel") { onCancel() }
+                Button(L10n.quickEntryActionCancel) { onCancel() }
                     .accessibilityIdentifier("quickEntry.cancel")
             }
             ToolbarItem(placement: .confirmationAction) {
-                Button("Save") { save() }
+                Button(L10n.quickEntryActionSave) { save() }
                     .disabled(isSaveDisabled)
                     .buttonStyle(.borderedProminent)
                     .fontWeight(.semibold)
@@ -119,20 +119,20 @@ public struct GlucoseQuickEntryForm: View {
             }
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer()
-                Button("Done") {
+                Button(L10n.quickEntryActionDone) {
                     isValueFocused = false
                 }
                 .accessibilityIdentifier("quickEntry.glucose.toolbar.done")
             }
         }
-        .alert("Error", isPresented: Binding(get: { alertMessage != nil }, set: { _ in alertMessage = nil })) {
-            Button("OK", role: .cancel) { }
+        .alert(L10n.quickEntryAlertErrorTitle, isPresented: Binding(get: { alertMessage != nil }, set: { _ in alertMessage = nil })) {
+            Button(L10n.quickEntryAlertOK, role: .cancel) { }
         } message: {
             Text(alertMessage ?? "")
         }
-        .alert("Unusual values", isPresented: Binding(get: { unusualConfirmMessage != nil }, set: { _ in unusualConfirmMessage = nil })) {
-            Button("Cancel", role: .cancel) { }
-            Button("Save anyway", role: .destructive) {
+        .alert(L10n.quickEntryAlertUnusualValuesTitle, isPresented: Binding(get: { unusualConfirmMessage != nil }, set: { _ in unusualConfirmMessage = nil })) {
+            Button(L10n.quickEntryActionCancel, role: .cancel) { }
+            Button(L10n.quickEntryAlertSaveAnyway, role: .destructive) {
                 if let v = parseValue(from: valueText) {
                     performSaveGlucose(value: v)
                 }
@@ -150,9 +150,9 @@ public struct GlucoseQuickEntryForm: View {
 
     private func title(for type: GlucoseMeasurementType) -> String {
         switch type {
-        case .beforeMeal: return String(localized: "Before meal")
-        case .afterMeal2h: return String(localized: "After meal (2h)")
-        case .bedtime: return String(localized: "Bedtime")
+        case .beforeMeal: return L10n.settingsRowBeforeMeal
+        case .afterMeal2h: return L10n.settingsRowAfterMeal2h
+        case .bedtime: return L10n.settingsRowBedtime
         }
     }
 
@@ -194,7 +194,7 @@ public struct GlucoseQuickEntryForm: View {
 
     private func rangeMessage(for unit: GlucoseUnit?) -> String {
         let r = formattedRange(for: unit)
-        return "Min \(r.low) / Max \(r.high)"
+        return L10n.quickEntryMinMax(min: r.low, max: r.high)
     }
 
     @MainActor
@@ -232,7 +232,7 @@ public struct GlucoseQuickEntryForm: View {
         // Build warning if out of expected range
         let valueInMmol = (unit == .mmolL) ? value : (value / 18.0)
         if !glucoseRangeMmol.contains(valueInMmol) {
-            unusualConfirmMessage = "Glucose: \(rangeMessage(for: unit))"
+            unusualConfirmMessage = L10n.quickEntryGlucoseWarning(rangeMessage(for: unit))
             invalidValue = true
             validationMessage = rangeMessage(for: unit)
             return
@@ -269,7 +269,7 @@ public struct GlucoseQuickEntryForm: View {
                 #endif
                 onSaved()
             } catch {
-                alertMessage = (error as? LocalizedError)?.errorDescription ?? "Failed to save. Please try again."
+                alertMessage = (error as? LocalizedError)?.errorDescription ?? L10n.quickEntryErrorSaveFailed
             }
             isSaving = false
         }

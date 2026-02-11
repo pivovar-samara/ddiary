@@ -200,13 +200,13 @@ extension SlotStatus {
     var localizedTitle: String {
         switch self {
         case .scheduled:
-            return String(localized: "Scheduled", comment: "Slot status title: scheduled")
+            return L10n.slotStatusScheduled
         case .due:
-            return String(localized: "Due", comment: "Slot status title: due")
+            return L10n.slotStatusDue
         case .missed:
-            return String(localized: "Missed", comment: "Slot status title: missed")
+            return L10n.slotStatusMissed
         case .completed:
-            return String(localized: "Done", comment: "Slot status title: completed")
+            return L10n.slotStatusCompleted
         }
     }
 }
@@ -324,7 +324,7 @@ enum UIStrings {
                 .replacingOccurrences(of: "-", with: "")
                 .lowercased()
             if key == "bedtime" {
-                return String(localized: "Bedtime", comment: "Bedtime glucose title")
+                return L10n.settingsRowBedtime
             }
         }
 
@@ -339,7 +339,7 @@ enum UIStrings {
         case let (_, t?):
             return t
         default:
-            return String(localized: "Glucose", comment: "Default glucose title")
+            return L10n.settingsRowGlucose
         }
     }
 
@@ -358,18 +358,21 @@ enum UIStrings {
             .lowercased()
 
         let map: [String: String] = [
-            "premeal": String(localized: "Pre-meal", comment: "Pre-meal glucose"),
-            "postmeal": String(localized: "Post-meal", comment: "Post-meal glucose"),
-            "fasting": String(localized: "Fasting", comment: "Fasting glucose"),
-            "random": String(localized: "Random", comment: "Random glucose"),
-            "breakfast": String(localized: "Breakfast", comment: "Breakfast meal slot"),
-            "lunch": String(localized: "Lunch", comment: "Lunch meal slot"),
-            "dinner": String(localized: "Dinner", comment: "Dinner meal slot"),
-            "snack": String(localized: "Snack", comment: "Snack meal slot"),
-            "fingerstick": String(localized: "Fingerstick", comment: "Measurement type"),
-            "sensor": String(localized: "Sensor", comment: "Measurement type"),
-            "capillary": String(localized: "Capillary", comment: "Measurement type"),
-            "venous": String(localized: "Venous", comment: "Measurement type")
+            "beforemeal": L10n.settingsRowBeforeMeal,
+            "premeal": L10n.settingsRowBeforeMeal,
+            "aftermeal2h": L10n.settingsRowAfterMeal2h,
+            "postmeal": L10n.settingsRowAfterMeal2h,
+            "bedtime": L10n.settingsRowBedtime,
+            "fasting": L10n.glucoseTypeFasting,
+            "random": L10n.glucoseTypeRandom,
+            "breakfast": L10n.settingsRowBreakfast,
+            "lunch": L10n.settingsRowLunch,
+            "dinner": L10n.settingsRowDinner,
+            "snack": L10n.mealSnack,
+            "fingerstick": L10n.measurementTypeFingerstick,
+            "sensor": L10n.measurementTypeSensor,
+            "capillary": L10n.measurementTypeCapillary,
+            "venous": L10n.measurementTypeVenous
         ]
 
         if let value = map[key] { return value }
@@ -428,4 +431,3 @@ enum UIStrings {
     }
     .padding()
 }
-

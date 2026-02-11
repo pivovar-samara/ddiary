@@ -8,7 +8,7 @@ struct HistoryControlsBar: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.small) {
-            Picker("Filter", selection: $selectedFilter) {
+            Picker(L10n.historyFilterLabel, selection: $selectedFilter) {
                 ForEach(HistoryViewModel.Filter.allCases) { f in
                     Text(f.title).tag(f)
                 }
@@ -19,9 +19,9 @@ struct HistoryControlsBar: View {
             }
 
             HStack(spacing: DS.Spacing.xSmall) {
-                chip(title: "Today", preset: .today)
-                chip(title: "7 days", preset: .days7)
-                chip(title: "30 days", preset: .days30)
+                chip(title: L10n.historyRangeToday, preset: .today)
+                chip(title: L10n.historyRange7Days, preset: .days7)
+                chip(title: L10n.historyRange30Days, preset: .days30)
                 Spacer(minLength: 0)
             }
         }
@@ -33,7 +33,7 @@ struct HistoryControlsBar: View {
             onRangeChange(HistoryViewModel.defaultRange(preset))
         }
         .buttonStyle(DateRangeChipStyle(isSelected: isSelected))
-        .accessibilityLabel("Range \(title)")
+        .accessibilityLabel(L10n.historyRangeAccessibilityLabel(title))
     }
 
     private func isPresetSelected(_ preset: HistoryViewModel.RangePreset) -> Bool {

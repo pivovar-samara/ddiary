@@ -12,9 +12,9 @@ final class HistoryViewModel {
         var id: String { rawValue }
         var title: String {
             switch self {
-            case .both: return "Both"
-            case .bp: return "BP"
-            case .glucose: return "Glucose"
+            case .both: return L10n.historyFilterBoth
+            case .bp: return L10n.historyFilterBP
+            case .glucose: return L10n.historyFilterGlucose
             }
         }
     }
@@ -214,4 +214,3 @@ extension HistoryViewModel {
         }
     }
 }
-

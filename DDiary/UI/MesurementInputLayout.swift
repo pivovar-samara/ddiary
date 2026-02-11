@@ -55,7 +55,7 @@ struct MeasurementInputLayout<Fields: View>: View {
                     VStack(alignment: .leading, spacing: DS.Spacing.small) {
                         if showCommentField {
                             VStack(alignment: .leading, spacing: DS.Spacing.s8) {
-                                TextField("Comment", text: $commentText, axis: .vertical)
+                                TextField(L10n.measurementCommentPlaceholder, text: $commentText, axis: .vertical)
                                     .autocorrectionDisabled(false)
                                     .textInputAutocapitalization(.sentences)
                                     .focused(isCommentFocused)
@@ -73,7 +73,7 @@ struct MeasurementInputLayout<Fields: View>: View {
                             } label: {
                                 HStack(spacing: DS.Spacing.s8) {
                                     Image(systemName: "plus.circle")
-                                    Text("Add comment")
+                                    Text(L10n.measurementAddComment)
                                 }
                             }
                             .buttonStyle(.plain)

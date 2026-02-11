@@ -1,0 +1,225 @@
+import Foundation
+
+enum L10n {
+    // MARK: - Tabs / Titles
+    static let tabToday = tr("tab.today", "Today")
+    static let tabHistory = tr("tab.history", "History")
+    static let tabSettings = tr("tab.settings", "Settings")
+
+    static let screenTodayTitle = tr("screen.today.title", "Today")
+    static let screenHistoryTitle = tr("screen.history.title", "History")
+    static let screenSettingsTitle = tr("screen.settings.title", "Settings")
+
+    // MARK: - Today
+    static let todayLoading = tr("today.loading", "Loading…")
+    static let todayBlockNow = tr("today.block.now", "Now")
+    static let todayBlockLater = tr("today.block.later", "Later Today")
+    static let todayBlockOverdue = tr("today.block.overdue", "Overdue")
+    static let todayBlockCompleted = tr("today.block.completed", "Completed")
+    static let todayQuickEntryTitle = tr("today.quick_entry.title", "Quick Entry")
+    static let slotStatusScheduled = tr("slot.status.scheduled", "Scheduled")
+    static let slotStatusDue = tr("slot.status.due", "Due")
+    static let slotStatusMissed = tr("slot.status.missed", "Missed")
+    static let slotStatusCompleted = tr("slot.status.completed", "Done")
+
+    // MARK: - History
+    static let historyLoading = tr("history.loading", "Loading…")
+    static let historyQuickEntryTitle = tr("history.quick_entry.title", "Quick Entry")
+    static let historyEmptyTitle = tr("history.empty.title", "No measurements")
+    static let historyEmptyDescription = tr(
+        "history.empty.description",
+        "There are no entries for the selected filter and date range."
+    )
+    static let historyFilterLabel = tr("history.filter.label", "Filter")
+    static let historyFilterBoth = tr("history.filter.both", "Both")
+    static let historyFilterBP = tr("history.filter.bp", "BP")
+    static let historyFilterGlucose = tr("history.filter.glucose", "Glucose")
+    static let historyRangeToday = tr("history.range.today", "Today")
+    static let historyRange7Days = tr("history.range.7_days", "7 days")
+    static let historyRange30Days = tr("history.range.30_days", "30 days")
+    static func historyRangeAccessibilityLabel(_ title: String) -> String {
+        String(
+            format: tr("history.range.accessibility_label_format", "Range %@"),
+            title
+        )
+    }
+
+    // MARK: - Quick Entry
+    static let quickEntryActionCancel = tr("quick_entry.action.cancel", "Cancel")
+    static let quickEntryActionSave = tr("quick_entry.action.save", "Save")
+    static let quickEntryActionDone = tr("quick_entry.action.done", "Done")
+    static let quickEntryAlertErrorTitle = tr("quick_entry.alert.error.title", "Error")
+    static let quickEntryAlertOK = tr("quick_entry.alert.ok", "OK")
+    static let quickEntryAlertUnusualValuesTitle = tr("quick_entry.alert.unusual_values.title", "Unusual values")
+    static let quickEntryAlertSaveAnyway = tr("quick_entry.alert.save_anyway", "Save anyway")
+    static let quickEntryErrorSaveFailed = tr("quick_entry.error.save_failed", "Failed to save. Please try again.")
+    static let quickEntryBadgeUnusual = tr("quick_entry.badge.unusual", "Unusual")
+
+    static let quickEntryBpFieldSystolic = tr("quick_entry.bp.field.systolic", "Systolic")
+    static let quickEntryBpFieldDiastolic = tr("quick_entry.bp.field.diastolic", "Diastolic")
+    static let quickEntryBpFieldPulse = tr("quick_entry.bp.field.pulse", "Pulse")
+
+    static let quickEntryGlucoseTitle = tr("quick_entry.glucose.title", "Glucose")
+    static let quickEntryGlucoseValuePlaceholder = tr("quick_entry.glucose.value_placeholder", "Value")
+    static let unitMmolL = tr("unit.mmol_l", "mmol/L")
+    static let unitMgDL = tr("unit.mg_dl", "mg/dL")
+    static let measurementCommentPlaceholder = tr("measurement.comment.placeholder", "Comment")
+    static let measurementAddComment = tr("measurement.add_comment", "Add comment")
+
+    static let historyRowNotEntered = tr("history.row.not_entered", "Not entered")
+    static let historyRowCheckValue = tr("history.row.check_value", "Check value")
+    static func historyRowPulse(_ value: String) -> String {
+        String(
+            format: tr("history.row.pulse_format", "Pulse %@"),
+            value
+        )
+    }
+
+    // MARK: - Summary
+    static let summaryTitle = tr("summary.title", "Summary")
+    static let summaryCount = tr("summary.count", "Count")
+    static let summarySysMinMaxAvg = tr("summary.sys_min_max_avg", "SYS min/max/avg")
+    static let summaryDiaMinMaxAvg = tr("summary.dia_min_max_avg", "DIA min/max/avg")
+    static let summaryPulseMinMaxAvg = tr("summary.pulse_min_max_avg", "Pulse min/max/avg")
+    static let summaryMinMaxAvg = tr("summary.min_max_avg", "Min/Max/Avg")
+
+    static func quickEntryExpectedRange(min: String, max: String) -> String {
+        String(
+            format: tr("quick_entry.validation.expected_range_format", "Expected %@–%@"),
+            min,
+            max
+        )
+    }
+
+    static func quickEntryExpectedRange(min: Int, max: Int) -> String {
+        quickEntryExpectedRange(min: String(min), max: String(max))
+    }
+
+    static func quickEntryFieldExpected(_ field: String, min: Int, max: Int) -> String {
+        String(
+            format: tr("quick_entry.validation.field_expected_format", "%@: %@"),
+            field,
+            quickEntryExpectedRange(min: min, max: max)
+        )
+    }
+
+    static func quickEntryMinMax(min: String, max: String) -> String {
+        String(
+            format: tr("quick_entry.validation.min_max_format", "Min %@ / Max %@"),
+            min,
+            max
+        )
+    }
+
+    static func quickEntryGlucoseWarning(_ range: String) -> String {
+        String(
+            format: tr("quick_entry.validation.glucose_warning_format", "Glucose: %@"),
+            range
+        )
+    }
+
+    // MARK: - Settings (Sections/Rows)
+    static let settingsTitle = tr("settings.title", "Settings")
+    static let settingsShareExportedCSV = tr("settings.share.exported_csv", "Exported CSV")
+    static let settingsShareNoFile = tr("settings.share.no_file", "No file")
+
+    static let settingsSectionUnits = tr("settings.section.units", "Units")
+    static let settingsSectionMealTimes = tr("settings.section.meal_times", "Meal Times")
+    static let settingsSectionBPReminders = tr("settings.section.bp_reminders", "Blood Pressure Reminders")
+    static let settingsSectionGlucoseReminders = tr("settings.section.glucose_reminders", "Glucose Reminders")
+    static let settingsSectionThresholds = tr("settings.section.thresholds", "Thresholds")
+    static let settingsSectionGoogleBackup = tr("settings.section.google_backup", "Google Sheets Backup")
+    static let settingsSectionExport = tr("settings.section.export", "Export")
+    static let settingsSectionFeedbackAbout = tr("settings.section.feedback_about", "Feedback & About")
+
+    static let settingsRowGlucoseUnit = tr("settings.row.glucose_unit", "Glucose Unit")
+    static let settingsRowBreakfast = tr("settings.row.breakfast", "Breakfast")
+    static let settingsRowLunch = tr("settings.row.lunch", "Lunch")
+    static let settingsRowDinner = tr("settings.row.dinner", "Dinner")
+    static let settingsRowBedtime = tr("settings.row.bedtime", "Bedtime")
+    static let settingsRowBedtimeSlotEnabled = tr("settings.row.bedtime_slot_enabled", "Bedtime slot enabled")
+    static let settingsRowNoTimesConfigured = tr("settings.row.no_times_configured", "No times configured")
+    static let settingsRowAddTime = tr("settings.row.add_time", "Add time")
+    static let settingsRowActiveWeekdays = tr("settings.row.active_weekdays", "Active weekdays")
+    static let settingsRowBeforeMeal = tr("settings.row.before_meal", "Before meal")
+    static let settingsRowAfterMeal2h = tr("settings.row.after_meal_2h", "After meal (2h)")
+    static let settingsRowBedtimeToggle = tr("settings.row.bedtime_toggle", "Bedtime")
+    static let settingsRowDailyCycleMode = tr("settings.row.daily_cycle_mode", "Daily cycle mode (1 per day)")
+    static let settingsRowBloodPressure = tr("settings.row.blood_pressure", "Blood Pressure")
+    static let settingsRowGlucose = tr("settings.row.glucose", "Glucose")
+    static let settingsRowSysMin = tr("settings.row.sys_min", "SYS min")
+    static let settingsRowSysMax = tr("settings.row.sys_max", "SYS max")
+    static let settingsRowDiaMin = tr("settings.row.dia_min", "DIA min")
+    static let settingsRowDiaMax = tr("settings.row.dia_max", "DIA max")
+    static let settingsRowGlucoseMin = tr("settings.row.glucose_min", "Glucose min")
+    static let settingsRowGlucoseMax = tr("settings.row.glucose_max", "Glucose max")
+    static let settingsRowConnect = tr("settings.row.connect", "Connect")
+    static let settingsRowSyncNow = tr("settings.row.sync_now", "Sync Now")
+    static let settingsRowDisconnect = tr("settings.row.disconnect", "Disconnect")
+    static let settingsRowFrom = tr("settings.row.from", "From")
+    static let settingsRowTo = tr("settings.row.to", "To")
+    static let settingsRowIncludeBP = tr("settings.row.include_bp", "Include BP")
+    static let settingsRowIncludeGlucose = tr("settings.row.include_glucose", "Include Glucose")
+    static let settingsRowExportCSV = tr("settings.row.export_csv", "Export CSV")
+    static let settingsRowSendFeedback = tr("settings.row.send_feedback", "Send Feedback")
+    static let settingsRowSave = tr("settings.row.save", "Save")
+    static let settingsDisclaimerMedical = tr("settings.disclaimer.medical", "DDiary is not a medical device. Consult your physician for medical advice.")
+    static let settingsFeedbackEmailSubject = tr("settings.feedback.email_subject", "DDiary Feedback")
+    static let mealSnack = tr("meal.snack", "Snack")
+    static let glucoseTypeFasting = tr("glucose.type.fasting", "Fasting")
+    static let glucoseTypeRandom = tr("glucose.type.random", "Random")
+    static let measurementTypeFingerstick = tr("measurement.type.fingerstick", "Fingerstick")
+    static let measurementTypeSensor = tr("measurement.type.sensor", "Sensor")
+    static let measurementTypeCapillary = tr("measurement.type.capillary", "Capillary")
+    static let measurementTypeVenous = tr("measurement.type.venous", "Venous")
+
+    // MARK: - Settings dynamic text
+    static func settingsPendingFailed(pending: Int, failed: Int) -> String {
+        String(
+            format: tr("settings.row.pending_failed_format", "Pending: %d  Failed: %d"),
+            pending,
+            failed
+        )
+    }
+
+    static func settingsLastSync(_ value: String) -> String {
+        String(
+            format: tr("settings.row.last_sync_format", "Last sync: %@"),
+            value
+        )
+    }
+
+    static let settingsLastSyncNone = tr("settings.row.last_sync_none", "Last sync: —")
+
+    // MARK: - SettingsViewModel messages
+    static let settingsErrorSavedButRemindersNotUpdated = tr(
+        "settings.error.saved_but_reminders_not_updated",
+        "Settings saved, but reminders could not be updated."
+    )
+
+    static let settingsGoogleSummaryNotConnected = tr("settings.google.summary.not_connected", "Not connected")
+    static let settingsGoogleSummaryConnected = tr("settings.google.summary.connected", "Connected")
+    static func settingsGoogleSummaryConnected(uid: String) -> String {
+        String(
+            format: tr("settings.google.summary.connected_with_uid_format", "Connected (%@)"),
+            uid
+        )
+    }
+    static let settingsGoogleSummaryAwaitingCredentials = tr(
+        "settings.google.summary.awaiting_credentials",
+        "Enabled, awaiting credentials"
+    )
+    static let settingsGoogleStartingSignIn = tr("settings.google.summary.starting_signin", "Starting Google sign-in…")
+    static func settingsGoogleSpreadsheetCreationFailed(_ message: String) -> String {
+        String(
+            format: tr("settings.google.error.spreadsheet_creation_failed_format", "Failed to create spreadsheet: %@"),
+            message
+        )
+    }
+    static let settingsGoogleSpreadsheetTitle = tr("settings.google.spreadsheet_title", "DDiary Backup")
+
+    // MARK: - Helpers
+    private static func tr(_ key: String, _ defaultValue: String) -> String {
+        Bundle.main.localizedString(forKey: key, value: defaultValue, table: "Localizable")
+    }
+}

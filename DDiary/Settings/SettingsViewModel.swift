@@ -10,6 +10,7 @@ final class SettingsViewModel {
     private let exportCSVUseCase: ExportCSVUseCase
     private let measurementsRepository: any MeasurementsRepository
     private let googleSheetsClient: any GoogleSheetsClient
+    private let schedulesUpdater: any SchedulesUpdating
 
     // MARK: - Backing models (MainActor-bound)
     private var settingsModel: UserSettings?
@@ -53,7 +54,7 @@ final class SettingsViewModel {
 
     // MARK: - Google integration
     var isGoogleEnabled: Bool = false
-    var googleSummary: String = "Not connected"
+    var googleSummary: String = L10n.settingsGoogleSummaryNotConnected
 
     // Export state
     var isExporting: Bool = false
@@ -69,13 +70,15 @@ final class SettingsViewModel {
         googleIntegrationRepository: any GoogleIntegrationRepository,
         exportCSVUseCase: ExportCSVUseCase,
         measurementsRepository: any MeasurementsRepository,
-        googleSheetsClient: any GoogleSheetsClient
+        googleSheetsClient: any GoogleSheetsClient,
+        schedulesUpdater: any SchedulesUpdating
     ) {
         self.settingsRepository = settingsRepository
         self.googleIntegrationRepository = googleIntegrationRepository
         self.exportCSVUseCase = exportCSVUseCase
         self.measurementsRepository = measurementsRepository
         self.googleSheetsClient = googleSheetsClient
+        self.schedulesUpdater = schedulesUpdater
     }
 
     // MARK: - Public API
@@ -157,7 +160,13 @@ final class SettingsViewModel {
             settings.glucoseMax = glucoseMax
 
             try await settingsRepository.save(settings)
-            await updateSchedulesAfterSave()
+            errorMessage = nil
+            do {
+                try await schedulesUpdater.scheduleFromCurrentSettings()
+            } catch {
+                // Saving settings already succeeded; surface scheduling failure without rolling back saved values.
+                errorMessage = L10n.settingsErrorSavedButRemindersNotUpdated
+            }
         } catch {
             errorMessage = String(describing: error)
         }
@@ -166,7 +175,7 @@ final class SettingsViewModel {
     func connectGoogle() async {
         do {
             let integration = try await resolveGoogleIntegrationModel()
-            googleSummary = "Starting Google sign-in…"
+            googleSummary = L10n.settingsGoogleStartingSignIn
 
             let tokens = try await GoogleOAuth.signIn()
 
@@ -176,14 +185,14 @@ final class SettingsViewModel {
 
             // Create spreadsheet if missing
             if integration.spreadsheetId == nil {
-                let title = "DDiary Backup"
+                let title = L10n.settingsGoogleSpreadsheetTitle
                 do {
                     let id = try await googleSheetsClient.createSpreadsheetAndSetup(refreshToken: tokens.refreshToken, title: title)
                     integration.spreadsheetId = id
                     log("Created spreadsheet id=\(id)")
                 } catch {
                     // Surface error but keep tokens saved; user can retry later
-                    self.errorMessage = "Failed to create spreadsheet: \(error.localizedDescription)"
+                    self.errorMessage = L10n.settingsGoogleSpreadsheetCreationFailed(error.localizedDescription)
                     log("Spreadsheet creation failed: \(error)")
                 }
             }
@@ -241,31 +250,16 @@ final class SettingsViewModel {
         let hasCreds = integration.refreshToken != nil && integration.spreadsheetId != nil
         isGoogleEnabled = enabled && hasCreds
         if !enabled {
-            googleSummary = "Not connected"
+            googleSummary = L10n.settingsGoogleSummaryNotConnected
         } else if let uid = integration.googleUserId, hasCreds {
-            googleSummary = "Connected (\(uid))"
+            googleSummary = L10n.settingsGoogleSummaryConnected(uid: uid)
         } else if hasCreds {
-            googleSummary = "Connected"
+            googleSummary = L10n.settingsGoogleSummaryConnected
         } else {
-            googleSummary = "Enabled, awaiting credentials"
+            googleSummary = L10n.settingsGoogleSummaryAwaitingCredentials
         }
     }
 
-    private func updateSchedulesAfterSave() async {
-        // Reschedule notifications after settings changes.
-        // In v1, we do this best-effort and ignore errors.
-        // The container is not directly available here, so expose a hook via NotificationsRepository if needed.
-        // For simplicity, fetch current settings and reschedule via a global environment.
-        // In a larger app, inject an UpdateSchedulesUseCase into this VM.
-        do {
-            _ = try await settingsRepository.getOrCreate()
-            // Using NotificationsRepository convenience extension through a temporary Noop replacement is not ideal.
-            // For v1, we assume scheduling is handled by a dedicated use case from the environment.
-        } catch {
-            // ignore
-        }
-    }
-    
     func refreshSyncStatus() async {
         do {
             // Fetch pending or failed items per type

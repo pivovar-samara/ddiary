@@ -26,7 +26,7 @@ public struct TodayView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: DS.Spacing.large, pinnedViews: []) {
                 if vm.isLoading {
-                    ProgressView("Loading…")
+                    ProgressView(L10n.todayLoading)
                 }
                 if let error = vm.errorMessage {
                     Text(error)
@@ -36,7 +36,7 @@ public struct TodayView: View {
                 // Unified Today blocks
                 if !vm.itemsDue.isEmpty {
                     VStack(alignment: .leading, spacing: DS.Spacing.xSmall) {
-                        BlockHeader("Now", emphasis: .prominent)
+                        BlockHeader(L10n.todayBlockNow, emphasis: .prominent)
                             .accessibilityIdentifier("today.block.now")
                         ForEach(vm.itemsDue) { item in
                             SlotRow(
@@ -56,7 +56,7 @@ public struct TodayView: View {
 
                 if !vm.itemsScheduled.isEmpty {
                     VStack(alignment: .leading, spacing: DS.Spacing.xSmall) {
-                        BlockHeader("Later Today")
+                        BlockHeader(L10n.todayBlockLater)
                             .accessibilityIdentifier("today.block.later")
                         ForEach(vm.itemsScheduled) { item in
                             SlotRow(
@@ -75,7 +75,7 @@ public struct TodayView: View {
 
                 if !vm.itemsMissed.isEmpty {
                     VStack(alignment: .leading, spacing: DS.Spacing.xSmall) {
-                        BlockHeader("Overdue")
+                        BlockHeader(L10n.todayBlockOverdue)
                             .accessibilityIdentifier("today.block.overdue")
                         ForEach(vm.itemsMissed) { item in
                             SlotRow(
@@ -93,7 +93,7 @@ public struct TodayView: View {
                 }
 
                 if !vm.itemsCompleted.isEmpty {
-                    CompletedDisclosure(title: "Completed") {
+                    CompletedDisclosure(title: L10n.todayBlockCompleted) {
                         VStack(alignment: .leading, spacing: DS.Spacing.small) {
                             ForEach(vm.itemsCompleted) { item in
                                 SlotRow(
@@ -140,7 +140,7 @@ public struct TodayView: View {
                         Task { await viewModel.refresh() }
                     }
                 )
-                .navigationTitle("Quick Entry")
+                .navigationTitle(L10n.todayQuickEntryTitle)
             }
         }
         .sheet(isPresented: $vm.presentGlucoseQuickEntry) {
@@ -159,7 +159,7 @@ public struct TodayView: View {
                         Task { await viewModel.refresh() }
                     }
                 )
-                .navigationTitle("Quick Entry")
+                .navigationTitle(L10n.todayQuickEntryTitle)
             }
         }
         .onChange(of: vm.presentBPQuickEntry) { _, isPresented in

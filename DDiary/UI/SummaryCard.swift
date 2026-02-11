@@ -5,36 +5,36 @@ struct SummaryCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.small) {
-            Text("Summary")
+            Text(L10n.summaryTitle)
                 .font(.headline)
 
             if vm.selectedFilter == .both || vm.selectedFilter == .bp {
                 VStack(alignment: .leading, spacing: DS.Spacing.xSmall) {
-                    Text("Blood Pressure")
+                    Text(L10n.settingsRowBloodPressure)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
 
                     Grid(alignment: .leading, horizontalSpacing: DS.Spacing.small, verticalSpacing: DS.Spacing.xSmall) {
                         GridRow {
-                            Text("Count").foregroundStyle(.secondary)
+                            Text(L10n.summaryCount).foregroundStyle(.secondary)
                             Text(formatInt(vm.bpCount))
                                 .monospacedDigit()
                                 .gridColumnAlignment(.trailing)
                         }
                         GridRow {
-                            Text("SYS min/max/avg").foregroundStyle(.secondary)
+                            Text(L10n.summarySysMinMaxAvg).foregroundStyle(.secondary)
                             Text("\(formatInt(vm.bpSystolicMin))/\(formatInt(vm.bpSystolicMax))/\(format1(vm.bpSystolicAvg))")
                                 .monospacedDigit()
                                 .gridColumnAlignment(.trailing)
                         }
                         GridRow {
-                            Text("DIA min/max/avg").foregroundStyle(.secondary)
+                            Text(L10n.summaryDiaMinMaxAvg).foregroundStyle(.secondary)
                             Text("\(formatInt(vm.bpDiastolicMin))/\(formatInt(vm.bpDiastolicMax))/\(format1(vm.bpDiastolicAvg))")
                                 .monospacedDigit()
                                 .gridColumnAlignment(.trailing)
                         }
                         GridRow {
-                            Text("Pulse min/max/avg").foregroundStyle(.secondary)
+                            Text(L10n.summaryPulseMinMaxAvg).foregroundStyle(.secondary)
                             Text("\(formatInt(vm.pulseMin))/\(formatInt(vm.pulseMax))/\(format1(vm.pulseAvg))")
                                 .monospacedDigit()
                                 .gridColumnAlignment(.trailing)
@@ -45,19 +45,19 @@ struct SummaryCard: View {
 
             if vm.selectedFilter == .both || vm.selectedFilter == .glucose {
                 VStack(alignment: .leading, spacing: DS.Spacing.xSmall) {
-                    Text("Glucose")
+                    Text(L10n.settingsRowGlucose)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
 
                     Grid(alignment: .leading, horizontalSpacing: DS.Spacing.small, verticalSpacing: DS.Spacing.xSmall) {
                         GridRow {
-                            Text("Count").foregroundStyle(.secondary)
+                            Text(L10n.summaryCount).foregroundStyle(.secondary)
                             Text(formatInt(vm.glucoseCount))
                                 .monospacedDigit()
                                 .gridColumnAlignment(.trailing)
                         }
                         GridRow {
-                            Text("Min/Max/Avg").foregroundStyle(.secondary)
+                            Text(L10n.summaryMinMaxAvg).foregroundStyle(.secondary)
                             Text(glucoseStatsString())
                                 .monospacedDigit()
                                 .lineLimit(2)
@@ -93,8 +93,8 @@ struct SummaryCard: View {
 
     private func displayUnit(_ unit: GlucoseUnit) -> String {
         switch unit {
-        case .mmolL: return "mmol/L"
-        case .mgdL: return "mg/dL"
+        case .mmolL: return L10n.unitMmolL
+        case .mgdL: return L10n.unitMgDL
         }
     }
 

@@ -52,24 +52,44 @@ public final class LogGlucoseMeasurementUseCase {
         // Persist via the repository (MainActor-bound).
         try await measurementsRepository.insertGlucose(measurement)
 
-        // Optionally update cycle mode state. This is a placeholder hook where
-        // future logic can adjust daily cycle fields in settings and save them.
-        // Example minimal stub (no-op for now):
-        // try await updateDailyCycleIfNeeded(afterLogging: measurement, settings: settings)
+        try await updateDailyCycleIfNeeded(afterLogging: measurement, settings: settings)
 
         // Fire analytics in the background of this async context.
         await analyticsRepository.logMeasurementLogged(kind: .glucose)
     }
 
-    // MARK: - Optional helpers (stubs)
+    // MARK: - Helpers
 
-    /// Placeholder for updating daily-cycle-related fields after logging a measurement.
-    /// Keep this method on the main actor to mutate settings safely.
+    /// Advances daily cycle target only when a before-meal entry is logged for the current target slot.
     private func updateDailyCycleIfNeeded(
         afterLogging measurement: GlucoseMeasurement,
         settings: UserSettings
     ) async throws {
-        // Intentionally left minimal for v1; implement cycle logic later.
-        // If you update `settings`, remember to save via `settingsRepository.save(settings)`.
+        guard settings.enableDailyCycleMode else { return }
+        guard settings.enableBeforeMeal else { return }
+        guard measurement.measurementType == .beforeMeal else { return }
+
+        let order = cycleOrder(from: settings)
+        guard !order.isEmpty else { return }
+
+        let currentIndex = positiveModulo(settings.currentCycleIndex, order.count)
+        guard order[currentIndex] == measurement.mealSlot else { return }
+
+        settings.currentCycleIndex = (currentIndex + 1) % order.count
+        try await settingsRepository.save(settings)
+    }
+
+    private func cycleOrder(from settings: UserSettings) -> [MealSlot] {
+        var order: [MealSlot] = [.breakfast, .lunch, .dinner]
+        if settings.bedtimeSlotEnabled {
+            // `none` represents bedtime in cycle ordering.
+            order.append(.none)
+        }
+        return order
+    }
+
+    private func positiveModulo(_ value: Int, _ modulus: Int) -> Int {
+        let remainder = value % modulus
+        return remainder >= 0 ? remainder : remainder + modulus
     }
 }

@@ -26,15 +26,15 @@ struct SettingsView: View {
                     .task { await initializeViewModelIfNeeded() }
             }
         }
-        .navigationTitle("Settings")
+        .navigationTitle(L10n.settingsTitle)
         .sheet(isPresented: $presentShareSheet, onDismiss: { exportedURL = nil }) {
             if let url = exportedURL {
                 ShareLink(item: url) {
-                    Label("Exported CSV", systemImage: "square.and.arrow.up")
+                    Label(L10n.settingsShareExportedCSV, systemImage: "square.and.arrow.up")
                 }
                 .presentationDetents([.medium, .large])
             } else {
-                Text("No file")
+                Text(L10n.settingsShareNoFile)
             }
         }
     }
@@ -45,9 +45,9 @@ struct SettingsView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: DS.Spacing.large) {
                 // Units
-                SettingsSectionCard(title: "Units") {
+                SettingsSectionCard(title: L10n.settingsSectionUnits) {
                     VStack(spacing: 0) {
-                        SettingsRow(title: "Glucose Unit") {
+                        SettingsRow(title: L10n.settingsRowGlucoseUnit) {
                             Picker("", selection: $bvm.glucoseUnit) {
                                 ForEach(GlucoseUnit.allCases, id: \.self) { unit in
                                     Text(label(for: unit)).tag(unit)
@@ -59,26 +59,26 @@ struct SettingsView: View {
                 }
 
                 // Meal Times
-                SettingsSectionCard(title: "Meal Times") {
+                SettingsSectionCard(title: L10n.settingsSectionMealTimes) {
                     VStack(spacing: 0) {
-                        SettingsRow(title: "Breakfast") {
+                        SettingsRow(title: L10n.settingsRowBreakfast) {
                             MealOffsetEditor(hours: $bvm.breakfastHour, minutes: $bvm.breakfastMinute)
                         }
                         SettingsDivider()
-                        SettingsRow(title: "Lunch") {
+                        SettingsRow(title: L10n.settingsRowLunch) {
                             MealOffsetEditor(hours: $bvm.lunchHour, minutes: $bvm.lunchMinute)
                         }
                         SettingsDivider()
-                        SettingsRow(title: "Dinner") {
+                        SettingsRow(title: L10n.settingsRowDinner) {
                             MealOffsetEditor(hours: $bvm.dinnerHour, minutes: $bvm.dinnerMinute)
                         }
                         SettingsDivider()
-                        SettingsRow(title: "Bedtime") {
+                        SettingsRow(title: L10n.settingsRowBedtime) {
                             MealOffsetEditor(hours: $bvm.bedtimeHour, minutes: $bvm.bedtimeMinute)
                         }
                         SettingsDivider()
                         SettingsToggleRow(
-                            title: "Bedtime slot enabled",
+                            title: L10n.settingsRowBedtimeSlotEnabled,
                             isOn: $bvm.bedtimeSlotEnabled,
                             toggleAccessibilityId: "settings.bedtimeSlotEnabled"
                         )
@@ -86,10 +86,10 @@ struct SettingsView: View {
                 }
 
                 // Blood Pressure Reminders
-                SettingsSectionCard(title: "Blood Pressure Reminders") {
+                SettingsSectionCard(title: L10n.settingsSectionBPReminders) {
                     VStack(alignment: .leading, spacing: 0) {
                         if bvm.bpTimes.isEmpty {
-                            Text("No times configured")
+                            Text(L10n.settingsRowNoTimesConfigured)
                                 .foregroundStyle(.secondary)
                                 .frame(minHeight: 48)
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -110,7 +110,7 @@ struct SettingsView: View {
                             SettingsDivider()
                         }
 
-                        SettingsActionRow(icon: "plus", title: "Add time", role: .none) {
+                        SettingsActionRow(icon: "plus", title: L10n.settingsRowAddTime, role: .none) {
                             // Add a default time (9:00)
                             bvm.bpTimes.append(9 * 60)
                         }
@@ -118,7 +118,7 @@ struct SettingsView: View {
                         SettingsDivider()
 
                         VStack(alignment: .leading, spacing: DS.Spacing.small) {
-                            Text("Active weekdays")
+                            Text(L10n.settingsRowActiveWeekdays)
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                             WeekdayGrid(selected: $bvm.bpActiveWeekdays)
@@ -127,28 +127,28 @@ struct SettingsView: View {
                 }
 
                 // Glucose Reminders
-                SettingsSectionCard(title: "Glucose Reminders") {
+                SettingsSectionCard(title: L10n.settingsSectionGlucoseReminders) {
                     VStack(spacing: 0) {
                         SettingsToggleRow(
-                            title: "Before meal",
+                            title: L10n.settingsRowBeforeMeal,
                             isOn: $bvm.enableBeforeMeal,
                             toggleAccessibilityId: "settings.glucose.beforeMeal"
                         )
                         SettingsDivider()
                         SettingsToggleRow(
-                            title: "After meal (2h)",
+                            title: L10n.settingsRowAfterMeal2h,
                             isOn: $bvm.enableAfterMeal2h,
                             toggleAccessibilityId: "settings.glucose.afterMeal2h"
                         )
                         SettingsDivider()
                         SettingsToggleRow(
-                            title: "Bedtime",
+                            title: L10n.settingsRowBedtimeToggle,
                             isOn: $bvm.enableBedtime,
                             toggleAccessibilityId: "settings.glucose.bedtime"
                         )
                         SettingsDivider()
                         SettingsToggleRow(
-                            title: "Daily cycle mode (1 per day)",
+                            title: L10n.settingsRowDailyCycleMode,
                             isOn: $bvm.enableDailyCycleMode,
                             toggleAccessibilityId: "settings.glucose.dailyCycle"
                         )
@@ -156,40 +156,40 @@ struct SettingsView: View {
                 }
 
                 // Thresholds
-                SettingsSectionCard(title: "Thresholds") {
+                SettingsSectionCard(title: L10n.settingsSectionThresholds) {
                     VStack(alignment: .leading, spacing: DS.Spacing.medium) {
                         VStack(alignment: .leading, spacing: DS.Spacing.small) {
-                            Text("Blood Pressure")
+                            Text(L10n.settingsRowBloodPressure)
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                             VStack(spacing: 0) {
-                                SettingsRow(title: "SYS min") {
+                                SettingsRow(title: L10n.settingsRowSysMin) {
                                     IntValueCapsuleEditor(value: $bvm.bpSystolicMin, range: 50...250, step: 1)
                                 }
                                 SettingsDivider()
-                                SettingsRow(title: "SYS max") {
+                                SettingsRow(title: L10n.settingsRowSysMax) {
                                     IntValueCapsuleEditor(value: $bvm.bpSystolicMax, range: 50...250, step: 1)
                                 }
                                 SettingsDivider()
-                                SettingsRow(title: "DIA min") {
+                                SettingsRow(title: L10n.settingsRowDiaMin) {
                                     IntValueCapsuleEditor(value: $bvm.bpDiastolicMin, range: 30...200, step: 1)
                                 }
                                 SettingsDivider()
-                                SettingsRow(title: "DIA max") {
+                                SettingsRow(title: L10n.settingsRowDiaMax) {
                                     IntValueCapsuleEditor(value: $bvm.bpDiastolicMax, range: 30...200, step: 1)
                                 }
                             }
                         }
                         VStack(alignment: .leading, spacing: DS.Spacing.small) {
-                            Text("Glucose")
+                            Text(L10n.settingsRowGlucose)
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                             VStack(spacing: 0) {
-                                SettingsRow(title: "Glucose min") {
+                                SettingsRow(title: L10n.settingsRowGlucoseMin) {
                                     DoubleValueCapsuleEditor(value: $bvm.glucoseMin, range: 1.0...30.0, step: 0.1)
                                 }
                                 SettingsDivider()
-                                SettingsRow(title: "Glucose max") {
+                                SettingsRow(title: L10n.settingsRowGlucoseMax) {
                                     DoubleValueCapsuleEditor(value: $bvm.glucoseMax, range: 1.0...30.0, step: 0.1)
                                 }
                             }
@@ -198,7 +198,7 @@ struct SettingsView: View {
                 }
 
                 // Google Sheets Backup
-                SettingsSectionCard(title: "Google Sheets Backup") {
+                SettingsSectionCard(title: L10n.settingsSectionGoogleBackup) {
                     VStack(alignment: .leading, spacing: 0) {
                         // Status block (non-interactive)
                         VStack(alignment: .leading, spacing: 6) {
@@ -213,15 +213,15 @@ struct SettingsView: View {
                                 Spacer()
                             }
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("Pending: \(vm.pendingCount)  Failed: \(vm.failedCount)")
+                                Text(L10n.settingsPendingFailed(pending: vm.pendingCount, failed: vm.failedCount))
                                     .font(.footnote)
                                     .foregroundStyle(.secondary)
                                 if let last = vm.lastSyncAt {
-                                    Text("Last sync: \(dateString(last))")
+                                    Text(L10n.settingsLastSync(dateString(last)))
                                         .font(.footnote)
                                         .foregroundStyle(.secondary)
                                 } else {
-                                    Text("Last sync: —")
+                                    Text(L10n.settingsLastSyncNone)
                                         .font(.footnote)
                                         .foregroundStyle(.secondary)
                                 }
@@ -232,7 +232,7 @@ struct SettingsView: View {
 
                         if !bvm.isGoogleEnabled {
                             // Primary action when not connected
-                            SettingsActionRow(icon: "link", title: "Connect", role: .none) {
+                            SettingsActionRow(icon: "link", title: L10n.settingsRowConnect, role: .none) {
                                 Task {
                                     await vm.connectGoogle()
                                     await container.syncWithGoogleUseCase.syncPendingMeasurements()
@@ -241,7 +241,7 @@ struct SettingsView: View {
                             }
                         } else {
                             // Primary action when connected
-                            SettingsActionRow(icon: "arrow.clockwise", title: "Sync Now", role: .none) {
+                            SettingsActionRow(icon: "arrow.clockwise", title: L10n.settingsRowSyncNow, role: .none) {
                                 Task {
                                     await container.syncWithGoogleUseCase.syncPendingMeasurements()
                                     await vm.refreshSyncStatus()
@@ -249,7 +249,7 @@ struct SettingsView: View {
                             }
                             SettingsDivider()
                             // Secondary destructive action
-                            SettingsActionRow(icon: "xmark.circle", title: "Disconnect", role: .destructive) {
+                            SettingsActionRow(icon: "xmark.circle", title: L10n.settingsRowDisconnect, role: .destructive) {
                                 Task { await vm.disconnectGoogle() }
                             }
                         }
@@ -257,21 +257,21 @@ struct SettingsView: View {
                 }
 
                 // Export
-                SettingsSectionCard(title: "Export") {
+                SettingsSectionCard(title: L10n.settingsSectionExport) {
                     VStack(spacing: 0) {
-                        SettingsRow(title: "From") {
+                        SettingsRow(title: L10n.settingsRowFrom) {
                             DateRowPicker(date: $exportStartDate)
                         }
                         SettingsDivider()
-                        SettingsRow(title: "To") {
+                        SettingsRow(title: L10n.settingsRowTo) {
                             DateRowPicker(date: $exportEndDate)
                         }
                         SettingsDivider()
-                        SettingsToggleRow(title: "Include BP", isOn: $exportIncludeBP)
+                        SettingsToggleRow(title: L10n.settingsRowIncludeBP, isOn: $exportIncludeBP)
                         SettingsDivider()
-                        SettingsToggleRow(title: "Include Glucose", isOn: $exportIncludeGlucose)
+                        SettingsToggleRow(title: L10n.settingsRowIncludeGlucose, isOn: $exportIncludeGlucose)
                         SettingsDivider()
-                        SettingsActionRow(icon: "square.and.arrow.up", title: "Export CSV", role: .none) {
+                        SettingsActionRow(icon: "square.and.arrow.up", title: L10n.settingsRowExportCSV, role: .none) {
                             Task {
                                 if let url = await vm.exportCSV(from: exportStartDate, to: exportEndDate, includeBP: exportIncludeBP, includeGlucose: exportIncludeGlucose) {
                                     exportedURL = url
@@ -287,14 +287,15 @@ struct SettingsView: View {
                 }
 
                 // Feedback & About
-                SettingsSectionCard(title: "Feedback & About") {
+                SettingsSectionCard(title: L10n.settingsSectionFeedbackAbout) {
                     VStack(alignment: .leading, spacing: DS.Spacing.small) {
-                        SettingsActionRow(icon: "envelope", title: "Send Feedback") {
-                            if let url = URL(string: "mailto:support@example.com?subject=DDiary%20Feedback") {
+                        SettingsActionRow(icon: "envelope", title: L10n.settingsRowSendFeedback) {
+                            let subject = L10n.settingsFeedbackEmailSubject.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+                            if let url = URL(string: "mailto:support@example.com?subject=\(subject)") {
                                 openURL(url)
                             }
                         }
-                        Text("DDiary is not a medical device. Consult your physician for medical advice.")
+                        Text(L10n.settingsDisclaimerMedical)
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
@@ -307,10 +308,9 @@ struct SettingsView: View {
         .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
         .onAppear { Task { await vm.loadSettings() } }
         .toolbar {
-            Button("Save") {
+            Button(L10n.settingsRowSave) {
                 Task {
                     await vm.saveSettings()
-                    await container.updateSchedulesUseCase.scheduleFromCurrentSettings()
                 }
             }
             .accessibilityIdentifier("settings.save")
@@ -329,7 +329,8 @@ struct SettingsView: View {
                 googleIntegrationRepository: container.googleIntegrationRepository,
                 exportCSVUseCase: container.exportCSVUseCase,
                 measurementsRepository: container.measurementsRepository,
-                googleSheetsClient: container.googleSheetsClient
+                googleSheetsClient: container.googleSheetsClient,
+                schedulesUpdater: container.updateSchedulesUseCase
             )
             self.viewModel = vm
             await vm.loadSettings()
@@ -337,7 +338,7 @@ struct SettingsView: View {
     }
 
     private func label(for unit: GlucoseUnit) -> String {
-        switch unit { case .mmolL: return "mmol/L"; case .mgdL: return "mg/dL" }
+        switch unit { case .mmolL: return L10n.unitMmolL; case .mgdL: return L10n.unitMgDL }
     }
 
     private func bpTimeLabel(_ minutes: Int) -> String {

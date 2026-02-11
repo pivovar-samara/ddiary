@@ -15,26 +15,26 @@ struct RootView: View {
             TabView {
                 // Today
                 NavigationStack {
-                    TodayView().navigationTitle("Today")
+                    TodayView().navigationTitle(L10n.screenTodayTitle)
                 }
                 .tabItem {
-                    Label("Today", systemImage: "calendar")
+                    Label(L10n.tabToday, systemImage: "calendar")
                 }
                 
                 // History
                 NavigationStack {
-                    HistoryView().navigationTitle("History")
+                    HistoryView().navigationTitle(L10n.screenHistoryTitle)
                 }
                 .tabItem {
-                    Label("History", systemImage: "clock")
+                    Label(L10n.tabHistory, systemImage: "clock")
                 }
                 
                 // Settings
                 NavigationStack {
-                    SettingsView().navigationTitle("Settings")
+                    SettingsView().navigationTitle(L10n.screenSettingsTitle)
                 }
                 .tabItem {
-                    Label("Settings", systemImage: "gear")
+                    Label(L10n.tabSettings, systemImage: "gear")
                 }
             }
             .task {
@@ -50,4 +50,3 @@ struct RootView: View {
     }
     .appContainer(.preview)
 }
-

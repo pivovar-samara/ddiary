@@ -16,7 +16,7 @@ struct BPHistoryRow: View {
                             .font(.title3)
                             .fontWeight(.semibold)
                             .monospacedDigit()
-                        Text("Pulse \(measurement.pulse)")
+                        Text(L10n.historyRowPulse(String(measurement.pulse)))
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                             .monospacedDigit()
@@ -72,7 +72,7 @@ struct GlucoseHistoryRow: View {
 
                 VStack(alignment: .leading, spacing: DS.Spacing.xSmall) {
                     if isMissing {
-                        Text("Not entered")
+                        Text(L10n.historyRowNotEntered)
                             .font(.title3)
                             .fontWeight(.semibold)
                             .foregroundStyle(.secondary)
@@ -135,8 +135,8 @@ struct GlucoseHistoryRow: View {
 
     private func displayUnit(_ unit: GlucoseUnit) -> String {
         switch unit {
-        case .mmolL: return "mmol/L"
-        case .mgdL: return "mg/dL"
+        case .mmolL: return L10n.unitMmolL
+        case .mgdL: return L10n.unitMgDL
         }
     }
 }
@@ -146,10 +146,9 @@ private struct ValueWarningCallout: View {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.caption2)
                 .foregroundStyle(.orange)
-            Text("Check value")
+            Text(L10n.historyRowCheckValue)
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
     }
 }
-

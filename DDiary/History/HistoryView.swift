@@ -23,7 +23,7 @@ struct HistoryView: View {
                     .task { await initializeViewModelIfNeeded() }
             }
         }
-        .navigationTitle("History")
+        .navigationTitle(L10n.screenHistoryTitle)
     }
 
     @ViewBuilder
@@ -39,7 +39,7 @@ struct HistoryView: View {
                     onRangeChange: { newRange in Task { await vm.updateDateRange(newRange) } }
                 )
                 if vm.isLoading {
-                    ProgressView("Loading…")
+                    ProgressView(L10n.historyLoading)
                 }
                 if let error = vm.errorMessage {
                     Text(error)
@@ -65,7 +65,7 @@ struct HistoryView: View {
                         editingBPMeasurementId = nil
                     }
                 )
-                .navigationTitle("Quick Entry")
+                .navigationTitle(L10n.historyQuickEntryTitle)
             }
         }
         .sheet(isPresented: $presentGlucoseQuickEntry) {
@@ -87,7 +87,7 @@ struct HistoryView: View {
                         editingGlucoseMeasurementType = nil
                     }
                 )
-                .navigationTitle("Quick Entry")
+                .navigationTitle(L10n.historyQuickEntryTitle)
             }
         }
         .onChange(of: presentBPQuickEntry) { _, isPresented in
@@ -113,9 +113,9 @@ struct HistoryView: View {
         let groups = makeDayGroups(vm: vm)
         if groups.isEmpty && !vm.isLoading && vm.errorMessage == nil {
             VStack(alignment: .leading, spacing: DS.Spacing.small) {
-                Text("No measurements")
+                Text(L10n.historyEmptyTitle)
                     .font(.headline)
-                Text("There are no entries for the selected filter and date range.")
+                Text(L10n.historyEmptyDescription)
                     .foregroundStyle(.secondary)
             }
             .cardContainer()
@@ -223,4 +223,3 @@ struct HistoryView: View {
     NavigationStack { HistoryView() }
         .appContainer(.preview)
 }
-

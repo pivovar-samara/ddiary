@@ -43,5 +43,38 @@ final class LogGlucoseMeasurementUseCaseTests: XCTestCase {
         XCTAssertTrue(all.isEmpty)
         XCTAssertTrue(analytics.measurementLogged.isEmpty)
     }
-}
 
+    func test_cycleMode_beforeMealAtTarget_advancesCurrentCycleIndex() async throws {
+        let measurements = MockMeasurementsRepository()
+        let settings = MockSettingsRepository()
+        let analytics = MockAnalyticsRepository()
+        let sut = LogGlucoseMeasurementUseCase(measurementsRepository: measurements, settingsRepository: settings, analyticsRepository: analytics)
+
+        let userSettings = try await settings.getOrCreate()
+        userSettings.enableDailyCycleMode = true
+        userSettings.enableBeforeMeal = true
+        userSettings.bedtimeSlotEnabled = false
+        userSettings.currentCycleIndex = 0 // breakfast
+
+        try await sut.execute(value: 5.3, measurementType: .beforeMeal, mealSlot: .breakfast, comment: nil)
+
+        XCTAssertEqual(userSettings.currentCycleIndex, 1)
+    }
+
+    func test_cycleMode_beforeMealNonTarget_doesNotAdvanceCurrentCycleIndex() async throws {
+        let measurements = MockMeasurementsRepository()
+        let settings = MockSettingsRepository()
+        let analytics = MockAnalyticsRepository()
+        let sut = LogGlucoseMeasurementUseCase(measurementsRepository: measurements, settingsRepository: settings, analyticsRepository: analytics)
+
+        let userSettings = try await settings.getOrCreate()
+        userSettings.enableDailyCycleMode = true
+        userSettings.enableBeforeMeal = true
+        userSettings.bedtimeSlotEnabled = false
+        userSettings.currentCycleIndex = 1 // lunch
+
+        try await sut.execute(value: 5.3, measurementType: .beforeMeal, mealSlot: .breakfast, comment: nil)
+
+        XCTAssertEqual(userSettings.currentCycleIndex, 1)
+    }
+}
