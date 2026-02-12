@@ -22,16 +22,16 @@ The app is explicitly **not a medical device** and provides no medical recommend
 - **Target platforms:**  
   - iOS 26+ (iPhone)  
   - iPadOS 26+
-- **Language:** Swift 6.2
+- **Language:** Swift 6.0
 - **Concurrency model:** **Swift 6 concurrency** only:
-  - Use `async/await`, `Task`, `TaskGroup`, `actor`s, and `@MainActor`.
+  - Use `async/await`, `Task`, and `@MainActor` isolation.
   - Avoid completion-handler–style APIs internally; wrap such APIs with async adapters.
   - Make types `Sendable` where appropriate to be compatible with Swift 6 strict concurrency checks.
 - **UI framework:** SwiftUI
 - **Persistence:** SwiftData with CloudKit sync enabled.
 - **Networking / APIs:** URLSession (or similar standard) wrapped in async `func`s.
 - **Architecture:** MVVM + Use Case + Repository + **manual DI**.
-- **Use Cases:** Implemented as **Swift `actor`s** for safe concurrent access.
+- **Use Cases:** Implemented as **`@MainActor` classes** around repository operations.
 - **Domain vs Persistence models:** SwiftData `@Model` types double as domain models (Option B).
 - **Analytics:** Amplitude (minimal events).
 - **Tests:** Unit tests, repository tests with mocks, and basic UI tests.
@@ -116,7 +116,7 @@ enum GoogleSyncStatus: String, Codable {
 
 Application-wide user preferences and schedules. There is normally a single instance per user.
 
-Fields (simplified, can be expanded in implementation):
+Fields (current implementation):
 
 - Identity:
   - `id: UUID`
@@ -130,13 +130,14 @@ Fields (simplified, can be expanded in implementation):
 - Glucose thresholds:
   - `glucoseMin: Double`
   - `glucoseMax: Double`
-- Meal times (local time components, no date):
-  - `breakfastTime: DateComponents` (hour, minute)
-  - `lunchTime: DateComponents`
-  - `dinnerTime: DateComponents`
+- Meal times (stored as hour/minute integers):
+  - `breakfastHour: Int`, `breakfastMinute: Int`
+  - `lunchHour: Int`, `lunchMinute: Int`
+  - `dinnerHour: Int`, `dinnerMinute: Int`
   - `bedtimeSlotEnabled: Bool`
+  - `bedtimeHour: Int`, `bedtimeMinute: Int`
 - Blood pressure reminder schedule:
-  - `bpTimes: [DateComponents]` (list of times in a day, e.g., 09:00, 22:00)
+  - `bpTimes: [Int]` (minutes since midnight, e.g., 09:00 -> `540`)
   - `bpActiveWeekdays: Set<Int>` (1–7, Sunday or Monday based depending on convention, implementation detail)
 - Glucose reminders:
   - `enableBeforeMeal: Bool`
@@ -163,7 +164,7 @@ Access to `GoogleIntegration` should be coordinated through a repository on the 
 
 ## 3. Schedules, Slots and Statuses
 
-The app models daily “slots” for measurements. Intended to be computed in a concurrency-safe manner, typically via @MainActor view models or dedicated actors. These are conceptual and mostly expressed in:
+The app models daily “slots” for measurements. Intended to be computed in a concurrency-safe manner, typically via `@MainActor` view models/use cases. These are conceptual and mostly expressed in:
 
 - Scheduled notification times.
 - UI representation of the “Today” screen.
@@ -188,13 +189,7 @@ On the Today screen:
 
 - Each BP reminder slot shows status color based on the rules above.
 - Each glucose slot (breakfast before/after, lunch before/after, dinner before/after, bedtime) similarly shows status.
-- Overall card color can be:
-
-  - **Green** — all active slots for today are completed.
-  - **Orange/Grey** — at least one active slot is scheduled or due, and none are missed yet.
-  - **Red** — at least one active slot is missed.
-
-Implementation details of the “overall color” are flexible; the important part is that individual slot statuses are correct.
+- Slots are presented in grouped sections (`Now`, `Later`, `Overdue`, `Completed`) with per-row status styling.
 
 ### 3.3 Daily Glucose Cycle Mode
 
@@ -209,22 +204,11 @@ breakfast → lunch → dinner → bedtime → breakfast → ...
 Logic:
 
 - `currentCycleIndex` in `UserSettings` indicates which slot is targeted for the current day.
-- If user logs **any** glucose measurement for a different slot than the current cycle slot:
-  - The actual logged `mealSlot` and `measurementType` are respected.
-  - After logging, the cycle should advance in a way that “skips” already measured slots.
-  - Example (simplified):
-    - Day 1 target: breakfast.
-    - User logs lunch instead.
-    - Cycle considers lunch “covered”.
-    - Next day’s plan: breakfast, then dinner (depending on chosen algorithm), but details can be refined during implementation.
-- If user logs **no** glucose measurement for a given day:
-  - `currentCycleIndex` stays the same and is reused for the next day.
-
-The cycle mode is optional and can be implemented in a minimal way in v1; the core requirement is to support:
-
-- 1 slot per day tracking mode.
-- Ability to shift/preserve the target slot depending on user behavior.
-- All updates to `UserSettings.currentCycleIndex` happen on the same actor (usually @MainActor), or through a dedicated use case actor that ensures sequential updates.
+- In current implementation, cycle targeting applies to **before-meal slots** when both `enableDailyCycleMode` and `enableBeforeMeal` are enabled.
+- Cycle advances only when the user logs a `beforeMeal` entry for the **current target slot**.
+- If user logs a different slot/type, `currentCycleIndex` is not advanced automatically.
+- If user logs no glucose measurement, `currentCycleIndex` remains unchanged.
+- All updates to `UserSettings.currentCycleIndex` are kept on `@MainActor`.
 
 ---
 
@@ -235,9 +219,9 @@ The cycle mode is optional and can be implemented in a minimal way in v1; the co
 - Local notifications are scheduled for:
 
   - Blood pressure time slots (from `bpTimes` and `bpActiveWeekdays`).
-  - Glucose measurement times (meal times, before meals, bedtime, and cycle mode if enabled).
+  - Glucose measurement times (meal times, before meals, after-meal +2h, bedtime).
 
-- Notifications **do not** contain inline text fields. Instead, they have actions that open the app to a **Quick Entry screen**.
+- Notifications **do not** contain inline text fields. Actions currently foreground the app and trigger lightweight notification handlers.
 - Interactions with `UNUserNotificationCenter` should be wrapped in async functions (e.g. using `withCheckedContinuation` if needed).
 - Handling of notification responses should funnel into @MainActor methods when updating UI or SwiftData.
 
@@ -247,36 +231,29 @@ The cycle mode is optional and can be implemented in a minimal way in v1; the co
 
 Actions:
 
-- **Enter** — opens Quick Entry for BP (SYS/DIA/Pulse, comment).
-- **Snooze** — offers choices (e.g., 15 / 30 / 60 minutes), rescheduling a notification.
-- **Skip** — marks the slot as conceptually “missed” for the day.
+- **Enter** — currently foregrounds the app.
+- **Snooze** — offers choices (e.g., 15 / 30 / 60 minutes), scheduling an additional one-off reminder.
+- **Skip** — currently handled as a lightweight analytics action (no explicit slot mutation).
 
 #### 4.2.2 For Glucose — Before Meal
 
 When the notification corresponds to a “before meal” glucose measurement:
 
-- **Enter** — opens Quick Entry for glucose with:
+- **Enter** — currently foregrounds the app (explicit deep-link into a specific quick-entry form is not yet implemented).
 
-  - `measurementType = .beforeMeal`
-  - `mealSlot = breakfast/lunch/dinner` (as per context)
-
-- **Move to lunch** / **Move to dinner** (exact labels depend on current meal slot):
-  - If the notification is “before breakfast”, show:
-
-    - `Move to lunch`
-    - `Move to dinner`
-
-  - Choosing one of these updates the **daily plan**: the target slot for today is changed to lunch or dinner; a new notification is scheduled at the corresponding meal time. The original breakfast slot is not marked as missed.
+- **Move to lunch** / **Move to dinner**:
+  - In current implementation this schedules a one-off reminder for today at the configured lunch/dinner time.
+  - It does not mutate cycle index or mark the original slot as missed.
 - **Snooze** — as above.
-- **Skip** — marks the planned slot as missed for the day.
+- **Skip** — currently handled as a lightweight analytics action.
 
 #### 4.2.3 For Glucose — After Meal (2h) or Bedtime
 
 Actions:
 
-- **Enter** — opens Quick Entry with appropriate `measurementType` and `mealSlot` pre-set.
+- **Enter** — currently foregrounds the app.
 - **Snooze**
-- **Skip**
+- **Skip** — currently handled as a lightweight analytics action.
 
 “Move to lunch/dinner” is not shown for after-meal or bedtime notifications.
 
@@ -295,8 +272,8 @@ Fields:
 
 Constraints:
 
-- Only basic numeric validation (e.g. not empty when required).
-- No enforcement of medical “valid ranges” in v1.
+- Numeric parsing is required for Save.
+- Out-of-range values are warned in UI; user can still confirm with “Save anyway”.
 
 Actions:
 
@@ -305,9 +282,9 @@ Actions:
 
 On Save:
 
-- Create a `BPMeasurement` with current `Date` (or a passed-in slot-based timestamp if needed).
+- Create a new `BPMeasurement` (or update an existing one in edit mode).
 - Set `googleSyncStatus = .pending`.
-- Trigger local notifications recomputation if necessary.
+- Post measurement-change notification for dependent UI refresh.
 
 ### 5.2 Glucose Quick Entry
 
@@ -316,14 +293,14 @@ Fields:
 - Value (numeric)
 - Unit (taken from `UserSettings.glucoseUnit`, not editable per entry in v1)
 - Comment (optional)
-- `measurementType` and `mealSlot` are normally passed in from the context (Today screen or notification). They may be visible in the UI as labels rather than editable fields.
+- `measurementType` and `mealSlot` are normally passed in from the Today/History context and shown as labels.
 
 On Save:
 
-- Create `GlucoseMeasurement`.
+- Create a new `GlucoseMeasurement` (or update an existing one in edit mode).
 - Set `googleSyncStatus = .pending`.
 - Possibly update cycle index / plan if in daily cycle mode.
-- Trigger local notifications recomputation if necessary.
+- Post measurement-change notification for dependent UI refresh.
 
 ---
 
@@ -332,7 +309,7 @@ On Save:
 Implementation should:
 
 - Mark ViewModels as `@MainActor` (or use `@Observable` with main-actor isolation).
-- Use async calls to use case actors from the main thread via `Task { await useCase.execute(...) }`.
+- Use async calls to `@MainActor` use case classes from the main thread via `Task { await useCase.execute(...) }`.
 
 ### 6.1 Today Screen
 
@@ -340,30 +317,18 @@ Purpose: main operational screen for daily use.
 
 Sections:
 
-1. **Blood Pressure Card**
-   - Shows:
-     - Next BP measurement time.
-     - Latest BP measurement.
-     - List of today’s BP slots with status colors (grey/orange/red/green).
-   - Interactions:
-     - Tap a slot → open Quick Entry for BP.
-     - Optional button “Measure now” to open Quick Entry (not bound to a specific slot).
+1. **Now**
+   - Unified list of due BP/Glucose slots.
+2. **Later**
+   - Unified list of upcoming scheduled slots.
+3. **Overdue**
+   - Unified list of missed slots.
+4. **Completed**
+   - Collapsible list (`DisclosureGroup`) of completed slots.
 
-2. **Glucose Card**
-   - Shows:
-     - List of glucose slots for today:
-
-       - Breakfast before
-       - Breakfast after 2h
-       - Lunch before
-       - Lunch after 2h
-       - Dinner before
-       - Dinner after 2h
-       - Bedtime (if enabled)
-
-     - Each with status color.
-   - Interactions:
-     - Tap slot → open Quick Entry for glucose, with pre-set context.
+Interactions:
+- Tap BP slot -> open BP Quick Entry (create/edit by matched measurement ID).
+- Tap glucose slot -> open Glucose Quick Entry with prefilled `mealSlot` and `measurementType`.
 
 ### 6.2 History Screen
 
@@ -373,7 +338,7 @@ Features:
 
 - Filter by:
   - Type: BP / Glucose / Both.
-  - Date range: today / last 7 days / last 30 days / custom.
+  - Date range presets: today / last 7 days / last 30 days.
 - Display:
   - Table-style list of entries:
     - For BP: date, time, SYS/DIA, pulse, comment.
@@ -418,7 +383,7 @@ Sections:
    - Connect button:
      - Begins OAuth flow, obtains tokens, sets up sheet.
    - Disconnect button:
-     - Clears `refreshToken`, sets `isEnabled = false`, stops further sync attempts.
+     - Clears `refreshToken`/`spreadsheetId`/`googleUserId`, sets `isEnabled = false`, stops further sync attempts.
    - General sync info / last sync summary.
 
 7. **Export**
@@ -428,7 +393,7 @@ Sections:
      - Use iOS share sheet to export file.
 
 8. **Feedback & About**
-   - Open email composer with prefilled subject/body and basic debug info (device, iOS version, app version).
+   - Open `mailto:` feedback action with prefilled subject.
    - Show disclaimer text and basic app info.
 
 ### 6.4 CSV Export Format
@@ -458,21 +423,21 @@ For Glucose:
 - `comment`
 - `id`
 
-Encoding: UTF-8, delimiter: `,` (comma; or `;` for regional preferences as needed).
+Encoding: UTF-8, delimiter: `,` (comma).
 
 ---
 
 ## 7. Google Sheets Integration
 
-- `GoogleSheetsClient` operations are `async` and can be called from `SyncWithGoogleUseCase` actor.
-- Networking runs off main actor; results are persisted via repositories, which internally use SwiftData. SwiftData operations should be called from @MainActor contexts; the use case actor may hop to the main actor when needed using `await MainActor.run`.
+- `GoogleSheetsClient` operations are `async` and are called from `SyncWithGoogleUseCase` (`@MainActor`).
+- Networking runs via `URLSession`; results are persisted via main-actor repositories backed by SwiftData.
 
 ### 7.1 Authentication
 
 - Use OAuth via `ASWebAuthenticationSession`.
 - Required scope: read/write access to Google Sheets for a single spreadsheet.
 - Store:
-  - `refreshToken` (secure).
+  - `refreshToken` (persisted in `GoogleIntegration`).
   - `googleUserId` if available.
   - `spreadsheetId`.
 
@@ -492,13 +457,12 @@ Column names in **English** for easier programmatic handling.
 
 ### 7.3 Sync Strategy (Push-only)
 
-- Every new or updated measurement has a `googleSyncStatus` field:
-  - When created: set to `.pending` if Google integration is enabled.
-- Sync worker (can be triggered on app start, on network availability, or periodically):
+- Every new or updated measurement is set to `googleSyncStatus = .pending` in current implementation.
+- Sync worker (currently triggered from Settings actions such as Connect and Sync Now):
 
   - Finds all measurements with `.pending` or `.failed`.
   - For each:
-    - Attempts to append a row to the appropriate sheet.
+    - Performs upsert-by-`id` on the appropriate sheet (update existing row if found, otherwise append).
     - On success:
       - `googleSyncStatus = .success`
       - `googleLastError = nil`
@@ -518,8 +482,7 @@ Column names in **English** for easier programmatic handling.
 When user taps “Disconnect Google”:
 
 - Set `isEnabled = false`.
-- Clear `refreshToken`.
-- Optionally clear `spreadsheetId` and `googleUserId` (depending on desired behavior).
+- Clear `refreshToken`, `spreadsheetId`, and `googleUserId`.
 - No further sync attempts are made.
 - Existing `success`/`failed` flags remain for history; `pending` entries might remain but won’t be synced until integration is re-enabled.
 
@@ -532,7 +495,7 @@ When user taps “Disconnect Google”:
 - When a measurement is synced across devices, its `googleSyncStatus` is also synced, ensuring that:
   - Any device can attempt the Google sync for a pending/failed record, but once one device succeeds and marks it `success`, others will not re-sync it.
 - SwiftData + CloudKit synchronization is managed by the system; application code should avoid doing long-running work on the main actor inside SwiftUI lifecycle methods.
-- Use case actors can react to changes signaled by view models (e.g. on app launch or settings change) and perform async work.
+- Use case classes can react to changes signaled by view models (e.g. on app launch or settings change) and perform async work.
 
 
 ---
@@ -546,20 +509,22 @@ When user taps “Disconnect Google”:
    - View: SwiftUI views (`TodayView`, `HistoryView`, `SettingsView`, etc.).
    - ViewModels: `@Observable` classes, typically annotated `@MainActor`, holding view state and interacting with Use Cases via `async` methods.
 
-2. **Domain Layer (Use Cases as actors)**
+2. **Domain Layer (Use Cases as `@MainActor` classes)**
 
-   - Use Case actors encapsulate business logic and act as concurrency boundaries:
+   - Use cases encapsulate business logic and coordinate repositories:
 
-     - `actor LogBPMeasurementUseCase`
-     - `actor LogGlucoseMeasurementUseCase`
-     - `actor ExportCSVUseCase`
-     - `actor SyncWithGoogleUseCase`
-     - `actor UpdateSchedulesUseCase`
-     - `actor RescheduleGlucoseCycleUseCase`
-     - `actor GetTodayOverviewUseCase`
-     - etc.
+     - `LogBPMeasurementUseCase`
+     - `LogGlucoseMeasurementUseCase`
+     - `UpdateBPMeasurementUseCase`
+     - `UpdateGlucoseMeasurementUseCase`
+     - `ExportCSVUseCase`
+     - `SyncWithGoogleUseCase`
+     - `UpdateSchedulesUseCase`
+     - `RescheduleGlucoseCycleUseCase`
+     - `GetTodayOverviewUseCase`
+     - `GetHistoryUseCase`
 
-   - Each actor is initialized with references to repository protocols that are `Sendable` or accessed via `@MainActor` functions when needed.
+   - Each use case is initialized with repository protocol dependencies and runs on `@MainActor` when touching SwiftData models.
 
 3. **Data Layer (Repository protocols + implementations)**
 
@@ -586,7 +551,7 @@ When user taps “Disconnect Google”:
 
 - There is a central `AppContainer` (or similar) responsible for wiring:
   - Concrete repository implementations.
-  - Use Case actors.
+  - Use case classes.
 
 ```swift
 struct AppContainer {
@@ -610,7 +575,7 @@ struct AppContainer {
 
 ### 10.1 Unit Tests for Use Cases
 
-- Each use case actor should have unit tests verifying business logic, including:
+- Each use case should have unit tests verifying business logic, including:
 
   - Correct creation and saving of measurements.
   - Proper update of `googleSyncStatus`.
@@ -620,13 +585,13 @@ struct AppContainer {
   - Correct state transitions on `googleSyncStatus`.
 
 - Use `async` test methods.
-- Use mock repositories that conform to protocols and can be safely used from actors.
+- Use mock repositories that conform to protocols and are safe for main-actor usage in tests.
 
 ### 10.2 Repository Tests with Mocks
 
 - Mock or stub implementations of repository protocols for testing Use Cases.
 - Repository logic touching SwiftData may be tested on @MainActor.
-- Mock repositories for use cases can be simple non-actor types or actors, depending on test design.
+- Mock repositories for use cases can be simple test doubles, depending on test design.
 - Tests to ensure:
 
   - Error propagation.
@@ -634,14 +599,13 @@ struct AppContainer {
 
 ### 10.3 UI Tests
 
-- At least one end-to-end XCUITest scenario:
+- Existing UI test coverage includes:
 
-  - Launch app.
-  - Open Today screen.
-  - Add BP measurement.
-  - Verify it appears in History.
-  - Export CSV and verify file existence (as far as XCTest allows).
-  - Optionally check basic navigation and Settings interactions.
+  - Launch and basic performance test.
+  - Today quick-entry flow for BP and glucose with History verification.
+  - Out-of-range BP warning flow.
+  - Out-of-range glucose warning + inline validation flow.
+  - Bedtime slot toggle behavior reflected on Today screen.
 
 ---
 
@@ -653,14 +617,14 @@ Included in v1:
 - Today screen with slot-based statuses and quick entry.
 - History screen (list + aggregates).
 - Configurable BP and glucose reminders.
-- Notification actions (enter/snooze/skip/move to other meal for glucose before-meal).
+- Notification actions (snooze/skip/move; `enter` currently foregrounds the app).
 - CSV export.
 - Google Sheets backup (push-only).
-- Manual DI, MVVM, Use Cases as actors, SwiftData models as domain models.
+- Manual DI, MVVM, `@MainActor` use case classes, SwiftData models as domain models.
 - Analytics integration with minimal events.
 - Unit tests, basic repository tests, and minimal XCUITests.
 - Prefer `async/await` over callbacks.
-- Use actors as logical concurrency boundaries for domain logic.
+- Use main-actor isolation and `Sendable` boundaries for domain and repository logic.
 - Keep heavy work off the main actor while ensuring SwiftData and SwiftUI interactions happen on the main actor.
 
 Excluded from v1:
