@@ -1,12 +1,47 @@
 import SwiftUI
 import SwiftData
 
-private extension Notification.Name {
+extension Notification.Name {
     nonisolated static let googleRefreshTokenUpdated = Notification.Name("GoogleRefreshTokenUpdated")
 }
 
 @MainActor
+final class GoogleRefreshTokenObserverRegistry {
+    private var observer: NSObjectProtocol?
+    private var center: NotificationCenter?
+    private var onTokenUpdated: (@MainActor (String) async -> Void)?
+
+    func install(
+        center: NotificationCenter = .default,
+        onTokenUpdated: @escaping @MainActor (String) async -> Void
+    ) {
+        invalidate()
+
+        self.center = center
+        self.onTokenUpdated = onTokenUpdated
+        observer = center.addObserver(forName: .googleRefreshTokenUpdated, object: nil, queue: nil) { [weak self] notification in
+            guard let newRT = notification.userInfo?["refreshToken"] as? String else { return }
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                await self.onTokenUpdated?(newRT)
+            }
+        }
+    }
+
+    func invalidate() {
+        if let observer, let center {
+            center.removeObserver(observer)
+        }
+        observer = nil
+        self.center = nil
+        onTokenUpdated = nil
+    }
+}
+
+@MainActor
 struct AppContainer {
+    private static let refreshTokenObserverRegistry = GoogleRefreshTokenObserverRegistry()
+
     let measurementsRepository: any MeasurementsRepository
     let settingsRepository: any SettingsRepository
     let googleIntegrationRepository: any GoogleIntegrationRepository
@@ -39,21 +74,18 @@ struct AppContainer {
             NotificationCenter.default.post(name: .googleRefreshTokenUpdated, object: nil, userInfo: ["refreshToken": newRT])
         })
 
-        // Observe refresh token updates and persist them via SwiftData on the main actor
-        NotificationCenter.default.addObserver(forName: .googleRefreshTokenUpdated, object: nil, queue: nil) { notification in
-            guard let newRT = notification.userInfo?["refreshToken"] as? String else { return }
-            Task { @MainActor in
-                do {
-                    let integration = try await googleIntegrationRepository.getOrCreate()
-                    if integration.refreshToken != newRT {
-                        integration.refreshToken = newRT
-                        try await googleIntegrationRepository.update(integration)
-                    }
-                } catch {
-                    // Best-effort: ignore errors here
+        // Use a managed observer that replaces prior registrations to avoid duplicate side effects.
+        Self.refreshTokenObserverRegistry.install(onTokenUpdated: { [googleIntegrationRepository] newRT in
+            do {
+                let integration = try await googleIntegrationRepository.getOrCreate()
+                if integration.refreshToken != newRT {
+                    integration.refreshToken = newRT
+                    try await googleIntegrationRepository.update(integration)
                 }
+            } catch {
+                // Best-effort: ignore errors here
             }
-        }
+        })
 
         self.measurementsRepository = measurementsRepository
         self.settingsRepository = settingsRepository
