@@ -59,6 +59,9 @@ struct HistoryView: View {
         .refreshable {
             await vm.loadHistory()
         }
+        .onAppear {
+            Task { await vm.loadHistory() }
+        }
         .accessibilityIdentifier("history.scroll")
         .sheet(isPresented: $presentBPQuickEntry) {
             NavigationStack {
