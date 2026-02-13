@@ -1,50 +1,54 @@
 import SwiftUI
 import Observation
+import Combine
 #if canImport(UIKit)
 import UIKit
 #endif
 
 public struct TodayView: View {
     @Environment(\.appContainer) private var container
-    @State private var viewModel: TodayViewModel
+    @State private var viewModel: TodayViewModel? = nil
     @State private var editingBPMeasurementId: UUID? = nil
     @State private var editingGlucoseMeasurementId: UUID? = nil
 
-    public init() {
-        _viewModel = State(initialValue: TodayViewModel(
-            getTodayOverviewUseCase: GetTodayOverviewUseCase(
-                measurementsRepository: containerPlaceholder.measurementsRepository,
-                settingsRepository: containerPlaceholder.settingsRepository
-            ),
-            logBPMeasurementUseCase: containerPlaceholder.logBPMeasurementUseCase,
-            logGlucoseMeasurementUseCase: containerPlaceholder.logGlucoseMeasurementUseCase
-        ))
-    }
+    public init() {}
 
     public var body: some View {
-        @Bindable var vm = viewModel
+        Group {
+            if let vm = viewModel {
+                content(for: vm)
+            } else {
+                ProgressView(L10n.todayLoading)
+                    .task { await initializeViewModelIfNeeded() }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func content(for vm: TodayViewModel) -> some View {
+        @Bindable var bvm = vm
         ScrollView {
             LazyVStack(alignment: .leading, spacing: DS.Spacing.large, pinnedViews: []) {
-                if vm.isLoading {
+                if bvm.isLoading {
                     ProgressView(L10n.todayLoading)
                 }
-                if let error = vm.errorMessage {
+                if let error = bvm.errorMessage {
                     Text(error)
                         .foregroundStyle(.red)
                 }
 
                 // Unified Today blocks
-                if !vm.itemsDue.isEmpty {
+                if !bvm.itemsDue.isEmpty {
                     VStack(alignment: .leading, spacing: DS.Spacing.xSmall) {
                         BlockHeader(L10n.todayBlockNow, emphasis: .prominent)
                             .accessibilityIdentifier("today.block.now")
-                        ForEach(vm.itemsDue) { item in
+                        ForEach(bvm.itemsDue) { item in
                             SlotRow(
                                 title: item.title,
                                 timeText: item.timeText,
                                 status: item.status,
                                 trailingStatusText: nil,
-                                onTap: { handleTap(item) },
+                                onTap: { handleTap(item, vm: vm) },
                                 accessibilityId: "today.row.\(item.kind.rawValue).\(stableId(for: item))",
                                 leadingBadgeText: item.kind == .bp ? "BP" : "GLU",
                                 titleFontWeight: .semibold,
@@ -54,17 +58,17 @@ public struct TodayView: View {
                     }
                 }
 
-                if !vm.itemsScheduled.isEmpty {
+                if !bvm.itemsScheduled.isEmpty {
                     VStack(alignment: .leading, spacing: DS.Spacing.xSmall) {
                         BlockHeader(L10n.todayBlockLater)
                             .accessibilityIdentifier("today.block.later")
-                        ForEach(vm.itemsScheduled) { item in
+                        ForEach(bvm.itemsScheduled) { item in
                             SlotRow(
                                 title: item.title,
                                 timeText: item.timeText,
                                 status: item.status,
                                 trailingStatusText: "",
-                                onTap: { handleTap(item) },
+                                onTap: { handleTap(item, vm: vm) },
                                 accessibilityId: "today.row.\(item.kind.rawValue).\(stableId(for: item))",
                                 leadingBadgeText: item.kind == .bp ? "BP" : "GLU",
                                 trailingIsSecondary: true
@@ -73,17 +77,17 @@ public struct TodayView: View {
                     }
                 }
 
-                if !vm.itemsMissed.isEmpty {
+                if !bvm.itemsMissed.isEmpty {
                     VStack(alignment: .leading, spacing: DS.Spacing.xSmall) {
                         BlockHeader(L10n.todayBlockOverdue)
                             .accessibilityIdentifier("today.block.overdue")
-                        ForEach(vm.itemsMissed) { item in
+                        ForEach(bvm.itemsMissed) { item in
                             SlotRow(
                                 title: item.title,
                                 timeText: item.timeText,
                                 status: item.status,
                                 trailingStatusText: "",
-                                onTap: { handleTap(item) },
+                                onTap: { handleTap(item, vm: vm) },
                                 accessibilityId: "today.row.\(item.kind.rawValue).\(stableId(for: item))",
                                 leadingBadgeText: item.kind == .bp ? "BP" : "GLU",
                                 trailingIsSecondary: true
@@ -92,16 +96,16 @@ public struct TodayView: View {
                     }
                 }
 
-                if !vm.itemsCompleted.isEmpty {
+                if !bvm.itemsCompleted.isEmpty {
                     CompletedDisclosure(title: L10n.todayBlockCompleted) {
                         VStack(alignment: .leading, spacing: DS.Spacing.small) {
-                            ForEach(vm.itemsCompleted) { item in
+                            ForEach(bvm.itemsCompleted) { item in
                                 SlotRow(
                                     title: item.title,
                                     timeText: item.timeText,
                                     status: item.status,
                                     trailingStatusText: nil,
-                                    onTap: { handleTap(item) },
+                                    onTap: { handleTap(item, vm: vm) },
                                     accessibilityId: "today.row.\(item.kind.rawValue).\(stableId(for: item))",
                                     leadingBadgeText: item.kind == .bp ? "BP" : "GLU",
                                     trailingIsSecondary: true
@@ -118,81 +122,92 @@ public struct TodayView: View {
             .padding()
         }
         .accessibilityIdentifier("today.scroll")
-        .onAppear {
-            _viewModel.wrappedValue = TodayViewModel(
-                getTodayOverviewUseCase: container.getTodayOverviewUseCase,
-                logBPMeasurementUseCase: container.logBPMeasurementUseCase,
-                logGlucoseMeasurementUseCase: container.logGlucoseMeasurementUseCase
-            )
-            Task { await viewModel.refresh() }
+        .task {
+            await vm.refresh()
         }
-        .sheet(isPresented: $vm.presentBPQuickEntry) {
+        .sheet(isPresented: $bvm.presentBPQuickEntry) {
             NavigationStack {
                 BPQuickEntryForm(
                     existingMeasurementId: editingBPMeasurementId,
                     onCancel: {
-                        vm.presentBPQuickEntry = false
+                        bvm.presentBPQuickEntry = false
                         editingBPMeasurementId = nil
                     },
                     onSaved: {
-                        vm.presentBPQuickEntry = false
+                        bvm.presentBPQuickEntry = false
                         editingBPMeasurementId = nil
-                        Task { await viewModel.refresh() }
+                        Task { await vm.refresh() }
                     }
                 )
                 .navigationTitle(L10n.todayQuickEntryTitle)
             }
         }
-        .sheet(isPresented: $vm.presentGlucoseQuickEntry) {
+        .sheet(isPresented: $bvm.presentGlucoseQuickEntry) {
             NavigationStack {
                 GlucoseQuickEntryForm(
-                    mealSlot: viewModel.selectedGlucoseSlot?.mealSlot,
-                    measurementType: viewModel.selectedGlucoseSlot?.measurementType,
+                    mealSlot: vm.selectedGlucoseSlot?.mealSlot,
+                    measurementType: vm.selectedGlucoseSlot?.measurementType,
                     existingMeasurementId: editingGlucoseMeasurementId,
                     onCancel: {
-                        vm.presentGlucoseQuickEntry = false
+                        bvm.presentGlucoseQuickEntry = false
                         editingGlucoseMeasurementId = nil
                     },
                     onSaved: {
-                        vm.presentGlucoseQuickEntry = false
+                        bvm.presentGlucoseQuickEntry = false
                         editingGlucoseMeasurementId = nil
-                        Task { await viewModel.refresh() }
+                        Task { await vm.refresh() }
                     }
                 )
                 .navigationTitle(L10n.todayQuickEntryTitle)
             }
         }
-        .onChange(of: vm.presentBPQuickEntry) { _, isPresented in
+        .onChange(of: bvm.presentBPQuickEntry) { _, isPresented in
             if !isPresented {
-                Task { await viewModel.refresh() }
+                Task { await vm.refresh() }
             }
         }
-        .onChange(of: vm.presentGlucoseQuickEntry) { _, isPresented in
+        .onChange(of: bvm.presentGlucoseQuickEntry) { _, isPresented in
             if !isPresented {
-                Task { await viewModel.refresh() }
+                Task { await vm.refresh() }
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .settingsDidSave)) { _ in
+            Task { await vm.refresh() }
+        }
+    }
+
+    @MainActor
+    private func initializeViewModelIfNeeded() async {
+        if viewModel == nil {
+            let vm = TodayViewModel(
+                getTodayOverviewUseCase: container.getTodayOverviewUseCase,
+                logBPMeasurementUseCase: container.logBPMeasurementUseCase,
+                logGlucoseMeasurementUseCase: container.logGlucoseMeasurementUseCase
+            )
+            self.viewModel = vm
+            await vm.refresh()
         }
     }
     
-    private func handleTap(_ item: TodayViewModel.TodayItem) {
+    private func handleTap(_ item: TodayViewModel.TodayItem, vm: TodayViewModel) {
         switch item.payload {
         case .bp(let slot):
-            Task { await prepareAndPresentBP(slot: slot) }
+            Task { await prepareAndPresentBP(slot: slot, vm: vm) }
         case .glucose(let slot):
-            Task { await prepareAndPresentGlucose(slot: slot) }
+            Task { await prepareAndPresentGlucose(slot: slot, vm: vm) }
         }
     }
 
     @MainActor
-    private func prepareAndPresentBP(slot: BPSlotViewModel) async {
+    private func prepareAndPresentBP(slot: BPSlotViewModel, vm: TodayViewModel) async {
         editingBPMeasurementId = slot.matchedMeasurementId
-        viewModel.onBPSlotTapped(slot)
+        vm.onBPSlotTapped(slot)
     }
 
     @MainActor
-    private func prepareAndPresentGlucose(slot: GlucoseSlotViewModel) async {
+    private func prepareAndPresentGlucose(slot: GlucoseSlotViewModel, vm: TodayViewModel) async {
         editingGlucoseMeasurementId = slot.matchedMeasurementId
-        viewModel.onGlucoseSlotTapped(slot)
+        vm.onGlucoseSlotTapped(slot)
     }
 
     private func stableId(for item: TodayViewModel.TodayItem) -> String {
@@ -242,9 +257,6 @@ private struct CompletedDisclosure<Content: View>: View {
         .accessibilityIdentifier("today.completedDisclosure")
     }
 }
-
-// A tiny placeholder container to allow TodayView to initialize before Environment is available.
-private let containerPlaceholder: AppContainer = .preview
 
 #Preview {
     TodayView()

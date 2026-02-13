@@ -1,6 +1,10 @@
 import Foundation
 import Observation
 
+extension Notification.Name {
+    nonisolated static let settingsDidSave = Notification.Name("SettingsDidSave")
+}
+
 @MainActor
 @Observable
 final class SettingsViewModel {
@@ -178,6 +182,7 @@ final class SettingsViewModel {
                 // Saving settings already succeeded; surface scheduling failure without rolling back saved values.
                 errorMessage = L10n.settingsErrorSavedButRemindersNotUpdated
             }
+            NotificationCenter.default.post(name: .settingsDidSave, object: nil)
         } catch {
             errorMessage = String(describing: error)
         }
