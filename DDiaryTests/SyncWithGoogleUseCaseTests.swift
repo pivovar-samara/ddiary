@@ -107,6 +107,41 @@ final class SyncWithGoogleUseCaseTests: XCTestCase {
         XCTAssertEqual(unchanged?.googleSyncStatus, .pending)
         XCTAssertTrue(analytics.googleSyncFailureReasons.contains { $0 == "google_invalid_grant" })
     }
+
+    func test_concurrentSyncRequests_areSerializedAndDoNotDuplicateUploads() async throws {
+        let measurements = MockMeasurementsRepository()
+        let analytics = MockAnalyticsRepository()
+        let google = MockGoogleIntegrationRepository()
+        let integration = try await google.getOrCreate()
+        integration.isEnabled = true
+        integration.spreadsheetId = "sheet123"
+        integration.refreshToken = "token"
+
+        let bp = BPMeasurement(timestamp: Date(), systolic: 120, diastolic: 80, pulse: 70, comment: nil)
+        try await measurements.insertBP(bp)
+
+        let counter = SyncCallCounter()
+        let client = SlowCountingGoogleSheetsClient(counter: counter)
+        let sut = SyncWithGoogleUseCase(
+            googleIntegrationRepository: google,
+            measurementsRepository: measurements,
+            analyticsRepository: analytics,
+            googleSheetsClient: client
+        )
+
+        async let first: Void = sut.syncPendingMeasurements()
+        try await Task.sleep(nanoseconds: 20_000_000)
+        async let second: Void = sut.syncPendingMeasurements()
+        _ = await (first, second)
+
+        let ensureCalls = await counter.ensureCalls()
+        let bpUpsertCalls = await counter.bpUpsertCalls()
+        let glucoseUpsertCalls = await counter.glucoseUpsertCalls()
+
+        XCTAssertEqual(ensureCalls, 1)
+        XCTAssertEqual(bpUpsertCalls, 1)
+        XCTAssertEqual(glucoseUpsertCalls, 0)
+    }
 }
 
 private struct InvalidGrantGoogleSheetsClient: GoogleSheetsClient, Sendable {
@@ -123,5 +158,39 @@ private struct InvalidGrantGoogleSheetsClient: GoogleSheetsClient, Sendable {
             }
             """
         )
+    }
+}
+
+private actor SyncCallCounter {
+    private var ensure: Int = 0
+    private var bpUpserts: Int = 0
+    private var glucoseUpserts: Int = 0
+
+    func incrementEnsure() { ensure += 1 }
+    func incrementBPUpsert() { bpUpserts += 1 }
+    func incrementGlucoseUpsert() { glucoseUpserts += 1 }
+
+    func ensureCalls() -> Int { ensure }
+    func bpUpsertCalls() -> Int { bpUpserts }
+    func glucoseUpsertCalls() -> Int { glucoseUpserts }
+}
+
+private struct SlowCountingGoogleSheetsClient: GoogleSheetsClient, Sendable {
+    let counter: SyncCallCounter
+
+    func appendBloodPressureRow(_ row: GoogleSheetsBPRow, credentials: GoogleSheetsCredentials) async throws {}
+    func appendGlucoseRow(_ row: GoogleSheetsGlucoseRow, credentials: GoogleSheetsCredentials) async throws {}
+
+    func ensureSheetsAndHeaders(credentials: GoogleSheetsCredentials) async throws {
+        await counter.incrementEnsure()
+        try await Task.sleep(nanoseconds: 150_000_000)
+    }
+
+    func upsertBloodPressureRow(_ row: GoogleSheetsBPRow, credentials: GoogleSheetsCredentials) async throws {
+        await counter.incrementBPUpsert()
+    }
+
+    func upsertGlucoseRow(_ row: GoogleSheetsGlucoseRow, credentials: GoogleSheetsCredentials) async throws {
+        await counter.incrementGlucoseUpsert()
     }
 }

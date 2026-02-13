@@ -23,6 +23,7 @@ final class SyncWithGoogleUseCase {
     private let measurementsRepository: any MeasurementsRepository
     private let analyticsRepository: any AnalyticsRepository
     private let googleSheetsClient: any GoogleSheetsClient
+    private var isSyncInProgress = false
 
     init(
         googleIntegrationRepository: any GoogleIntegrationRepository,
@@ -41,6 +42,14 @@ final class SyncWithGoogleUseCase {
 
     /// Push pending/failed measurements to Google Sheets and update their sync status.
     func syncPendingMeasurements() async {
+        guard !isSyncInProgress else {
+            log("Sync request ignored: sync already in progress")
+            return
+        }
+
+        isSyncInProgress = true
+        defer { isSyncInProgress = false }
+
         publishLifecycle(.started)
         defer { publishLifecycle(.finished) }
         log("Starting sync")
