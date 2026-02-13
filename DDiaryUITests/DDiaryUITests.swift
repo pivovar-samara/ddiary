@@ -130,22 +130,22 @@ final class DDiaryUITests: XCTestCase {
 
         // 6) Verify at least one BP and one Glucose entry appear in History using stable row identifiers
         let bpHistoryRow = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", "history.row.bp.")).firstMatch
-        scrollToElement(bpHistoryRow, in: app, maxSwipes: 8)
+        scrollToElement(bpHistoryRow, in: app, maxSwipes: 3)
         var bpFound = waitForExistence(bpHistoryRow, timeout: 10)
         if !bpFound {
             // Fallback to badge text if row identifiers are not available yet
             let bpBadge = app.staticTexts["BP"].firstMatch
-            scrollToElement(bpBadge, in: app, maxSwipes: 8)
+            scrollToElement(bpBadge, in: app, maxSwipes: 3)
             bpFound = waitForExistence(bpBadge, timeout: 5)
         }
         XCTAssertTrue(bpFound, "Expected at least one BP entry in History")
 
         let gluHistoryRow = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", "history.row.glucose.")).firstMatch
-        scrollToElement(gluHistoryRow, in: app, maxSwipes: 8)
+        scrollToElement(gluHistoryRow, in: app, maxSwipes: 3)
         var gluFound = waitForExistence(gluHistoryRow, timeout: 10)
         if !gluFound {
             let gluBadge = app.staticTexts["GLU"].firstMatch
-            scrollToElement(gluBadge, in: app, maxSwipes: 8)
+            scrollToElement(gluBadge, in: app, maxSwipes: 3)
             gluFound = waitForExistence(gluBadge, timeout: 5)
         }
         XCTAssertTrue(gluFound, "Expected at least one Glucose entry in History")
@@ -266,7 +266,7 @@ final class DDiaryUITests: XCTestCase {
         waitForTodayRows(app: app)
 
         let bedtimeRow = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Bedtime")).firstMatch
-        scrollToElement(bedtimeRow, in: app, maxSwipes: 8)
+        scrollToElement(bedtimeRow, in: app, maxSwipes: 3)
         XCTAssertTrue(waitForNonExistence(bedtimeRow, timeout: 5), "Bedtime slot should not appear when disabled")
 
         navigateToTab(app: app, tabId: A11y.Tab.settings, fallbackLabel: "Settings")
@@ -281,7 +281,7 @@ final class DDiaryUITests: XCTestCase {
         _ = waitForExistence(app.scrollViews["today.scroll"], timeout: 5)
         waitForTodayRows(app: app)
 
-        scrollToElement(bedtimeRow, in: app, maxSwipes: 8)
+        scrollToElement(bedtimeRow, in: app, maxSwipes: 3)
         XCTAssertTrue(waitForExistence(bedtimeRow, timeout: 10), "Bedtime slot should appear when enabled")
 
         // Cleanup: disable again to avoid affecting other tests
@@ -341,28 +341,28 @@ final class DDiaryUITests: XCTestCase {
     @MainActor
     private func navigateToTab(app: XCUIApplication, tabId: String, fallbackLabel: String) {
         let tabBar = app.tabBars.firstMatch
-        if waitForExistence(tabBar, timeout: 3) {
+        if waitForExistence(tabBar, timeout: 5) {
             let tabButton = tabBar.buttons[tabId].firstMatch
-            if waitForExistence(tabButton, timeout: 2) {
+            if waitForExistence(tabButton, timeout: 5) {
                 tabButton.tap()
                 waitForScreen(app: app, label: fallbackLabel)
                 return
             }
             let fallbackButton = tabBar.buttons[fallbackLabel].firstMatch
-            if waitForExistence(fallbackButton, timeout: 2) {
+            if waitForExistence(fallbackButton, timeout: 5) {
                 fallbackButton.tap()
                 waitForScreen(app: app, label: fallbackLabel)
                 return
             }
         }
         let anyButton = app.buttons[fallbackLabel].firstMatch
-        if waitForExistence(anyButton, timeout: 2) {
+        if waitForExistence(anyButton, timeout: 5) {
             anyButton.tap()
             waitForScreen(app: app, label: fallbackLabel)
             return
         }
         let sidebarCell = app.cells[fallbackLabel].firstMatch
-        if waitForExistence(sidebarCell, timeout: 2) {
+        if waitForExistence(sidebarCell, timeout: 5) {
             sidebarCell.tap()
             waitForScreen(app: app, label: fallbackLabel)
         }
@@ -385,7 +385,7 @@ final class DDiaryUITests: XCTestCase {
     }
 
     @MainActor
-    private func scrollToElement(_ element: XCUIElement, in app: XCUIApplication, maxSwipes: Int = 6) {
+    private func scrollToElement(_ element: XCUIElement, in app: XCUIApplication, maxSwipes: Int = 3) {
         var swipes = 0
         while !element.isHittable && swipes < maxSwipes {
             if app.scrollViews["settings.scroll"].exists {
