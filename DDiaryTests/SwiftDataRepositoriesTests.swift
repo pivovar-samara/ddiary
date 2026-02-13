@@ -200,6 +200,31 @@ final class SwiftDataGoogleIntegrationRepositoryTests: XCTestCase {
         XCTAssertNil(cleared.spreadsheetId)
         XCTAssertNil(cleared.googleUserId)
     }
+
+    func test_getOrCreate_prefersMostCompleteRecord_andDeletesDuplicates() async throws {
+        let container = try makeInMemoryModelContainer()
+        let context = ModelContext(container)
+        let repository = SwiftDataGoogleIntegrationRepository(modelContext: context)
+
+        let localPlaceholder = GoogleIntegration()
+
+        let cloudSynced = GoogleIntegration()
+        cloudSynced.isEnabled = true
+        cloudSynced.refreshToken = "rt"
+        cloudSynced.spreadsheetId = "sheet"
+        cloudSynced.googleUserId = "uid"
+
+        context.insert(localPlaceholder)
+        context.insert(cloudSynced)
+        try context.save()
+
+        let resolved = try await repository.getOrCreate()
+        XCTAssertEqual(resolved.id, cloudSynced.id)
+
+        let all = try context.fetch(FetchDescriptor<GoogleIntegration>())
+        XCTAssertEqual(all.count, 1)
+        XCTAssertEqual(all.first?.id, cloudSynced.id)
+    }
 }
 
 @MainActor

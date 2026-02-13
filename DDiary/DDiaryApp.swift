@@ -9,6 +9,10 @@ import SwiftUI
 import SwiftData
 import UserNotifications
 
+private enum PersistenceConstants {
+    static let cloudKitContainerIdentifier = "iCloud.container.diary"
+}
+
 @main
 struct DDiaryApp: App {
     let sharedModelContainer: ModelContainer
@@ -21,19 +25,29 @@ struct DDiaryApp: App {
         let env = ProcessInfo.processInfo.environment
         self.isUITesting = args.contains("UITESTING") || env["UITESTING"] == "1"
 
-        let schema = Schema([
+        let fullSchema = Schema([
             BPMeasurement.self,
             GlucoseMeasurement.self,
             UserSettings.self,
             GoogleIntegration.self,
         ])
-        let modelConfiguration = ModelConfiguration(
-            schema: schema,
-            isStoredInMemoryOnly: isUITesting
-        )
+
+        let modelConfiguration: ModelConfiguration
+        if isUITesting {
+            modelConfiguration = ModelConfiguration(
+                schema: fullSchema,
+                isStoredInMemoryOnly: true,
+                cloudKitDatabase: .none
+            )
+        } else {
+            modelConfiguration = ModelConfiguration(
+                schema: fullSchema,
+                cloudKitDatabase: .private(PersistenceConstants.cloudKitContainerIdentifier)
+            )
+        }
 
         do {
-            let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
+            let container = try ModelContainer(for: fullSchema, configurations: [modelConfiguration])
             self.sharedModelContainer = container
         } catch {
             fatalError("Could not create ModelContainer: \(error)")

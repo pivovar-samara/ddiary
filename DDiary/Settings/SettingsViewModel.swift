@@ -63,6 +63,8 @@ final class SettingsViewModel {
     var pendingCount: Int = 0
     var failedCount: Int = 0
     var lastSyncAt: Date? = nil
+    var isLikelyRestoringFromICloud: Bool = false
+    private let restoreHintUntil = Date().addingTimeInterval(120)
 
     // MARK: - Init
     init(
@@ -87,9 +89,7 @@ final class SettingsViewModel {
         defer { isLoading = false }
         do {
             let settings = try await settingsRepository.getOrCreate()
-            let integration = try await googleIntegrationRepository.getOrCreate()
             self.settingsModel = settings
-            self.googleIntegrationModel = integration
             // Map models -> VM properties
             glucoseUnit = settings.glucoseUnit
 
@@ -120,7 +120,6 @@ final class SettingsViewModel {
             glucoseMax = settings.glucoseMax
 
             // Google
-            updateGoogleSummary(using: integration)
             await refreshSyncStatus()
         } catch {
             errorMessage = String(describing: error)
@@ -174,7 +173,7 @@ final class SettingsViewModel {
 
     func connectGoogle() async {
         do {
-            let integration = try await resolveGoogleIntegrationModel()
+            let integration = try await fetchLatestGoogleIntegrationModel()
             googleSummary = L10n.settingsGoogleStartingSignIn
 
             let tokens = try await GoogleOAuth.signIn()
@@ -198,7 +197,6 @@ final class SettingsViewModel {
             }
 
             try await googleIntegrationRepository.update(integration)
-            updateGoogleSummary(using: integration)
             await refreshSyncStatus()
             errorMessage = nil
         } catch {
@@ -209,13 +207,16 @@ final class SettingsViewModel {
 
     func disconnectGoogle() async {
         do {
-            let integration = try await resolveGoogleIntegrationModel()
+            let integration = try await fetchLatestGoogleIntegrationModel()
             try await googleIntegrationRepository.clearTokens(integration)
-            updateGoogleSummary(using: integration)
             await refreshSyncStatus()
         } catch {
             errorMessage = String(describing: error)
         }
+    }
+
+    func refreshCloudBackedState() async {
+        await refreshSyncStatus()
     }
 
     func exportCSV(from: Date, to: Date, includeBP: Bool, includeGlucose: Bool) async -> URL? {
@@ -238,11 +239,10 @@ final class SettingsViewModel {
         return s
     }
 
-    private func resolveGoogleIntegrationModel() async throws -> GoogleIntegration {
-        if let g = googleIntegrationModel { return g }
-        let g = try await googleIntegrationRepository.getOrCreate()
-        googleIntegrationModel = g
-        return g
+    private func fetchLatestGoogleIntegrationModel() async throws -> GoogleIntegration {
+        let integration = try await googleIntegrationRepository.getOrCreate()
+        googleIntegrationModel = integration
+        return integration
     }
 
     private func updateGoogleSummary(using integration: GoogleIntegration) {
@@ -262,6 +262,7 @@ final class SettingsViewModel {
 
     func refreshSyncStatus() async {
         do {
+            let integration = try await fetchLatestGoogleIntegrationModel()
             // Fetch pending or failed items per type
             let pendingOrFailedBP = try await measurementsRepository.pendingOrFailedBPSync()
             let pendingOrFailedGlucose = try await measurementsRepository.pendingOrFailedGlucoseSync()
@@ -284,9 +285,33 @@ final class SettingsViewModel {
             let allSyncDates = bpLastSyncDates + glucoseLastSyncDates
 
             lastSyncAt = allSyncDates.max()
+            updateGoogleSummary(using: integration)
+            let totalMeasurementsCount = allBP.count + allGlucose.count
+            updateRestoreHintState(totalMeasurementsCount: totalMeasurementsCount)
         } catch {
             // On error, keep current values but optionally clear errorMessage
         }
+    }
+
+    private func updateRestoreHintState(totalMeasurementsCount: Int) {
+        let withinRestoreWindow = Date() < restoreHintUntil
+        let hasAnyMeasurements = totalMeasurementsCount > 0
+        let hasCloudMarkers = hasAnyGoogleCloudData(googleIntegrationModel)
+
+        isLikelyRestoringFromICloud = withinRestoreWindow && !hasAnyMeasurements && !hasCloudMarkers
+    }
+
+    private func hasAnyGoogleCloudData(_ integration: GoogleIntegration?) -> Bool {
+        guard let integration else { return false }
+        return integration.isEnabled
+            || hasNonEmpty(integration.refreshToken)
+            || hasNonEmpty(integration.spreadsheetId)
+            || hasNonEmpty(integration.googleUserId)
+    }
+
+    private func hasNonEmpty(_ value: String?) -> Bool {
+        guard let value else { return false }
+        return !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private func log(_ message: String) {

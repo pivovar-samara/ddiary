@@ -4,6 +4,7 @@ import Observation
 struct SettingsView: View {
     @Environment(\.appContainer) private var container
     @Environment(\.openURL) private var openURL
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var viewModel: SettingsViewModel? = nil
 
@@ -226,6 +227,15 @@ struct SettingsView: View {
                                         .foregroundStyle(.secondary)
                                 }
                             }
+                            if bvm.isLikelyRestoringFromICloud {
+                                HStack(spacing: DS.Spacing.small) {
+                                    ProgressView()
+                                        .scaleEffect(0.85)
+                                    Text(L10n.cloudRestoreSettingsDescription)
+                                        .font(.footnote)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
                         }
 
                         SettingsDivider()
@@ -304,9 +314,16 @@ struct SettingsView: View {
             .padding(.horizontal, DS.Spacing.medium)
             .padding(.vertical, DS.Spacing.large)
         }
+        .refreshable {
+            await vm.refreshCloudBackedState()
+        }
         .accessibilityIdentifier("settings.scroll")
         .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
         .onAppear { Task { await vm.loadSettings() } }
+        .onChange(of: scenePhase) { _, newPhase in
+            guard newPhase == .active else { return }
+            Task { await vm.refreshCloudBackedState() }
+        }
         .toolbar {
             Button(L10n.settingsRowSave) {
                 Task {

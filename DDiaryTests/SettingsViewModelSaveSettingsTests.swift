@@ -68,14 +68,81 @@ final class SettingsViewModelSaveSettingsTests: XCTestCase {
         XCTAssertEqual(settingsRepository.savedSettings?.enableAfterMeal2h, false)
     }
 
+    func test_refreshCloudBackedState_picksUpLaterCloudRestoredIntegration() async throws {
+        let settingsRepository = SpySettingsRepository()
+        let updater = SpySchedulesUpdater()
+        let measurementsRepository = MockMeasurementsRepository()
+
+        let placeholder = GoogleIntegration()
+        placeholder.isEnabled = false
+
+        let restored = GoogleIntegration()
+        restored.isEnabled = true
+        restored.refreshToken = "rt"
+        restored.spreadsheetId = "sheet"
+        restored.googleUserId = "user@example.com"
+
+        let googleRepository = RotatingGoogleIntegrationRepository(integrations: [placeholder, restored])
+        let sut = makeSUT(
+            settingsRepository: settingsRepository,
+            measurementsRepository: measurementsRepository,
+            schedulesUpdater: updater,
+            googleIntegrationRepository: googleRepository
+        )
+
+        await sut.loadSettings()
+        XCTAssertFalse(sut.isGoogleEnabled)
+        XCTAssertEqual(sut.googleSummary, "Not connected")
+
+        await sut.refreshCloudBackedState()
+        XCTAssertTrue(sut.isGoogleEnabled)
+        XCTAssertEqual(sut.googleSummary, "Connected (user@example.com)")
+        XCTAssertGreaterThanOrEqual(googleRepository.getOrCreateCallCount, 2)
+    }
+
+    func test_refreshSyncStatus_updatesGoogleSummaryFromLatestIntegrationState() async throws {
+        let settingsRepository = SpySettingsRepository()
+        let updater = SpySchedulesUpdater()
+        let measurementsRepository = MockMeasurementsRepository()
+
+        let connected = GoogleIntegration()
+        connected.isEnabled = true
+        connected.refreshToken = "rt"
+        connected.spreadsheetId = "sheet"
+        connected.googleUserId = "user@example.com"
+
+        let disconnected = GoogleIntegration()
+        disconnected.isEnabled = false
+        disconnected.refreshToken = nil
+        disconnected.spreadsheetId = "sheet"
+        disconnected.googleUserId = "user@example.com"
+
+        let googleRepository = RotatingGoogleIntegrationRepository(integrations: [connected, disconnected])
+        let sut = makeSUT(
+            settingsRepository: settingsRepository,
+            measurementsRepository: measurementsRepository,
+            schedulesUpdater: updater,
+            googleIntegrationRepository: googleRepository
+        )
+
+        await sut.loadSettings()
+        XCTAssertTrue(sut.isGoogleEnabled)
+        XCTAssertEqual(sut.googleSummary, "Connected (user@example.com)")
+
+        await sut.refreshSyncStatus()
+        XCTAssertFalse(sut.isGoogleEnabled)
+        XCTAssertEqual(sut.googleSummary, "Not connected")
+    }
+
     private func makeSUT(
         settingsRepository: SpySettingsRepository,
         measurementsRepository: MockMeasurementsRepository,
-        schedulesUpdater: SpySchedulesUpdater
+        schedulesUpdater: SpySchedulesUpdater,
+        googleIntegrationRepository: GoogleIntegrationRepository = MockGoogleIntegrationRepository()
     ) -> SettingsViewModel {
         SettingsViewModel(
             settingsRepository: settingsRepository,
-            googleIntegrationRepository: MockGoogleIntegrationRepository(),
+            googleIntegrationRepository: googleIntegrationRepository,
             exportCSVUseCase: ExportCSVUseCase(measurementsRepository: measurementsRepository),
             measurementsRepository: measurementsRepository,
             googleSheetsClient: RecordingGoogleSheetsClient(),
@@ -118,5 +185,52 @@ private final class SpySchedulesUpdater: SchedulesUpdating {
         if let error {
             throw error
         }
+    }
+}
+
+@MainActor
+private final class RotatingGoogleIntegrationRepository: GoogleIntegrationRepository {
+    private var integrations: [GoogleIntegration]
+    private var index: Int = 0
+    private(set) var getOrCreateCallCount: Int = 0
+
+    init(integrations: [GoogleIntegration]) {
+        self.integrations = integrations
+    }
+
+    func getOrCreate() async throws -> GoogleIntegration {
+        getOrCreateCallCount += 1
+        guard !integrations.isEmpty else {
+            let integration = GoogleIntegration()
+            integrations = [integration]
+            return integration
+        }
+
+        let current = integrations[min(index, integrations.count - 1)]
+        if index < integrations.count - 1 {
+            index += 1
+        }
+        return current
+    }
+
+    func save(_ integration: GoogleIntegration) async throws {
+        if integrations.isEmpty {
+            integrations = [integration]
+            index = 0
+        } else {
+            integrations[min(index, integrations.count - 1)] = integration
+        }
+    }
+
+    func update(_ integration: GoogleIntegration) async throws {
+        try await save(integration)
+    }
+
+    func clearTokens(_ integration: GoogleIntegration) async throws {
+        integration.refreshToken = nil
+        integration.spreadsheetId = nil
+        integration.googleUserId = nil
+        integration.isEnabled = false
+        try await save(integration)
     }
 }

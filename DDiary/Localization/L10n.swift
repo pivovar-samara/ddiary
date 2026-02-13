@@ -30,6 +30,12 @@ enum L10n {
         "history.empty.description",
         "There are no entries for the selected filter and date range."
     )
+    static let cloudRestoreTitle = tr("cloud_restore.title", "Restoring from iCloud…")
+    static let cloudRestoreHistoryDescription = tr(
+        "cloud_restore.history.description",
+        "If you previously used DDiary, your history may appear shortly after reinstall."
+    )
+    static let cloudRestoreRefreshNow = tr("cloud_restore.action.refresh_now", "Refresh now")
     static let historyFilterLabel = tr("history.filter.label", "Filter")
     static let historyFilterBoth = tr("history.filter.both", "Both")
     static let historyFilterBP = tr("history.filter.bp", "BP")
@@ -239,6 +245,10 @@ enum L10n {
     }
 
     static let settingsLastSyncNone = tr("settings.row.last_sync_none", "Last sync: —")
+    static let cloudRestoreSettingsDescription = tr(
+        "cloud_restore.settings.description",
+        "If you used DDiary before, Google backup details may appear after iCloud restore completes."
+    )
 
     // MARK: - SettingsViewModel messages
     static let settingsErrorSavedButRemindersNotUpdated = tr(

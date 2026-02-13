@@ -3,6 +3,7 @@ import Observation
 
 struct HistoryView: View {
     @Environment(\.appContainer) private var container
+    @Environment(\.scenePhase) private var scenePhase
     @State private var viewModel: HistoryViewModel? = nil
 
     @State private var presentBPQuickEntry: Bool = false
@@ -24,6 +25,10 @@ struct HistoryView: View {
             }
         }
         .navigationTitle(L10n.screenHistoryTitle)
+        .onChange(of: scenePhase) { _, newPhase in
+            guard newPhase == .active, let vm = viewModel else { return }
+            Task { await vm.loadHistory() }
+        }
     }
 
     @ViewBuilder
@@ -50,6 +55,9 @@ struct HistoryView: View {
                 Spacer(minLength: 0)
             }
             .padding()
+        }
+        .refreshable {
+            await vm.loadHistory()
         }
         .accessibilityIdentifier("history.scroll")
         .sheet(isPresented: $presentBPQuickEntry) {
