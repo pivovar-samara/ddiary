@@ -20,6 +20,8 @@ final class SettingsViewModel {
     var isLoading: Bool = false
     var errorMessage: String? = nil
     var isGoogleSyncInProgress: Bool = false
+    var isGoogleOperationInProgress: Bool = false
+    var isGoogleBusy: Bool { isGoogleSyncInProgress || isGoogleOperationInProgress }
 
     // MARK: - UserSettings mirrors
     var glucoseUnit: GlucoseUnit = .mmolL
@@ -181,7 +183,7 @@ final class SettingsViewModel {
         }
     }
 
-    func connectGoogle() async {
+    func connectGoogle() async -> Bool {
         do {
             let integration = try await fetchLatestGoogleIntegrationModel()
             googleSummary = L10n.settingsGoogleStartingSignIn
@@ -209,10 +211,30 @@ final class SettingsViewModel {
             try await googleIntegrationRepository.update(integration)
             await refreshSyncStatus()
             errorMessage = nil
+            return true
         } catch {
             errorMessage = String(describing: error)
             log("Google connect failed: \(error)")
+            return false
         }
+    }
+
+    func connectGoogleAndSync(initialSync: @escaping @MainActor () async -> Void) async {
+        isGoogleOperationInProgress = true
+        googleSummary = L10n.settingsGoogleStartingSignIn
+
+        let connected = await connectGoogle()
+        guard connected else {
+            isGoogleOperationInProgress = false
+            await refreshSyncStatus()
+            return
+        }
+
+        googleSummary = L10n.settingsGoogleSummarySyncing
+        await initialSync()
+
+        isGoogleOperationInProgress = false
+        await refreshSyncStatus()
     }
 
     func disconnectGoogle() async {
@@ -292,12 +314,13 @@ final class SettingsViewModel {
         switch phase {
         case .started:
             isGoogleSyncInProgress = true
+            googleSummary = L10n.settingsGoogleSummarySyncing
             await refreshSyncStatus()
         case .progress:
             await refreshSyncStatus()
         case .finished:
-            await refreshSyncStatus()
             isGoogleSyncInProgress = false
+            await refreshSyncStatus()
         }
     }
 
@@ -326,7 +349,9 @@ final class SettingsViewModel {
             let allSyncDates = bpLastSyncDates + glucoseLastSyncDates
 
             lastSyncAt = allSyncDates.max()
-            updateGoogleSummary(using: integration)
+            if !isGoogleBusy {
+                updateGoogleSummary(using: integration)
+            }
             let totalMeasurementsCount = allBP.count + allGlucose.count
             updateRestoreHintState(totalMeasurementsCount: totalMeasurementsCount)
         } catch {

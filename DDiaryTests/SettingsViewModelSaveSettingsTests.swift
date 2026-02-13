@@ -134,6 +134,33 @@ final class SettingsViewModelSaveSettingsTests: XCTestCase {
         XCTAssertEqual(sut.googleSummary, "Not connected")
     }
 
+    func test_refreshSyncStatus_keepsSummaryWhileGoogleOperationIsInProgress() async throws {
+        let settingsRepository = SpySettingsRepository()
+        let updater = SpySchedulesUpdater()
+        let measurementsRepository = MockMeasurementsRepository()
+
+        let disconnected = GoogleIntegration()
+        disconnected.isEnabled = false
+        disconnected.refreshToken = nil
+        disconnected.spreadsheetId = nil
+
+        let googleRepository = RotatingGoogleIntegrationRepository(integrations: [disconnected])
+        let sut = makeSUT(
+            settingsRepository: settingsRepository,
+            measurementsRepository: measurementsRepository,
+            schedulesUpdater: updater,
+            googleIntegrationRepository: googleRepository
+        )
+
+        sut.googleSummary = L10n.settingsGoogleSummarySyncing
+        sut.isGoogleOperationInProgress = true
+
+        await sut.refreshSyncStatus()
+
+        XCTAssertEqual(sut.googleSummary, L10n.settingsGoogleSummarySyncing)
+        XCTAssertFalse(sut.isGoogleEnabled)
+    }
+
     private func makeSUT(
         settingsRepository: SpySettingsRepository,
         measurementsRepository: MockMeasurementsRepository,

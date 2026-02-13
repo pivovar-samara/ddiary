@@ -13,10 +13,23 @@ public enum GoogleOAuthConfig {
     public static var clientID: String {
         Bundle.main.object(forInfoDictionaryKey: "GOOGLE_OAUTH_KEY") as? String ?? ""
     }
-    /// The custom URL scheme your app handles, e.g., "ddiary".
-    public static var redirectScheme: String = "ddiary"
     /// The full redirect URI registered with Google, e.g., "ddiary:/goauth".
     public static var redirectURI: String = "com.googleusercontent.apps.383781347842-eebk0q5ogjta4s85tel3dccfd8u2fj1o:/oauthredirect"
+    /// Optional override for callback scheme in ASWebAuthenticationSession.
+    public static var callbackSchemeOverride: String?
+    /// Callback scheme used by ASWebAuthenticationSession.
+    /// By default this is derived from `redirectURI` to keep the flow consistent.
+    public static var redirectScheme: String {
+        if let override = callbackSchemeOverride?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !override.isEmpty {
+            return override
+        }
+        if let scheme = URL(string: redirectURI)?.scheme,
+           !scheme.isEmpty {
+            return scheme
+        }
+        return "ddiary"
+    }
     /// Space-separated scopes. Include Sheets, and optionally OpenID/email for user id.
     public static var scope: String = "openid email profile https://www.googleapis.com/auth/spreadsheets"
 }
@@ -66,6 +79,8 @@ public enum GoogleIDToken: Sendable {
 
 @MainActor
 public enum GoogleOAuth {
+    private static var activePresentationContextProvider: PresentationContextProvider?
+
     public static func signIn() async throws -> GoogleOAuthTokens {
         // 1) Build PKCE values
         let verifier = randomURLSafeString(length: 64)
@@ -116,9 +131,13 @@ public enum GoogleOAuth {
             // Hold strong references to avoid deallocation before callback
             var strongSession: ASWebAuthenticationSession?
             let provider = PresentationContextProvider()
+            activePresentationContextProvider = provider
 
             strongSession = ASWebAuthenticationSession(url: authURL, callbackURLScheme: callbackScheme) { url, error in
-                defer { strongSession = nil } // release after completion
+                defer {
+                    strongSession = nil // release after completion
+                    activePresentationContextProvider = nil
+                }
                 if let error {
                     continuation.resume(throwing: error)
                 } else if let url {
@@ -188,12 +207,30 @@ public enum GoogleOAuth {
 
     private final class PresentationContextProvider: NSObject, ASWebAuthenticationPresentationContextProviding {
         func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
-            // Attempt to return the key window; fall back to any window in the foreground scene
-            let windowScene = UIApplication.shared.connectedScenes
-                .compactMap({ $0 as? UIWindowScene })
-                .first(where: { $0.activationState == .foregroundActive || $0.activationState == .foregroundInactive })
-            let window = windowScene!.windows.first(where: { $0.isKeyWindow }) ?? windowScene!.windows.first
-            return window!
+            GoogleOAuth.presentationAnchor(from: UIApplication.shared.connectedScenes)
         }
+    }
+
+    static func presentationAnchor(from scenes: Set<UIScene>) -> ASPresentationAnchor {
+        let candidateScenes = scenes
+            .compactMap { $0 as? UIWindowScene }
+            .filter { $0.activationState == .foregroundActive || $0.activationState == .foregroundInactive }
+
+        for scene in candidateScenes {
+            if let key = scene.windows.first(where: { $0.isKeyWindow }) {
+                return key
+            }
+            if let first = scene.windows.first {
+                return first
+            }
+        }
+
+        // Fallback for transient states (no active scene/window yet). Prefer scene-based init on iOS 26+.
+        if let fallbackScene = (scenes.compactMap { $0 as? UIWindowScene }.first
+            ?? UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first) {
+            return ASPresentationAnchor(windowScene: fallbackScene)
+        }
+
+        preconditionFailure("No UIWindowScene available for ASWebAuthenticationSession presentation anchor.")
     }
 }

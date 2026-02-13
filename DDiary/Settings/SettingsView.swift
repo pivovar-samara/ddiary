@@ -205,13 +205,16 @@ struct SettingsView: View {
                         VStack(alignment: .leading, spacing: 6) {
                             HStack {
                                 Circle()
-                                    .fill(bvm.isGoogleEnabled ? Color.green : Color.red)
+                                    .fill(bvm.isGoogleBusy ? Color.orange : (bvm.isGoogleEnabled ? Color.green : Color.red))
                                     .frame(width: 10, height: 10)
                                 Text(bvm.googleSummary)
                                     .font(.body)
                                     .lineLimit(1)
                                     .truncationMode(.tail)
                                 Spacer()
+                                ProgressView()
+                                    .scaleEffect(0.85)
+                                    .opacity(bvm.isGoogleBusy ? 1 : 0)
                             }
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(L10n.settingsPendingFailed(pending: bvm.pendingCount, failed: bvm.failedCount))
@@ -242,34 +245,39 @@ struct SettingsView: View {
 
                         if !bvm.isGoogleEnabled {
                             // Primary action when not connected
-                            SettingsActionRow(icon: "link", title: L10n.settingsRowConnect, role: .none) {
+                            SettingsActionRow(
+                                icon: "link",
+                                title: L10n.settingsRowConnect,
+                                role: .none,
+                                showsActivityIndicator: bvm.isGoogleBusy
+                            ) {
                                 Task {
-                                    await vm.connectGoogle()
-                                    await container.syncWithGoogleUseCase.syncPendingMeasurements()
-                                    await vm.refreshSyncStatus()
+                                    await vm.connectGoogleAndSync {
+                                        await container.syncWithGoogleUseCase.syncPendingMeasurements()
+                                    }
                                 }
                             }
-                            .disabled(bvm.isGoogleSyncInProgress)
+                            .disabled(bvm.isGoogleBusy)
                         } else {
                             // Primary action when connected
                             SettingsActionRow(
                                 icon: "arrow.clockwise",
                                 title: L10n.settingsRowSyncNow,
                                 role: .none,
-                                showsActivityIndicator: bvm.isGoogleSyncInProgress
+                                showsActivityIndicator: bvm.isGoogleBusy
                             ) {
                                 Task {
                                     await container.syncWithGoogleUseCase.syncPendingMeasurements()
                                     await vm.refreshSyncStatus()
                                 }
                             }
-                            .disabled(bvm.isGoogleSyncInProgress)
+                            .disabled(bvm.isGoogleBusy)
                             SettingsDivider()
                             // Secondary destructive action
                             SettingsActionRow(icon: "xmark.circle", title: L10n.settingsRowDisconnect, role: .destructive) {
                                 Task { await vm.disconnectGoogle() }
                             }
-                            .disabled(bvm.isGoogleSyncInProgress)
+                            .disabled(bvm.isGoogleBusy)
                         }
                     }
                 }

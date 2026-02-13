@@ -269,6 +269,7 @@ enum L10n {
         "Enabled, awaiting credentials"
     )
     static let settingsGoogleStartingSignIn = tr("settings.google.summary.starting_signin", "Starting Google sign-in…")
+    static let settingsGoogleSummarySyncing = tr("settings.google.summary.syncing", "Syncing with Google…")
     static func settingsGoogleSpreadsheetCreationFailed(_ message: String) -> String {
         String(
             format: tr("settings.google.error.spreadsheet_creation_failed_format", "Failed to create spreadsheet: %@"),
