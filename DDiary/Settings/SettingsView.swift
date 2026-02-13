@@ -214,10 +214,10 @@ struct SettingsView: View {
                                 Spacer()
                             }
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(L10n.settingsPendingFailed(pending: vm.pendingCount, failed: vm.failedCount))
+                                Text(L10n.settingsPendingFailed(pending: bvm.pendingCount, failed: bvm.failedCount))
                                     .font(.footnote)
                                     .foregroundStyle(.secondary)
-                                if let last = vm.lastSyncAt {
+                                if let last = bvm.lastSyncAt {
                                     Text(L10n.settingsLastSync(dateString(last)))
                                         .font(.footnote)
                                         .foregroundStyle(.secondary)
@@ -249,19 +249,27 @@ struct SettingsView: View {
                                     await vm.refreshSyncStatus()
                                 }
                             }
+                            .disabled(bvm.isGoogleSyncInProgress)
                         } else {
                             // Primary action when connected
-                            SettingsActionRow(icon: "arrow.clockwise", title: L10n.settingsRowSyncNow, role: .none) {
+                            SettingsActionRow(
+                                icon: "arrow.clockwise",
+                                title: L10n.settingsRowSyncNow,
+                                role: .none,
+                                showsActivityIndicator: bvm.isGoogleSyncInProgress
+                            ) {
                                 Task {
                                     await container.syncWithGoogleUseCase.syncPendingMeasurements()
                                     await vm.refreshSyncStatus()
                                 }
                             }
+                            .disabled(bvm.isGoogleSyncInProgress)
                             SettingsDivider()
                             // Secondary destructive action
                             SettingsActionRow(icon: "xmark.circle", title: L10n.settingsRowDisconnect, role: .destructive) {
                                 Task { await vm.disconnectGoogle() }
                             }
+                            .disabled(bvm.isGoogleSyncInProgress)
                         }
                     }
                 }
@@ -458,6 +466,7 @@ private struct SettingsActionRow: View {
     let icon: String
     let title: String
     var role: ButtonRole? = nil
+    var showsActivityIndicator: Bool = false
     let action: () -> Void
 
     var body: some View {
@@ -473,6 +482,9 @@ private struct SettingsActionRow: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
                 Spacer()
+                ProgressView()
+                    .scaleEffect(0.85)
+                    .opacity(showsActivityIndicator ? 1 : 0)
             }
             .frame(minHeight: 48)
         }

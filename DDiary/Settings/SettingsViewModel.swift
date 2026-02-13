@@ -19,6 +19,7 @@ final class SettingsViewModel {
     // MARK: - UI State
     var isLoading: Bool = false
     var errorMessage: String? = nil
+    var isGoogleSyncInProgress: Bool = false
 
     // MARK: - UserSettings mirrors
     var glucoseUnit: GlucoseUnit = .mmolL
@@ -65,6 +66,7 @@ final class SettingsViewModel {
     var lastSyncAt: Date? = nil
     var isLikelyRestoringFromICloud: Bool = false
     private let restoreHintUntil = Date().addingTimeInterval(120)
+    private var googleSyncLifecycleObserver: NSObjectProtocol?
 
     // MARK: - Init
     init(
@@ -81,6 +83,14 @@ final class SettingsViewModel {
         self.measurementsRepository = measurementsRepository
         self.googleSheetsClient = googleSheetsClient
         self.schedulesUpdater = schedulesUpdater
+        observeGoogleSyncLifecycle()
+    }
+
+    @MainActor
+    deinit {
+        if let observer = googleSyncLifecycleObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
     }
 
     // MARK: - Public API
@@ -257,6 +267,37 @@ final class SettingsViewModel {
             googleSummary = L10n.settingsGoogleSummaryConnected
         } else {
             googleSummary = L10n.settingsGoogleSummaryAwaitingCredentials
+        }
+    }
+
+    private func observeGoogleSyncLifecycle() {
+        googleSyncLifecycleObserver = NotificationCenter.default.addObserver(
+            forName: .googleSyncLifecycleChanged,
+            object: nil,
+            queue: nil
+        ) { [weak self] notification in
+            guard let rawPhase = notification.userInfo?["phase"] as? String,
+                  let phase = GoogleSyncLifecyclePhase(rawValue: rawPhase)
+            else {
+                return
+            }
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                await self.handleGoogleSyncLifecycle(phase)
+            }
+        }
+    }
+
+    private func handleGoogleSyncLifecycle(_ phase: GoogleSyncLifecyclePhase) async {
+        switch phase {
+        case .started:
+            isGoogleSyncInProgress = true
+            await refreshSyncStatus()
+        case .progress:
+            await refreshSyncStatus()
+        case .finished:
+            await refreshSyncStatus()
+            isGoogleSyncInProgress = false
         }
     }
 

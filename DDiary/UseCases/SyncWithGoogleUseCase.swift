@@ -7,6 +7,16 @@
 
 import Foundation
 
+enum GoogleSyncLifecyclePhase: String, Sendable {
+    case started
+    case progress
+    case finished
+}
+
+extension Notification.Name {
+    nonisolated static let googleSyncLifecycleChanged = Notification.Name("GoogleSyncLifecycleChanged")
+}
+
 @MainActor
 final class SyncWithGoogleUseCase {
     private let googleIntegrationRepository: any GoogleIntegrationRepository
@@ -31,6 +41,8 @@ final class SyncWithGoogleUseCase {
 
     /// Push pending/failed measurements to Google Sheets and update their sync status.
     func syncPendingMeasurements() async {
+        publishLifecycle(.started)
+        defer { publishLifecycle(.finished) }
         log("Starting sync")
         do {
             let integration = try await googleIntegrationRepository.getOrCreate()
@@ -85,6 +97,7 @@ final class SyncWithGoogleUseCase {
                     m.googleLastError = nil
                     m.googleLastSyncAt = Date()
                     try await measurementsRepository.updateBP(m)
+                    publishLifecycle(.progress)
                     log("BP synced id=\(m.id.uuidString)")
                     await analyticsRepository.logGoogleSyncSuccess()
                 } catch {
@@ -92,6 +105,7 @@ final class SyncWithGoogleUseCase {
                     m.googleLastError = String(describing: error)
                     m.googleLastSyncAt = Date()
                     try? await measurementsRepository.updateBP(m)
+                    publishLifecycle(.progress)
                     log("BP sync failed id=\(m.id.uuidString) error=\(m.googleLastError ?? "unknown")")
                     await analyticsRepository.logGoogleSyncFailure(reason: m.googleLastError)
                 }
@@ -114,6 +128,7 @@ final class SyncWithGoogleUseCase {
                     m.googleLastError = nil
                     m.googleLastSyncAt = Date()
                     try await measurementsRepository.updateGlucose(m)
+                    publishLifecycle(.progress)
                     log("Glucose synced id=\(m.id.uuidString)")
                     await analyticsRepository.logGoogleSyncSuccess()
                 } catch {
@@ -121,6 +136,7 @@ final class SyncWithGoogleUseCase {
                     m.googleLastError = String(describing: error)
                     m.googleLastSyncAt = Date()
                     try? await measurementsRepository.updateGlucose(m)
+                    publishLifecycle(.progress)
                     log("Glucose sync failed id=\(m.id.uuidString) error=\(m.googleLastError ?? "unknown")")
                     await analyticsRepository.logGoogleSyncFailure(reason: m.googleLastError)
                 }
@@ -130,6 +146,14 @@ final class SyncWithGoogleUseCase {
             // Repository-level failure: surface as analytics failure; individual records remain unchanged.
             await analyticsRepository.logGoogleSyncFailure(reason: String(describing: error))
         }
+    }
+
+    private func publishLifecycle(_ phase: GoogleSyncLifecyclePhase) {
+        NotificationCenter.default.post(
+            name: .googleSyncLifecycleChanged,
+            object: nil,
+            userInfo: ["phase": phase.rawValue]
+        )
     }
 
     private func isInvalidGrantError(_ error: Error) -> Bool {
