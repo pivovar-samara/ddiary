@@ -55,6 +55,11 @@ final class SyncWithGoogleUseCase {
                 try await googleSheetsClient.ensureSheetsAndHeaders(credentials: credentials)
                 log("Ensured sheets and headers")
             } catch {
+                if isInvalidGrantError(error) {
+                    await invalidateIntegrationDueToInvalidGrant(integration: integration)
+                    await analyticsRepository.logGoogleSyncFailure(reason: "google_invalid_grant")
+                    return
+                }
                 log("Failed ensuring sheets/headers: \(error)")
                 throw error
             }
@@ -124,6 +129,26 @@ final class SyncWithGoogleUseCase {
             log("Sync failed: \(error)")
             // Repository-level failure: surface as analytics failure; individual records remain unchanged.
             await analyticsRepository.logGoogleSyncFailure(reason: String(describing: error))
+        }
+    }
+
+    private func isInvalidGrantError(_ error: Error) -> Bool {
+        guard case let GoogleSheetsClientError.httpError(statusCode, body) = error else {
+            return false
+        }
+        guard statusCode == 400 else { return false }
+        guard let body else { return false }
+        return body.localizedCaseInsensitiveContains("invalid_grant")
+    }
+
+    private func invalidateIntegrationDueToInvalidGrant(integration: GoogleIntegration) async {
+        integration.isEnabled = false
+        integration.refreshToken = nil
+        do {
+            try await googleIntegrationRepository.update(integration)
+            log("Refresh token is invalid/revoked; integration disabled until reconnect")
+        } catch {
+            log("Failed to persist invalid token state: \(error)")
         }
     }
 
