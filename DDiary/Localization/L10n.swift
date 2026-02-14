@@ -278,6 +278,22 @@ enum L10n {
     }
     static let settingsGoogleSpreadsheetTitle = tr("settings.google.spreadsheet_title", "DDiary Backup")
 
+    // MARK: - Startup
+    static let startupTitle = tr("app.startup.title", "Unable to start DDiary")
+    static let startupRecoveryHint = tr(
+        "app.startup.recovery_hint",
+        "Please restart the app. If the problem persists, reinstall the app or contact support."
+    )
+    static func startupStorageInitFailed(_ message: String) -> String {
+        String(
+            format: tr(
+                "app.startup.error.storage_init_failed_format",
+                "Failed to initialize local data storage. %@"
+            ),
+            message
+        )
+    }
+
     // MARK: - Helpers
     private static func tr(_ key: String, _ defaultValue: String) -> String {
         Bundle.main.localizedString(forKey: key, value: defaultValue, table: "Localizable")

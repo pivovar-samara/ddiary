@@ -13,18 +13,21 @@ private enum PersistenceConstants {
     static let cloudKitContainerIdentifier = "iCloud.container.diary"
 }
 
-@main
-struct DDiaryApp: App {
-    let sharedModelContainer: ModelContainer
-    let appContainer: AppContainer
-    private let notificationsCoordinator: NotificationsCoordinator
-    private let isUITesting: Bool
+enum AppLaunchState {
+    case ready(sharedModelContainer: ModelContainer, appContainer: AppContainer)
+    case failed(message: String)
+}
 
-    init() {
-        let args = ProcessInfo.processInfo.arguments
-        let env = ProcessInfo.processInfo.environment
-        self.isUITesting = args.contains("UITESTING") || env["UITESTING"] == "1"
+@MainActor
+struct AppBootstrapper {
+    typealias ModelContainerFactory = (_ schema: Schema, _ configurations: [ModelConfiguration]) throws -> ModelContainer
 
+    static func makeLaunchState(
+        isUITesting: Bool,
+        modelContainerFactory: ModelContainerFactory = { schema, configurations in
+            try ModelContainer(for: schema, configurations: configurations)
+        }
+    ) -> AppLaunchState {
         let fullSchema = Schema([
             BPMeasurement.self,
             GlucoseMeasurement.self,
@@ -47,28 +50,76 @@ struct DDiaryApp: App {
         }
 
         do {
-            let container = try ModelContainer(for: fullSchema, configurations: [modelConfiguration])
-            self.sharedModelContainer = container
+            let sharedModelContainer = try modelContainerFactory(fullSchema, [modelConfiguration])
+            let appContainer = AppContainer(modelContainer: sharedModelContainer)
+            return .ready(sharedModelContainer: sharedModelContainer, appContainer: appContainer)
         } catch {
-            fatalError("Could not create ModelContainer: \(error)")
+            let message = L10n.startupStorageInitFailed(error.localizedDescription)
+            return .failed(message: message)
         }
-
-        // Wire up dependencies via a single AppContainer instance.
-        self.appContainer = AppContainer(modelContainer: sharedModelContainer)
-        
-        // Configure notification categories and delegate
-        UserNotificationsRepository.registerCategories()
-        let center = UNUserNotificationCenter.current()
-        let coordinator = NotificationsCoordinator(container: self.appContainer)
-        center.delegate = coordinator
-        self.notificationsCoordinator = coordinator
     }
-    
+}
+
+@main
+struct DDiaryApp: App {
+    private let launchState: AppLaunchState
+    private let notificationsCoordinator: NotificationsCoordinator?
+    private let isUITesting: Bool
+
+    init() {
+        let args = ProcessInfo.processInfo.arguments
+        let env = ProcessInfo.processInfo.environment
+        self.isUITesting = args.contains("UITESTING") || env["UITESTING"] == "1"
+        self.launchState = AppBootstrapper.makeLaunchState(isUITesting: isUITesting)
+
+        switch launchState {
+        case .ready(_, let appContainer):
+            // Configure notification categories and delegate
+            UserNotificationsRepository.registerCategories()
+            let center = UNUserNotificationCenter.current()
+            let coordinator = NotificationsCoordinator(container: appContainer)
+            center.delegate = coordinator
+            self.notificationsCoordinator = coordinator
+        case .failed:
+            self.notificationsCoordinator = nil
+        }
+    }
+
     var body: some Scene {
         WindowGroup {
-            RootView()
-                .appContainer(appContainer)
+            switch launchState {
+            case .ready(let sharedModelContainer, let appContainer):
+                RootView()
+                    .appContainer(appContainer)
+                    .modelContainer(sharedModelContainer)
+            case .failed(let message):
+                StartupErrorView(message: message)
+            }
         }
-        .modelContainer(sharedModelContainer)
+    }
+}
+
+private struct StartupErrorView: View {
+    let message: String
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 40))
+                .foregroundStyle(.orange)
+            Text(L10n.startupTitle)
+                .font(.title3)
+                .fontWeight(.semibold)
+            Text(message)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Text(L10n.startupRecoveryHint)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding(24)
+        .accessibilityIdentifier("startup.error")
     }
 }
