@@ -1,12 +1,21 @@
 import Foundation
+import OSLog
 
 /// Handles quick actions from notification responses (snooze / move / skip).
 /// This type operates only on Sendable data and calls the NotificationsRepository helpers.
 @MainActor
 public final class NotificationsActionUseCase {
+    private enum UserSurfacePolicy: String {
+        case suppressed
+    }
+
     private let settingsRepository: any SettingsRepository
     private let notificationsRepository: any NotificationsRepository
     private let analyticsRepository: any AnalyticsRepository
+    private let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "DDiary",
+        category: "NotificationsActionUseCase"
+    )
 
     public init(
         settingsRepository: any SettingsRepository,
@@ -58,12 +67,18 @@ public final class NotificationsActionUseCase {
                 )
             }
         } catch {
-            // v1: silently ignore
+            log(error, operation: "moveBeforeBreakfast", policy: .suppressed)
         }
     }
 
     /// Placeholder for skip logic — in v1 we just log analytics.
     public func skip() async {
         await analyticsRepository.logScheduleUpdated(kind: .glucose)
+    }
+
+    private func log(_ error: Error, operation: String, policy: UserSurfacePolicy) {
+        logger.error(
+            "\(operation, privacy: .public) failed. user_surface=\(policy.rawValue, privacy: .public) error=\(String(describing: error), privacy: .public)"
+        )
     }
 }

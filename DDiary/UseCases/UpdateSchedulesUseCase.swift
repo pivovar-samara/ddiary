@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 
 @MainActor
 public protocol SchedulesUpdating {
@@ -7,9 +8,17 @@ public protocol SchedulesUpdating {
 
 @MainActor
 public final class UpdateSchedulesUseCase: SchedulesUpdating {
+    private enum UserSurfacePolicy: String {
+        case suppressed
+    }
+
     private let settingsRepository: any SettingsRepository
     private let notificationsRepository: any NotificationsRepository
     private let analyticsRepository: any AnalyticsRepository
+    private let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "DDiary",
+        category: "UpdateSchedulesUseCase"
+    )
     private var isUITesting: Bool {
         ProcessInfo.processInfo.arguments.contains("UITESTING")
         || ProcessInfo.processInfo.environment["UITESTING"] == "1"
@@ -35,7 +44,7 @@ public final class UpdateSchedulesUseCase: SchedulesUpdating {
             let settings = try await settingsRepository.getOrCreate()
             try await notificationsRepository.scheduleAllNotifications(settings: settings)
         } catch {
-            // For v1, fail silently. Consider logging in later releases.
+            log(error, operation: "requestAuthorizationAndSchedule", policy: .suppressed)
         }
     }
 
@@ -46,5 +55,11 @@ public final class UpdateSchedulesUseCase: SchedulesUpdating {
         try await notificationsRepository.scheduleAllNotifications(settings: settings)
         await analyticsRepository.logScheduleUpdated(kind: .bloodPressure)
         await analyticsRepository.logScheduleUpdated(kind: .glucose)
+    }
+
+    private func log(_ error: Error, operation: String, policy: UserSurfacePolicy) {
+        logger.error(
+            "\(operation, privacy: .public) failed. user_surface=\(policy.rawValue, privacy: .public) error=\(String(describing: error), privacy: .public)"
+        )
     }
 }

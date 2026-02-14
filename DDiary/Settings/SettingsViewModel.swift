@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import OSLog
 
 extension Notification.Name {
     nonisolated static let settingsDidSave = Notification.Name("SettingsDidSave")
@@ -8,6 +9,23 @@ extension Notification.Name {
 @MainActor
 @Observable
 final class SettingsViewModel {
+    private enum UserSurfacePolicy {
+        case suppressed
+        case showErrorDescription
+        case showMessage(String)
+
+        var loggingValue: String {
+            switch self {
+            case .suppressed:
+                return "suppressed"
+            case .showErrorDescription:
+                return "error_description"
+            case .showMessage:
+                return "message"
+            }
+        }
+    }
+
     // MARK: - Dependencies
     private let settingsRepository: any SettingsRepository
     private let googleIntegrationRepository: any GoogleIntegrationRepository
@@ -15,6 +33,10 @@ final class SettingsViewModel {
     private let measurementsRepository: any MeasurementsRepository
     private let googleSheetsClient: any GoogleSheetsClient
     private let schedulesUpdater: any SchedulesUpdating
+    private let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "DDiary",
+        category: "SettingsViewModel"
+    )
 
     // MARK: - Backing models (MainActor-bound)
     private var settingsModel: UserSettings?
@@ -138,7 +160,7 @@ final class SettingsViewModel {
             // Google
             await refreshSyncStatus()
         } catch {
-            errorMessage = String(describing: error)
+            handleError(error, context: "loadSettings", policy: .showErrorDescription)
         }
     }
 
@@ -180,11 +202,15 @@ final class SettingsViewModel {
                 try await schedulesUpdater.scheduleFromCurrentSettings()
             } catch {
                 // Saving settings already succeeded; surface scheduling failure without rolling back saved values.
-                errorMessage = L10n.settingsErrorSavedButRemindersNotUpdated
+                handleError(
+                    error,
+                    context: "saveSettings.scheduleFromCurrentSettings",
+                    policy: .showMessage(L10n.settingsErrorSavedButRemindersNotUpdated)
+                )
             }
             NotificationCenter.default.post(name: .settingsDidSave, object: nil)
         } catch {
-            errorMessage = String(describing: error)
+            handleError(error, context: "saveSettings", policy: .showErrorDescription)
         }
     }
 
@@ -205,11 +231,14 @@ final class SettingsViewModel {
                 do {
                     let id = try await googleSheetsClient.createSpreadsheetAndSetup(refreshToken: tokens.refreshToken, title: title)
                     integration.spreadsheetId = id
-                    log("Created spreadsheet id=\(id)")
+                    logger.info("Created spreadsheet id=\(id, privacy: .public)")
                 } catch {
                     // Surface error but keep tokens saved; user can retry later
-                    self.errorMessage = L10n.settingsGoogleSpreadsheetCreationFailed(error.localizedDescription)
-                    log("Spreadsheet creation failed: \(error)")
+                    handleError(
+                        error,
+                        context: "connectGoogle.createSpreadsheet",
+                        policy: .showMessage(L10n.settingsGoogleSpreadsheetCreationFailed(error.localizedDescription))
+                    )
                 }
             }
 
@@ -218,8 +247,7 @@ final class SettingsViewModel {
             errorMessage = nil
             return true
         } catch {
-            errorMessage = String(describing: error)
-            log("Google connect failed: \(error)")
+            handleError(error, context: "connectGoogle", policy: .showErrorDescription)
             return false
         }
     }
@@ -248,7 +276,7 @@ final class SettingsViewModel {
             try await googleIntegrationRepository.clearTokens(integration)
             await refreshSyncStatus()
         } catch {
-            errorMessage = String(describing: error)
+            handleError(error, context: "disconnectGoogle", policy: .showErrorDescription)
         }
     }
 
@@ -263,7 +291,7 @@ final class SettingsViewModel {
             let url = try await exportCSVUseCase.exportCSV(from: from, to: to, includeBP: includeBP, includeGlucose: includeGlucose)
             return url
         } catch {
-            errorMessage = String(describing: error)
+            handleError(error, context: "exportCSV", policy: .showErrorDescription)
             return nil
         }
     }
@@ -389,7 +417,7 @@ final class SettingsViewModel {
             let totalMeasurementsCount = allBP.count + allGlucose.count
             updateRestoreHintState(totalMeasurementsCount: totalMeasurementsCount)
         } catch {
-            // On error, keep current values but optionally clear errorMessage
+            handleError(error, context: "refreshSyncStatus", policy: .suppressed)
         }
     }
 
@@ -414,9 +442,18 @@ final class SettingsViewModel {
         return !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    private func log(_ message: String) {
-        #if DEBUG
-        print("[Settings] \(message)")
-        #endif
+    private func handleError(_ error: Error, context: String, policy: UserSurfacePolicy) {
+        logger.error(
+            "\(context, privacy: .public) failed. user_surface=\(policy.loggingValue, privacy: .public) error=\(String(describing: error), privacy: .public)"
+        )
+
+        switch policy {
+        case .suppressed:
+            return
+        case .showErrorDescription:
+            errorMessage = (error as NSError).localizedDescription
+        case .showMessage(let message):
+            errorMessage = message
+        }
     }
 }

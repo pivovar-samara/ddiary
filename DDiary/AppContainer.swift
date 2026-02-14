@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import OSLog
 
 extension Notification.Name {
     nonisolated static let googleRefreshTokenUpdated = Notification.Name("GoogleRefreshTokenUpdated")
@@ -40,7 +41,15 @@ final class GoogleRefreshTokenObserverRegistry {
 
 @MainActor
 struct AppContainer {
+    private enum UserSurfacePolicy: String {
+        case suppressed
+    }
+
     private static let refreshTokenObserverRegistry = GoogleRefreshTokenObserverRegistry()
+    private static let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "DDiary",
+        category: "AppContainer"
+    )
 
     let measurementsRepository: any MeasurementsRepository
     let settingsRepository: any SettingsRepository
@@ -83,7 +92,7 @@ struct AppContainer {
                     try await googleIntegrationRepository.update(integration)
                 }
             } catch {
-                // Best-effort: ignore errors here
+                Self.log(error, operation: "persistGoogleRefreshToken", policy: .suppressed)
             }
         })
 
@@ -159,6 +168,12 @@ struct AppContainer {
             configurations: [ModelConfiguration(isStoredInMemoryOnly: true)]
         )
         return AppContainer(modelContainer: modelContainer)
+    }
+
+    private static func log(_ error: Error, operation: String, policy: UserSurfacePolicy) {
+        logger.error(
+            "\(operation, privacy: .public) failed. user_surface=\(policy.rawValue, privacy: .public) error=\(String(describing: error), privacy: .public)"
+        )
     }
 }
 

@@ -1,11 +1,20 @@
 import Foundation
+import OSLog
 
 /// Minimal cycle-mode helper for glucose measurements.
 /// Keeps all mutations on the main actor because it touches SwiftData via SettingsRepository.
 @MainActor
 public final class RescheduleGlucoseCycleUseCase {
+    private enum UserSurfacePolicy: String {
+        case suppressed
+    }
+
     private let settingsRepository: any SettingsRepository
     private let analyticsRepository: any AnalyticsRepository
+    private let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "DDiary",
+        category: "RescheduleGlucoseCycleUseCase"
+    )
 
     public init(
         settingsRepository: any SettingsRepository,
@@ -29,7 +38,7 @@ public final class RescheduleGlucoseCycleUseCase {
             try await settingsRepository.save(settings)
             await analyticsRepository.logScheduleUpdated(kind: .glucose)
         } catch {
-            // v1: fail silently; consider logging in a later release
+            log(error, operation: "advanceIfEnabled", policy: .suppressed)
         }
     }
 
@@ -44,7 +53,7 @@ public final class RescheduleGlucoseCycleUseCase {
             try await settingsRepository.save(settings)
             await analyticsRepository.logScheduleUpdated(kind: .glucose)
         } catch {
-            // v1: ignore
+            log(error, operation: "setTarget", policy: .suppressed)
         }
     }
 
@@ -58,6 +67,7 @@ public final class RescheduleGlucoseCycleUseCase {
             let idx = positiveModulo(settings.currentCycleIndex, order.count)
             return order[idx]
         } catch {
+            log(error, operation: "currentTarget", policy: .suppressed)
             return nil
         }
     }
@@ -74,5 +84,11 @@ public final class RescheduleGlucoseCycleUseCase {
     private func positiveModulo(_ value: Int, _ modulus: Int) -> Int {
         let remainder = value % modulus
         return remainder >= 0 ? remainder : remainder + modulus
+    }
+
+    private func log(_ error: Error, operation: String, policy: UserSurfacePolicy) {
+        logger.error(
+            "\(operation, privacy: .public) failed. user_surface=\(policy.rawValue, privacy: .public) error=\(String(describing: error), privacy: .public)"
+        )
     }
 }
