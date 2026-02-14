@@ -50,4 +50,39 @@ final class GoogleOAuthConfigTests: XCTestCase {
         let anchor = GoogleOAuth.presentationAnchor(from: [])
         XCTAssertNotNil(anchor)
     }
+
+    func test_googleOAuth_formURLEncoded_encodesSpecialCharactersStrictly() {
+        let params = [
+            "scope": "openid email profile",
+            "grant_type": "refresh token",
+            "client_id": "abc+123@example.com",
+            "redirect_uri": "com.example.app:/oauthredirect?x=1&y=2",
+            "unicode": "cafe~ and !"
+        ]
+
+        let encoded = GoogleOAuth.formURLEncoded(params)
+
+        XCTAssertEqual(
+            encoded,
+            "client_id=abc%2B123%40example.com&grant_type=refresh+token&redirect_uri=com.example.app%3A%2Foauthredirect%3Fx%3D1%26y%3D2&scope=openid+email+profile&unicode=cafe%7E+and+%21"
+        )
+    }
+
+    func test_googleSheetsClient_formURLEncoded_encodesSpecialCharactersStrictly() {
+        let params = [
+            "scope": "openid email profile",
+            "grant_type": "refresh token",
+            "client_id": "abc+123@example.com",
+            "redirect_uri": "com.example.app:/oauthredirect?x=1&y=2",
+            "unicode": "cafe~ and !"
+        ]
+        let client = LiveGoogleSheetsClient()
+
+        let encoded = client.formURLEncoded(params)
+
+        XCTAssertEqual(
+            encoded,
+            "client_id=abc%2B123%40example.com&grant_type=refresh+token&redirect_uri=com.example.app%3A%2Foauthredirect%3Fx%3D1%26y%3D2&scope=openid+email+profile&unicode=cafe%7E+and+%21"
+        )
+    }
 }

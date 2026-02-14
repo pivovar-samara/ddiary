@@ -290,14 +290,6 @@ private extension LiveGoogleSheetsClient {
         return AccessToken(token: decoded.access_token)
     }
 
-    func formURLEncoded(_ params: [String: String]) -> String {
-        params.map { key, value in
-            let k = key.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? key
-            let v = value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? value
-            return "\(k)=\(v)"
-        }.joined(separator: "&")
-    }
-
     func valuesForBP(_ row: GoogleSheetsBPRow) -> [[String]] {
         let iso = iso8601String(from: row.timestamp)
         let dateStr = dateString(from: row.timestamp)
@@ -531,4 +523,35 @@ private extension ISO8601DateFormatter {
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return f
     }()
+}
+
+extension LiveGoogleSheetsClient {
+    func formURLEncoded(_ params: [String: String]) -> String {
+        params
+            .sorted { $0.key < $1.key }
+            .map { key, value in
+                "\(formEncodedComponent(key))=\(formEncodedComponent(value))"
+            }
+            .joined(separator: "&")
+    }
+
+    private func formEncodedComponent(_ input: String) -> String {
+        let hexDigits = Array("0123456789ABCDEF".utf8)
+        var output = ""
+        output.reserveCapacity(input.utf8.count)
+
+        for byte in input.utf8 {
+            switch byte {
+            case 0x30...0x39, 0x41...0x5A, 0x61...0x7A, 0x2A, 0x2D, 0x2E, 0x5F:
+                output.unicodeScalars.append(UnicodeScalar(byte))
+            case 0x20:
+                output.append("+")
+            default:
+                output.append("%")
+                output.unicodeScalars.append(UnicodeScalar(hexDigits[Int(byte >> 4)]))
+                output.unicodeScalars.append(UnicodeScalar(hexDigits[Int(byte & 0x0F)]))
+            }
+        }
+        return output
+    }
 }
