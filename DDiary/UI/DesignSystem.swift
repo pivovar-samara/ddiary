@@ -236,15 +236,16 @@ extension StatusDot {
 /// Container for UI-only formatters used by Today/History.
 @MainActor
 enum UIFormatters {
-    /// Time formatter enforcing 24-hour format HH:mm.
+    /// UI time formatter using current locale/user preferences (12/24h).
     static let timeFormatter: DateFormatter = {
         let df = DateFormatter()
-        df.locale = Locale(identifier: "en_US_POSIX")
-        df.dateFormat = "HH:mm"
+        df.locale = .autoupdatingCurrent
+        df.dateStyle = .none
+        df.timeStyle = .short
         return df
     }()
 
-    /// Format a date into HH:mm (24-hour) string.
+    /// Format a date using current locale/user time preferences.
     static func formatTime(_ date: Date) -> String {
         timeFormatter.string(from: date)
     }

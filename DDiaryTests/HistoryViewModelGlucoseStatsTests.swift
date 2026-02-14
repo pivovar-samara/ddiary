@@ -101,6 +101,41 @@ struct HistoryViewModelGlucoseStatsTests {
         #expect(abs(max - 126.0) < 0.0001)
         #expect(abs(avg - 111.0) < 0.0001)
     }
+
+    @Test("Mixed-unit glucose summary ignores invalid values before aggregation")
+    @MainActor
+    func testMixedUnitGlucoseSummaryIgnoresInvalidValues() async throws {
+        let repo = InMemoryMeasurementsRepository()
+        try await repo.insertGlucose(GlucoseMeasurement(
+            id: UUID(), timestamp: Date(), value: 90, unit: .mgdL, measurementType: .beforeMeal, mealSlot: .breakfast, comment: nil
+        ))
+        try await repo.insertGlucose(GlucoseMeasurement(
+            id: UUID(), timestamp: Date(), value: 7.0, unit: .mmolL, measurementType: .beforeMeal, mealSlot: .lunch, comment: nil
+        ))
+        try await repo.insertGlucose(GlucoseMeasurement(
+            id: UUID(), timestamp: Date(), value: -20, unit: .mgdL, measurementType: .beforeMeal, mealSlot: .dinner, comment: nil
+        ))
+        try await repo.insertGlucose(GlucoseMeasurement(
+            id: UUID(), timestamp: Date(), value: .infinity, unit: .mmolL, measurementType: .beforeMeal, mealSlot: .dinner, comment: nil
+        ))
+        try await repo.insertGlucose(GlucoseMeasurement(
+            id: UUID(), timestamp: Date(), value: .nan, unit: .mmolL, measurementType: .beforeMeal, mealSlot: .none, comment: nil
+        ))
+
+        let useCase = GetHistoryUseCase(measurementsRepository: repo)
+        let vm = HistoryViewModel(getHistory: useCase, initialRange: HistoryViewModel.defaultRange(.days7))
+        vm.selectedFilter = .glucose
+
+        await vm.loadHistory()
+
+        let min = try #require(vm.glucoseMin)
+        let max = try #require(vm.glucoseMax)
+        let avg = try #require(vm.glucoseAvg)
+
+        #expect(abs(min - 5.0) < 0.0001)
+        #expect(abs(max - 7.0) < 0.0001)
+        #expect(abs(avg - 6.0) < 0.0001)
+    }
 }
 
 // Minimal in-memory repo for testing on @MainActor

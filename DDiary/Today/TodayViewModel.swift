@@ -223,14 +223,12 @@ public final class TodayViewModel {
         
         let overview = await getTodayOverviewUseCase.compute()
         let now = Date()
-        let timeFormatter = DateFormatter()
-        timeFormatter.timeStyle = .short
 
         // BP slots
         bpSlots = overview.bpSlots.map { slot in
             let status = Self.computeStatus(now: now, scheduled: slot.date, completed: slot.completed)
             return BPSlotViewModel(
-                displayTime: timeFormatter.string(from: slot.date),
+                displayTime: UIFormatters.formatTime(slot.date),
                 scheduledDate: slot.date,
                 status: status,
                 matchedMeasurementId: slot.matchedMeasurementId
@@ -243,7 +241,7 @@ public final class TodayViewModel {
             return GlucoseSlotViewModel(
                 mealSlot: slot.mealSlot,
                 measurementType: slot.measurementType,
-                displayTime: timeFormatter.string(from: slot.date),
+                displayTime: UIFormatters.formatTime(slot.date),
                 scheduledDate: slot.date,
                 status: status,
                 matchedMeasurementId: slot.matchedMeasurementId

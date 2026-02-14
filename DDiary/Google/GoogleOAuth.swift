@@ -80,6 +80,7 @@ public enum GoogleIDToken: Sendable {
 @MainActor
 public enum GoogleOAuth {
     private static var activePresentationContextProvider: PresentationContextProvider?
+    private static var fallbackPresentationAnchor: ASPresentationAnchor?
 
     public static func signIn() async throws -> GoogleOAuthTokens {
         // 1) Build PKCE values
@@ -122,6 +123,7 @@ public enum GoogleOAuth {
         case invalidURL
         case missingCode
         case tokenExchangeFailed(status: Int, body: String?)
+        case sessionStartFailed
     }
 
     // MARK: - Helpers
@@ -130,6 +132,29 @@ public enum GoogleOAuth {
         try await withCheckedThrowingContinuation { continuation in
             // Hold strong references to avoid deallocation before callback
             var strongSession: ASWebAuthenticationSession?
+            var hasResumed = false
+
+            func resumeOnce(_ result: Result<URL, Error>) {
+                guard !hasResumed else { return }
+                hasResumed = true
+                switch result {
+                case .success(let url):
+                    continuation.resume(returning: url)
+                case .failure(let error):
+                    continuation.resume(throwing: error)
+                }
+            }
+
+            if fallbackPresentationAnchor == nil,
+               let preResolvedAnchor = resolvePresentationAnchor(from: UIApplication.shared.connectedScenes) {
+                fallbackPresentationAnchor = preResolvedAnchor
+            }
+
+            guard fallbackPresentationAnchor != nil else {
+                resumeOnce(.failure(OAuthError.sessionStartFailed))
+                return
+            }
+
             let provider = PresentationContextProvider()
             activePresentationContextProvider = provider
 
@@ -139,16 +164,21 @@ public enum GoogleOAuth {
                     activePresentationContextProvider = nil
                 }
                 if let error {
-                    continuation.resume(throwing: error)
+                    resumeOnce(.failure(error))
                 } else if let url {
-                    continuation.resume(returning: url)
+                    resumeOnce(.success(url))
                 } else {
-                    continuation.resume(throwing: OAuthError.invalidURL)
+                    resumeOnce(.failure(OAuthError.invalidURL))
                 }
             }
             strongSession?.prefersEphemeralWebBrowserSession = true
             strongSession?.presentationContextProvider = provider
-            strongSession?.start()
+            let didStart = strongSession?.start() ?? false
+            if !didStart {
+                strongSession = nil
+                activePresentationContextProvider = nil
+                resumeOnce(.failure(OAuthError.sessionStartFailed))
+            }
         }
     }
 
@@ -233,25 +263,60 @@ public enum GoogleOAuth {
     }
 
     static func presentationAnchor(from scenes: Set<UIScene>) -> ASPresentationAnchor {
-        let candidateScenes = scenes
-            .compactMap { $0 as? UIWindowScene }
-            .filter { $0.activationState == .foregroundActive || $0.activationState == .foregroundInactive }
+        if let anchor = resolvePresentationAnchor(from: scenes) {
+            return anchor
+        }
+        if let anchor = resolvePresentationAnchor(from: UIApplication.shared.connectedScenes) {
+            return anchor
+        }
+        if let fallbackPresentationAnchor {
+            return fallbackPresentationAnchor
+        }
 
-        for scene in candidateScenes {
-            if let key = scene.windows.first(where: { $0.isKeyWindow }) {
-                return key
+        // Last-resort fallback for transient app states.
+        if let fallbackScene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first {
+            let fallback = ASPresentationAnchor(windowScene: fallbackScene)
+            fallback.rootViewController = UIViewController()
+            fallbackPresentationAnchor = fallback
+            return fallback
+        }
+
+        assertionFailure("No UIWindowScene available for ASWebAuthenticationSession presentation anchor.")
+        if let fallbackPresentationAnchor {
+            return fallbackPresentationAnchor
+        }
+
+        // Prefer waiting briefly over terminating in transient lifecycle races.
+        while true {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+            if let recoveredAnchor = resolvePresentationAnchor(from: UIApplication.shared.connectedScenes) {
+                fallbackPresentationAnchor = recoveredAnchor
+                return recoveredAnchor
             }
-            if let first = scene.windows.first {
-                return first
+        }
+    }
+
+    private static func resolvePresentationAnchor(from scenes: Set<UIScene>) -> ASPresentationAnchor? {
+        let allWindowScenes = scenes.compactMap { $0 as? UIWindowScene }
+        guard !allWindowScenes.isEmpty else { return nil }
+
+        let foregroundScenes = allWindowScenes.filter {
+            $0.activationState == .foregroundActive || $0.activationState == .foregroundInactive
+        }
+        let prioritizedScenes = foregroundScenes + allWindowScenes
+
+        for scene in prioritizedScenes {
+            if let keyWindow = scene.windows.first(where: \.isKeyWindow) {
+                return keyWindow
+            }
+            if let firstWindow = scene.windows.first {
+                return firstWindow
             }
         }
 
-        // Fallback for transient states (no active scene/window yet). Prefer scene-based init on iOS 26+.
-        if let fallbackScene = (scenes.compactMap { $0 as? UIWindowScene }.first
-            ?? UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first) {
+        if let fallbackScene = allWindowScenes.first {
             return ASPresentationAnchor(windowScene: fallbackScene)
         }
-
-        preconditionFailure("No UIWindowScene available for ASWebAuthenticationSession presentation anchor.")
+        return nil
     }
 }

@@ -85,4 +85,37 @@ final class GoogleOAuthConfigTests: XCTestCase {
             "client_id=abc%2B123%40example.com&grant_type=refresh+token&redirect_uri=com.example.app%3A%2Foauthredirect%3Fx%3D1%26y%3D2&scope=openid+email+profile&unicode=cafe%7E+and+%21"
         )
     }
+
+    func test_googleOAuth_formURLEncoded_handlesUnicodeControlAndEmptyEdgeCases() {
+        let params = [
+            "line": "a\nb\tc",
+            "emoji": "A🙂",
+            "reserved": "%+ ~*",
+            "empty": ""
+        ]
+
+        let encoded = GoogleOAuth.formURLEncoded(params)
+
+        XCTAssertEqual(
+            encoded,
+            "emoji=A%F0%9F%99%82&empty=&line=a%0Ab%09c&reserved=%25%2B+%7E*"
+        )
+    }
+
+    func test_googleSheetsClient_formURLEncoded_handlesUnicodeControlAndEmptyEdgeCases() {
+        let params = [
+            "line": "a\nb\tc",
+            "emoji": "A🙂",
+            "reserved": "%+ ~*",
+            "empty": ""
+        ]
+        let client = LiveGoogleSheetsClient()
+
+        let encoded = client.formURLEncoded(params)
+
+        XCTAssertEqual(
+            encoded,
+            "emoji=A%F0%9F%99%82&empty=&line=a%0Ab%09c&reserved=%25%2B+%7E*"
+        )
+    }
 }
