@@ -74,23 +74,15 @@ struct SummaryCard: View {
     }
 
     private func glucoseStatsString() -> String {
-        // Determine display unit from first measurement; default to mmol/L
         let unit: GlucoseUnit = vm.glucoseMeasurements.first?.unit ?? .mmolL
-        let minStr: String = vm.glucoseMin.flatMap { UIFormatters.formatGlucoseValue($0, unit: unit) } ?? "—"
-        let maxStr: String = vm.glucoseMax.flatMap { UIFormatters.formatGlucoseValue($0, unit: unit) } ?? "—"
-        let avgStr: String = vm.glucoseAvg.flatMap { UIFormatters.formatGlucoseValue($0, unit: unit) } ?? "—"
+        let stats = vm.glucoseStats(in: unit)
+        let minStr: String = stats.min.flatMap { UIFormatters.formatGlucoseValue($0, unit: unit) } ?? "—"
+        let maxStr: String = stats.max.flatMap { UIFormatters.formatGlucoseValue($0, unit: unit) } ?? "—"
+        let avgStr: String = stats.avg.flatMap { UIFormatters.formatGlucoseValue($0, unit: unit) } ?? "—"
         return "\(minStr)/\(maxStr)/\(avgStr) \(displayUnit(unit))"
     }
 
     // MARK: - Helpers
-    private var glucoseUnitString: String {
-        if let unit = vm.glucoseMeasurements.first?.unit {
-            return displayUnit(unit)
-        } else {
-            return displayUnit(.mmolL)
-        }
-    }
-
     private func displayUnit(_ unit: GlucoseUnit) -> String {
         switch unit {
         case .mmolL: return L10n.unitMmolL

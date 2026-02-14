@@ -4,6 +4,9 @@ import Observation
 @MainActor
 @Observable
 final class HistoryViewModel {
+    static let glucoseAggregationUnit: GlucoseUnit = .mmolL
+    private static let mgdLPerMmolL: Double = 18.0
+
     // MARK: - Filter & Range
     enum Filter: String, CaseIterable, Identifiable, Hashable {
         case both
@@ -130,8 +133,7 @@ final class HistoryViewModel {
         // Glucose
         glucoseCount = glucoseMeasurements.count
         if !glucoseMeasurements.isEmpty {
-            let values: [Double] = glucoseMeasurements.map { $0.value }
-            let validValues = values.filter { $0.isFinite && $0 >= 0 }
+            let validValues = normalizedGlucoseValuesInMmolL()
             if validValues.isEmpty {
                 glucoseMin = nil; glucoseMax = nil; glucoseAvg = nil
             } else {
@@ -157,6 +159,37 @@ final class HistoryViewModel {
     private func average(_ values: [Double]) -> Double? {
         guard !values.isEmpty else { return nil }
         return values.reduce(0, +) / Double(values.count)
+    }
+
+    func glucoseStats(in unit: GlucoseUnit) -> (min: Double?, max: Double?, avg: Double?) {
+        (
+            min: glucoseMin.map { Self.convertGlucoseValue($0, from: Self.glucoseAggregationUnit, to: unit) },
+            max: glucoseMax.map { Self.convertGlucoseValue($0, from: Self.glucoseAggregationUnit, to: unit) },
+            avg: glucoseAvg.map { Self.convertGlucoseValue($0, from: Self.glucoseAggregationUnit, to: unit) }
+        )
+    }
+
+    static func convertGlucoseValue(_ value: Double, from sourceUnit: GlucoseUnit, to targetUnit: GlucoseUnit) -> Double {
+        guard sourceUnit != targetUnit else { return value }
+        switch (sourceUnit, targetUnit) {
+        case (.mmolL, .mgdL):
+            return value * mgdLPerMmolL
+        case (.mgdL, .mmolL):
+            return value / mgdLPerMmolL
+        default:
+            return value
+        }
+    }
+
+    private func normalizedGlucoseValuesInMmolL() -> [Double] {
+        glucoseMeasurements.compactMap { measurement in
+            guard measurement.value.isFinite && measurement.value >= 0 else { return nil }
+            return Self.convertGlucoseValue(
+                measurement.value,
+                from: measurement.unit,
+                to: Self.glucoseAggregationUnit
+            )
+        }
     }
 
     func listenForChanges() async {
