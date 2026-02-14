@@ -335,7 +335,6 @@ struct SettingsView: View {
         }
         .accessibilityIdentifier("settings.scroll")
         .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
-        .onAppear { Task { await vm.loadSettings() } }
         .onChange(of: scenePhase) { _, newPhase in
             guard newPhase == .active else { return }
             Task { await vm.refreshCloudBackedState() }
@@ -355,6 +354,7 @@ struct SettingsView: View {
         }
     }
 
+    @MainActor
     private func initializeViewModelIfNeeded() async {
         if viewModel == nil {
             let vm = SettingsViewModel(

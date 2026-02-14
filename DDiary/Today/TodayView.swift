@@ -122,9 +122,6 @@ public struct TodayView: View {
             .padding()
         }
         .accessibilityIdentifier("today.scroll")
-        .task {
-            await vm.refresh()
-        }
         .sheet(isPresented: $bvm.presentBPQuickEntry) {
             NavigationStack {
                 BPQuickEntryForm(

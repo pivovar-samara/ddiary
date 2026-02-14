@@ -59,9 +59,6 @@ struct HistoryView: View {
         .refreshable {
             await vm.loadHistory()
         }
-        .onAppear {
-            Task { await vm.loadHistory() }
-        }
         .accessibilityIdentifier("history.scroll")
         .sheet(isPresented: $presentBPQuickEntry) {
             NavigationStack {
@@ -218,6 +215,7 @@ struct HistoryView: View {
         return df.string(from: date)
     }
 
+    @MainActor
     private func initializeViewModelIfNeeded() async {
         if viewModel == nil {
             let vm = HistoryViewModel(
