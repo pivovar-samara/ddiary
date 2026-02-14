@@ -1,12 +1,33 @@
 import Foundation
 import UserNotifications
 
+@MainActor
+protocol NotificationsActionHandling: AnyObject {
+    func skip() async
+    func snooze(originalIdentifier: String, minutes: Int, title: String, body: String, categoryIdentifier: String) async
+    func moveBeforeBreakfast(to meal: MealSlot) async
+}
+
+extension NotificationsActionUseCase: NotificationsActionHandling {}
+
+struct NotificationActionContext: Sendable {
+    let identifier: String
+    let categoryIdentifier: String
+    let title: String
+    let body: String
+}
+
 /// Central notifications delegate that routes actions into MainActor use cases.
 final class NotificationsCoordinator: NSObject, UNUserNotificationCenterDelegate {
-    private let container: AppContainer
+    private let actionHandler: any NotificationsActionHandling
 
     init(container: AppContainer) {
-        self.container = container
+        self.actionHandler = container.notificationsActionUseCase
+        super.init()
+    }
+
+    init(actionHandler: any NotificationsActionHandling) {
+        self.actionHandler = actionHandler
         super.init()
     }
 
@@ -20,35 +41,45 @@ final class NotificationsCoordinator: NSObject, UNUserNotificationCenterDelegate
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 didReceive response: UNNotificationResponse,
                                 withCompletionHandler completionHandler: @escaping () -> Void) {
-        defer { completionHandler() }
-        guard let action = UserNotificationsRepository.parseAction(from: response) else { return }
+        guard let action = UserNotificationsRepository.parseAction(from: response) else {
+            completionHandler()
+            return
+        }
 
         let content = response.notification.request.content
-        let id = response.notification.request.identifier
-        let category = content.categoryIdentifier
-        let title = content.title
-        let body = content.body
+        let context = NotificationActionContext(
+            identifier: response.notification.request.identifier,
+            categoryIdentifier: content.categoryIdentifier,
+            title: content.title,
+            body: content.body
+        )
+        handleAction(action, context: context, completionHandler: completionHandler)
+    }
 
-        switch action {
-        case .enter:
-            // In v1, we rely on the app opening to the Today screen; further routing can be added later.
-            break
-        case .skip:
-            Task { await self.container.notificationsActionUseCase.skip() }
-        case .snooze(let minutes):
-            Task {
-                await self.container.notificationsActionUseCase.snooze(
-                    originalIdentifier: id,
+    func handleAction(_ action: UserNotificationsRepository.HandledAction,
+                      context: NotificationActionContext,
+                      completionHandler: @escaping () -> Void) {
+        Task { @MainActor [actionHandler] in
+            switch action {
+            case .enter:
+                // In v1, we rely on the app opening to the Today screen; further routing can be added later.
+                break
+            case .skip:
+                await actionHandler.skip()
+            case .snooze(let minutes):
+                await actionHandler.snooze(
+                    originalIdentifier: context.identifier,
                     minutes: minutes,
-                    title: title,
-                    body: body,
-                    categoryIdentifier: category
+                    title: context.title,
+                    body: context.body,
+                    categoryIdentifier: context.categoryIdentifier
                 )
+            case .moveToLunch:
+                await actionHandler.moveBeforeBreakfast(to: .lunch)
+            case .moveToDinner:
+                await actionHandler.moveBeforeBreakfast(to: .dinner)
             }
-        case .moveToLunch:
-            Task { await self.container.notificationsActionUseCase.moveBeforeBreakfast(to: .lunch) }
-        case .moveToDinner:
-            Task { await self.container.notificationsActionUseCase.moveBeforeBreakfast(to: .dinner) }
+            completionHandler()
         }
     }
 }
