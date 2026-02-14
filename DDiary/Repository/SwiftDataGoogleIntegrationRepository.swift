@@ -16,107 +16,112 @@ final class SwiftDataGoogleIntegrationRepository: GoogleIntegrationRepository {
 
     // MARK: - Google Integration
     func getOrCreate() async throws -> GoogleIntegration {
-        let descriptor = FetchDescriptor<GoogleIntegration>()
-        let all = try context.fetch(descriptor)
-        guard !all.isEmpty else {
+        guard let integration = try resolveSingleton(createIfMissing: true) else {
+            throw GoogleIntegrationRepositoryError.failedToResolveSingleton
+        }
+        return integration
+    }
+
+    func save(_ integration: GoogleIntegration) async throws {
+        guard let primary = try resolveSingleton(createIfMissing: true) else {
+            throw GoogleIntegrationRepositoryError.failedToResolveSingleton
+        }
+        if primary !== integration {
+            copyIntegrationValues(from: integration, to: primary)
+        }
+        primary.singletonKey = GoogleIntegration.singletonRecordKey
+        try context.save()
+    }
+
+    func update(_ integration: GoogleIntegration) async throws {
+        try await save(integration)
+    }
+
+    func clearTokens(_ : GoogleIntegration) async throws {
+        guard let primary = try resolveSingleton(createIfMissing: true) else {
+            throw GoogleIntegrationRepositoryError.failedToResolveSingleton
+        }
+        primary.refreshToken = nil
+        primary.spreadsheetId = nil
+        primary.googleUserId = nil
+        primary.isEnabled = false
+        try context.save()
+    }
+}
+
+private enum GoogleIntegrationRepositoryError: Error {
+    case failedToResolveSingleton
+}
+
+private extension SwiftDataGoogleIntegrationRepository {
+    func resolveSingleton(createIfMissing: Bool) throws -> GoogleIntegration? {
+        let singletonKey = GoogleIntegration.singletonRecordKey
+        let singletonDescriptor = FetchDescriptor<GoogleIntegration>(
+            predicate: #Predicate { $0.singletonKey == singletonKey }
+        )
+        let keyedRecords = try context.fetch(singletonDescriptor)
+
+        if let resolved = try collapseToDeterministicSingleton(from: keyedRecords) {
+            return resolved
+        }
+
+        let allRecords = try context.fetch(FetchDescriptor<GoogleIntegration>())
+        guard !allRecords.isEmpty else {
+            guard createIfMissing else { return nil }
             let integration = GoogleIntegration()
+            integration.singletonKey = GoogleIntegration.singletonRecordKey
             context.insert(integration)
             try context.save()
             return integration
         }
 
-        guard all.count > 1 else {
-            return all[0]
-        }
-
-        let primary = selectPrimaryIntegration(from: all)
-        mergeMissingValues(into: primary, from: all.filter { $0 !== primary })
-
-        for duplicate in all where duplicate !== primary {
+        let primary = deterministicPrimary(from: allRecords)
+        primary.singletonKey = GoogleIntegration.singletonRecordKey
+        for duplicate in allRecords where duplicate !== primary {
             context.delete(duplicate)
         }
-
         try context.save()
         return primary
     }
 
-    func save(_ integration: GoogleIntegration) async throws {
-        let integrationID = integration.id
-        let descriptor = FetchDescriptor<GoogleIntegration>(
-            predicate: #Predicate { $0.id == integrationID }
-        )
-        let exists = try context.fetch(descriptor).first != nil
-        if !exists {
-            context.insert(integration)
+    func collapseToDeterministicSingleton(from candidates: [GoogleIntegration]) throws -> GoogleIntegration? {
+        guard !candidates.isEmpty else { return nil }
+        let primary = deterministicPrimary(from: candidates)
+        primary.singletonKey = GoogleIntegration.singletonRecordKey
+        for duplicate in candidates where duplicate !== primary {
+            context.delete(duplicate)
         }
-        try context.save()
+        if candidates.count > 1 {
+            try context.save()
+        }
+        return primary
     }
 
-    func update(_ integration: GoogleIntegration) async throws {
-        try context.save()
+    func deterministicPrimary(from candidates: [GoogleIntegration]) -> GoogleIntegration {
+        candidates.sorted(by: isPreferredPrimary).first!
     }
 
-    func clearTokens(_ integration: GoogleIntegration) async throws {
-        integration.refreshToken = nil
-        integration.spreadsheetId = nil
-        integration.googleUserId = nil
-        integration.isEnabled = false
-        try context.save()
-    }
-}
-
-private extension SwiftDataGoogleIntegrationRepository {
-    func selectPrimaryIntegration(from integrations: [GoogleIntegration]) -> GoogleIntegration {
-        integrations.sorted {
-            let leftScore = completenessScore($0)
-            let rightScore = completenessScore($1)
-            if leftScore != rightScore {
-                return leftScore > rightScore
-            }
-            return $0.id.uuidString < $1.id.uuidString
-        }[0]
+    func isPreferredPrimary(_ lhs: GoogleIntegration, _ rhs: GoogleIntegration) -> Bool {
+        if lhs.id == GoogleIntegration.singletonRecordID, rhs.id != GoogleIntegration.singletonRecordID { return true }
+        if rhs.id == GoogleIntegration.singletonRecordID, lhs.id != GoogleIntegration.singletonRecordID { return false }
+        if lhs.id != rhs.id {
+            return lhs.id.uuidString < rhs.id.uuidString
+        }
+        return stableModelIdentifier(lhs) > stableModelIdentifier(rhs)
     }
 
-    func completenessScore(_ integration: GoogleIntegration) -> Int {
-        var score = 0
-        if nonEmpty(integration.refreshToken) != nil { score += 4 }
-        if nonEmpty(integration.spreadsheetId) != nil { score += 4 }
-        if integration.isEnabled { score += 2 }
-        if nonEmpty(integration.googleUserId) != nil { score += 1 }
-        return score
+    func stableModelIdentifier(_ model: GoogleIntegration) -> String {
+        String(describing: model.persistentModelID)
     }
 
-    func mergeMissingValues(into primary: GoogleIntegration, from candidates: [GoogleIntegration]) {
-        let rankedCandidates = candidates.sorted {
-            let leftScore = completenessScore($0)
-            let rightScore = completenessScore($1)
-            if leftScore != rightScore {
-                return leftScore > rightScore
-            }
-            return $0.id.uuidString < $1.id.uuidString
-        }
-
-        if nonEmpty(primary.refreshToken) == nil,
-           let refreshToken = rankedCandidates.compactMap({ nonEmpty($0.refreshToken) }).first {
-            primary.refreshToken = refreshToken
-        }
-
-        if nonEmpty(primary.spreadsheetId) == nil,
-           let spreadsheetId = rankedCandidates.compactMap({ nonEmpty($0.spreadsheetId) }).first {
-            primary.spreadsheetId = spreadsheetId
-        }
-
-        if nonEmpty(primary.googleUserId) == nil,
-           let googleUserId = rankedCandidates.compactMap({ nonEmpty($0.googleUserId) }).first {
-            primary.googleUserId = googleUserId
-        }
-
-        if !primary.isEnabled, rankedCandidates.contains(where: \.isEnabled) {
-            primary.isEnabled = true
-        }
+    func copyIntegrationValues(from source: GoogleIntegration, to target: GoogleIntegration) {
+        target.spreadsheetId = normalized(source.spreadsheetId)
+        target.googleUserId = normalized(source.googleUserId)
+        target.refreshToken = normalized(source.refreshToken)
+        target.isEnabled = source.isEnabled
     }
 
-    func nonEmpty(_ value: String?) -> String? {
+    func normalized(_ value: String?) -> String? {
         guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
             return nil
         }

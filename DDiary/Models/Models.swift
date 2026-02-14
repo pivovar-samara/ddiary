@@ -131,7 +131,8 @@ public final class GlucoseMeasurement {
 
 @Model
 public final class UserSettings {
-    public var id: UUID = UUID()
+    public var id: UUID = UserSettings.singletonRecordID
+    var singletonKey: String = UserSettings.singletonRecordKey
 
     var glucoseUnit: GlucoseUnit = GlucoseUnit.mmolL
 
@@ -165,7 +166,8 @@ public final class UserSettings {
     var currentCycleIndex: Int = 0
 
     init(
-        id: UUID = UUID(),
+        id: UUID = UserSettings.singletonRecordID,
+        singletonKey: String = UserSettings.singletonRecordKey,
         glucoseUnit: GlucoseUnit,
         bpSystolicMin: Int,
         bpSystolicMax: Int,
@@ -191,6 +193,7 @@ public final class UserSettings {
         currentCycleIndex: Int
     ) {
         self.id = id
+        self.singletonKey = singletonKey
         self.glucoseUnit = glucoseUnit
         self.bpSystolicMin = bpSystolicMin
         self.bpSystolicMax = bpSystolicMax
@@ -218,11 +221,15 @@ public final class UserSettings {
 }
 
 extension UserSettings {
+    static let singletonRecordID = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
+    static let singletonRecordKey = "user-settings-singleton"
+
     static func `default`() -> UserSettings {
         let bpMorning = 9 * 60
         let bpEvening = 21 * 60
 
         return UserSettings(
+            singletonKey: singletonRecordKey,
             glucoseUnit: .mmolL,
             bpSystolicMin: 90,
             bpSystolicMax: 140,
@@ -252,23 +259,31 @@ extension UserSettings {
 
 @Model
 public final class GoogleIntegration {
-    public var id: UUID = UUID()
+    public var id: UUID = GoogleIntegration.singletonRecordID
+    var singletonKey: String = GoogleIntegration.singletonRecordKey
     var spreadsheetId: String?
     var googleUserId: String?
     var refreshToken: String?
     var isEnabled: Bool = false
 
     init(
-        id: UUID = UUID(),
+        id: UUID = GoogleIntegration.singletonRecordID,
+        singletonKey: String = GoogleIntegration.singletonRecordKey,
         spreadsheetId: String? = nil,
         googleUserId: String? = nil,
         refreshToken: String? = nil,
         isEnabled: Bool = false
     ) {
         self.id = id
+        self.singletonKey = singletonKey
         self.spreadsheetId = spreadsheetId
         self.googleUserId = googleUserId
         self.refreshToken = refreshToken
         self.isEnabled = isEnabled
     }
+}
+
+extension GoogleIntegration {
+    static let singletonRecordID = UUID(uuidString: "00000000-0000-0000-0000-000000000002")!
+    static let singletonRecordKey = "google-integration-singleton"
 }
