@@ -155,6 +155,60 @@ final class SwiftDataSettingsRepositoryTests: XCTestCase {
         let refreshed = try await repository.getOrCreate()
         XCTAssertEqual(refreshed.bpSystolicMin, 95)
     }
+
+    func test_getOrCreate_prefersMostCustomizedRecord_andDeletesDuplicates() async throws {
+        let container = try makeInMemoryModelContainer()
+        let context = ModelContext(container)
+        let repository = SwiftDataSettingsRepository(modelContext: context)
+
+        let placeholder = UserSettings.default()
+
+        let customized = UserSettings.default()
+        customized.enableDailyCycleMode = true
+        customized.currentCycleIndex = 2
+        customized.bedtimeSlotEnabled = true
+        customized.bpTimes = [8 * 60, 13 * 60, 20 * 60]
+
+        context.insert(placeholder)
+        context.insert(customized)
+        try context.save()
+
+        let resolved = try await repository.getOrCreate()
+        XCTAssertEqual(resolved.id, customized.id)
+        XCTAssertTrue(resolved.enableDailyCycleMode)
+        XCTAssertEqual(resolved.currentCycleIndex, 2)
+        XCTAssertTrue(resolved.bedtimeSlotEnabled)
+        XCTAssertEqual(resolved.bpTimes, [8 * 60, 13 * 60, 20 * 60])
+
+        let all = try context.fetch(FetchDescriptor<UserSettings>())
+        XCTAssertEqual(all.count, 1)
+        XCTAssertEqual(all.first?.id, customized.id)
+    }
+
+    func test_save_whenSingletonExists_updatesPrimaryWithoutInsertingDuplicate() async throws {
+        let container = try makeInMemoryModelContainer()
+        let context = ModelContext(container)
+        let repository = SwiftDataSettingsRepository(modelContext: context)
+
+        let primary = try await repository.getOrCreate()
+
+        let detached = UserSettings.default()
+        detached.id = UUID()
+        detached.bpSystolicMax = 155
+        detached.enableDailyCycleMode = true
+        detached.currentCycleIndex = 3
+
+        try await repository.save(detached)
+
+        let all = try context.fetch(FetchDescriptor<UserSettings>())
+        XCTAssertEqual(all.count, 1)
+        XCTAssertEqual(all.first?.id, primary.id)
+
+        let stored = try await repository.getOrCreate()
+        XCTAssertEqual(stored.bpSystolicMax, 155)
+        XCTAssertTrue(stored.enableDailyCycleMode)
+        XCTAssertEqual(stored.currentCycleIndex, 3)
+    }
 }
 
 @MainActor
@@ -224,6 +278,36 @@ final class SwiftDataGoogleIntegrationRepositoryTests: XCTestCase {
         let all = try context.fetch(FetchDescriptor<GoogleIntegration>())
         XCTAssertEqual(all.count, 1)
         XCTAssertEqual(all.first?.id, cloudSynced.id)
+    }
+
+    func test_getOrCreate_deletesDuplicates_evenWhenModelIDsMatch() async throws {
+        let container = try makeInMemoryModelContainer()
+        let context = ModelContext(container)
+        let repository = SwiftDataGoogleIntegrationRepository(modelContext: context)
+
+        let sharedID = UUID()
+        let placeholder = GoogleIntegration()
+        placeholder.id = sharedID
+
+        let cloudSynced = GoogleIntegration()
+        cloudSynced.id = sharedID
+        cloudSynced.isEnabled = true
+        cloudSynced.refreshToken = "rt"
+        cloudSynced.spreadsheetId = "sheet"
+        cloudSynced.googleUserId = "uid"
+
+        context.insert(placeholder)
+        context.insert(cloudSynced)
+        try context.save()
+
+        let resolved = try await repository.getOrCreate()
+        XCTAssertEqual(resolved.id, sharedID)
+        XCTAssertEqual(resolved.refreshToken, "rt")
+        XCTAssertEqual(resolved.spreadsheetId, "sheet")
+        XCTAssertTrue(resolved.isEnabled)
+
+        let all = try context.fetch(FetchDescriptor<GoogleIntegration>())
+        XCTAssertEqual(all.count, 1)
     }
 }
 

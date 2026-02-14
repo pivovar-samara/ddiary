@@ -30,9 +30,9 @@ final class SwiftDataGoogleIntegrationRepository: GoogleIntegrationRepository {
         }
 
         let primary = selectPrimaryIntegration(from: all)
-        mergeMissingValues(into: primary, from: all.filter { $0.id != primary.id })
+        mergeMissingValues(into: primary, from: all.filter { $0 !== primary })
 
-        for duplicate in all where duplicate.id != primary.id {
+        for duplicate in all where duplicate !== primary {
             context.delete(duplicate)
         }
 
