@@ -13,12 +13,51 @@ enum GoogleSyncLifecyclePhase: String, Sendable {
     case finished
 }
 
+enum GoogleSyncLifecycleUserInfoKey: String {
+    case phase
+    case pendingCount
+    case failedCount
+    case lastSyncAt
+}
+
 extension Notification.Name {
     nonisolated static let googleSyncLifecycleChanged = Notification.Name("GoogleSyncLifecycleChanged")
 }
 
 @MainActor
 final class SyncWithGoogleUseCase {
+    private struct SyncStatusSnapshot {
+        var pendingCount: Int
+        var failedCount: Int
+        var lastSyncAt: Date?
+
+        mutating func applyTransition(from previous: GoogleSyncStatus, to current: GoogleSyncStatus, syncedAt: Date) {
+            switch previous {
+            case .pending:
+                pendingCount = max(0, pendingCount - 1)
+            case .failed:
+                failedCount = max(0, failedCount - 1)
+            case .success:
+                break
+            }
+
+            switch current {
+            case .pending:
+                pendingCount += 1
+            case .failed:
+                failedCount += 1
+            case .success:
+                break
+            }
+
+            if let existingLastSyncAt = lastSyncAt {
+                lastSyncAt = max(existingLastSyncAt, syncedAt)
+            } else {
+                lastSyncAt = syncedAt
+            }
+        }
+    }
+
     private let googleIntegrationRepository: any GoogleIntegrationRepository
     private let measurementsRepository: any MeasurementsRepository
     private let analyticsRepository: any AnalyticsRepository
@@ -50,8 +89,9 @@ final class SyncWithGoogleUseCase {
         isSyncInProgress = true
         defer { isSyncInProgress = false }
 
-        publishLifecycle(.started)
-        defer { publishLifecycle(.finished) }
+        var syncSnapshot: SyncStatusSnapshot?
+        publishLifecycle(.started, snapshot: nil)
+        defer { publishLifecycle(.finished, snapshot: syncSnapshot) }
         log("Starting sync")
         do {
             let integration = try await googleIntegrationRepository.getOrCreate()
@@ -89,9 +129,18 @@ final class SyncWithGoogleUseCase {
             let pendingBP = try await measurementsRepository.pendingOrFailedBPSync()
             let pendingGlucose = try await measurementsRepository.pendingOrFailedGlucoseSync()
             log("Pending BP=\(pendingBP.count) Glucose=\(pendingGlucose.count)")
+            syncSnapshot = SyncStatusSnapshot(
+                pendingCount: pendingBP.filter { $0.googleSyncStatus == .pending }.count
+                    + pendingGlucose.filter { $0.googleSyncStatus == .pending }.count,
+                failedCount: pendingBP.filter { $0.googleSyncStatus == .failed }.count
+                    + pendingGlucose.filter { $0.googleSyncStatus == .failed }.count,
+                lastSyncAt: nil
+            )
+            publishLifecycle(.progress, snapshot: syncSnapshot)
 
             // Sync BP
             for m in pendingBP.sorted(by: { $0.timestamp < $1.timestamp }) {
+                let previousStatus = m.googleSyncStatus
                 do {
                     let row = GoogleSheetsBPRow(
                         id: m.id,
@@ -106,7 +155,10 @@ final class SyncWithGoogleUseCase {
                     m.googleLastError = nil
                     m.googleLastSyncAt = Date()
                     try await measurementsRepository.updateBP(m)
-                    publishLifecycle(.progress)
+                    if let syncedAt = m.googleLastSyncAt {
+                        syncSnapshot?.applyTransition(from: previousStatus, to: m.googleSyncStatus, syncedAt: syncedAt)
+                    }
+                    publishLifecycle(.progress, snapshot: syncSnapshot)
                     log("BP synced id=\(m.id.uuidString)")
                     await analyticsRepository.logGoogleSyncSuccess()
                 } catch {
@@ -114,7 +166,10 @@ final class SyncWithGoogleUseCase {
                     m.googleLastError = String(describing: error)
                     m.googleLastSyncAt = Date()
                     try? await measurementsRepository.updateBP(m)
-                    publishLifecycle(.progress)
+                    if let syncedAt = m.googleLastSyncAt {
+                        syncSnapshot?.applyTransition(from: previousStatus, to: m.googleSyncStatus, syncedAt: syncedAt)
+                    }
+                    publishLifecycle(.progress, snapshot: syncSnapshot)
                     log("BP sync failed id=\(m.id.uuidString) error=\(m.googleLastError ?? "unknown")")
                     await analyticsRepository.logGoogleSyncFailure(reason: m.googleLastError)
                 }
@@ -122,6 +177,7 @@ final class SyncWithGoogleUseCase {
 
             // Sync Glucose
             for m in pendingGlucose.sorted(by: { $0.timestamp < $1.timestamp }) {
+                let previousStatus = m.googleSyncStatus
                 do {
                     let row = GoogleSheetsGlucoseRow(
                         id: m.id,
@@ -137,7 +193,10 @@ final class SyncWithGoogleUseCase {
                     m.googleLastError = nil
                     m.googleLastSyncAt = Date()
                     try await measurementsRepository.updateGlucose(m)
-                    publishLifecycle(.progress)
+                    if let syncedAt = m.googleLastSyncAt {
+                        syncSnapshot?.applyTransition(from: previousStatus, to: m.googleSyncStatus, syncedAt: syncedAt)
+                    }
+                    publishLifecycle(.progress, snapshot: syncSnapshot)
                     log("Glucose synced id=\(m.id.uuidString)")
                     await analyticsRepository.logGoogleSyncSuccess()
                 } catch {
@@ -145,7 +204,10 @@ final class SyncWithGoogleUseCase {
                     m.googleLastError = String(describing: error)
                     m.googleLastSyncAt = Date()
                     try? await measurementsRepository.updateGlucose(m)
-                    publishLifecycle(.progress)
+                    if let syncedAt = m.googleLastSyncAt {
+                        syncSnapshot?.applyTransition(from: previousStatus, to: m.googleSyncStatus, syncedAt: syncedAt)
+                    }
+                    publishLifecycle(.progress, snapshot: syncSnapshot)
                     log("Glucose sync failed id=\(m.id.uuidString) error=\(m.googleLastError ?? "unknown")")
                     await analyticsRepository.logGoogleSyncFailure(reason: m.googleLastError)
                 }
@@ -157,11 +219,20 @@ final class SyncWithGoogleUseCase {
         }
     }
 
-    private func publishLifecycle(_ phase: GoogleSyncLifecyclePhase) {
+    private func publishLifecycle(_ phase: GoogleSyncLifecyclePhase, snapshot: SyncStatusSnapshot?) {
+        var userInfo: [AnyHashable: Any] = [GoogleSyncLifecycleUserInfoKey.phase.rawValue: phase.rawValue]
+        if let snapshot {
+            userInfo[GoogleSyncLifecycleUserInfoKey.pendingCount.rawValue] = snapshot.pendingCount
+            userInfo[GoogleSyncLifecycleUserInfoKey.failedCount.rawValue] = snapshot.failedCount
+            if let lastSyncAt = snapshot.lastSyncAt {
+                userInfo[GoogleSyncLifecycleUserInfoKey.lastSyncAt.rawValue] = lastSyncAt
+            }
+        }
+
         NotificationCenter.default.post(
             name: .googleSyncLifecycleChanged,
             object: nil,
-            userInfo: ["phase": phase.rawValue]
+            userInfo: userInfo
         )
     }
 

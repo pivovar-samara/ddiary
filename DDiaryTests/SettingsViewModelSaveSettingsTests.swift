@@ -161,9 +161,56 @@ final class SettingsViewModelSaveSettingsTests: XCTestCase {
         XCTAssertFalse(sut.isGoogleEnabled)
     }
 
+    func test_progressLifecycleSnapshot_updatesStatusWithoutRefreshingMeasurements() async throws {
+        let settingsRepository = SpySettingsRepository()
+        let updater = SpySchedulesUpdater()
+        let measurementsRepository = CountingMeasurementsRepository()
+        try await measurementsRepository.insertBP(
+            BPMeasurement(timestamp: Date(), systolic: 120, diastolic: 80, pulse: 70, comment: nil)
+        )
+
+        let sut = makeSUT(
+            settingsRepository: settingsRepository,
+            measurementsRepository: measurementsRepository,
+            schedulesUpdater: updater
+        )
+
+        await sut.loadSettings()
+
+        let pendingFetchCallCountBeforeProgress = measurementsRepository.pendingOrFailedBPSyncCallCount
+            + measurementsRepository.pendingOrFailedGlucoseSyncCallCount
+        let fullFetchCallCountBeforeProgress = measurementsRepository.bpMeasurementsCallCount
+            + measurementsRepository.glucoseMeasurementsCallCount
+        let snapshotSyncDate = Date(timeIntervalSince1970: 12_345)
+
+        NotificationCenter.default.post(
+            name: .googleSyncLifecycleChanged,
+            object: nil,
+            userInfo: [
+                GoogleSyncLifecycleUserInfoKey.phase.rawValue: GoogleSyncLifecyclePhase.progress.rawValue,
+                GoogleSyncLifecycleUserInfoKey.pendingCount.rawValue: 7,
+                GoogleSyncLifecycleUserInfoKey.failedCount.rawValue: 3,
+                GoogleSyncLifecycleUserInfoKey.lastSyncAt.rawValue: snapshotSyncDate
+            ]
+        )
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        XCTAssertEqual(sut.pendingCount, 7)
+        XCTAssertEqual(sut.failedCount, 3)
+        XCTAssertEqual(sut.lastSyncAt, snapshotSyncDate)
+        XCTAssertEqual(
+            measurementsRepository.pendingOrFailedBPSyncCallCount + measurementsRepository.pendingOrFailedGlucoseSyncCallCount,
+            pendingFetchCallCountBeforeProgress
+        )
+        XCTAssertEqual(
+            measurementsRepository.bpMeasurementsCallCount + measurementsRepository.glucoseMeasurementsCallCount,
+            fullFetchCallCountBeforeProgress
+        )
+    }
+
     private func makeSUT(
         settingsRepository: SpySettingsRepository,
-        measurementsRepository: MockMeasurementsRepository,
+        measurementsRepository: any MeasurementsRepository,
         schedulesUpdater: SpySchedulesUpdater,
         googleIntegrationRepository: GoogleIntegrationRepository = MockGoogleIntegrationRepository()
     ) -> SettingsViewModel {
@@ -175,6 +222,77 @@ final class SettingsViewModelSaveSettingsTests: XCTestCase {
             googleSheetsClient: RecordingGoogleSheetsClient(),
             schedulesUpdater: schedulesUpdater
         )
+    }
+}
+
+@MainActor
+private final class CountingMeasurementsRepository: MeasurementsRepository {
+    private var bp: [UUID: BPMeasurement] = [:]
+    private var glucose: [UUID: GlucoseMeasurement] = [:]
+
+    private(set) var bpMeasurementsCallCount: Int = 0
+    private(set) var glucoseMeasurementsCallCount: Int = 0
+    private(set) var pendingOrFailedBPSyncCallCount: Int = 0
+    private(set) var pendingOrFailedGlucoseSyncCallCount: Int = 0
+
+    func insertBP(_ measurement: BPMeasurement) async throws {
+        bp[measurement.id] = measurement
+    }
+
+    func updateBP(_ measurement: BPMeasurement) async throws {
+        bp[measurement.id] = measurement
+    }
+
+    func deleteBP(_ measurement: BPMeasurement) async throws {
+        bp.removeValue(forKey: measurement.id)
+    }
+
+    func bpMeasurement(id: UUID) async throws -> BPMeasurement? {
+        bp[id]
+    }
+
+    func bpMeasurements(from: Date, to: Date) async throws -> [BPMeasurement] {
+        bpMeasurementsCallCount += 1
+        return bp.values
+            .filter { $0.timestamp >= from && $0.timestamp <= to }
+            .sorted { $0.timestamp < $1.timestamp }
+    }
+
+    func pendingOrFailedBPSync() async throws -> [BPMeasurement] {
+        pendingOrFailedBPSyncCallCount += 1
+        return bp.values
+            .filter { $0.googleSyncStatus == .pending || $0.googleSyncStatus == .failed }
+            .sorted { $0.timestamp < $1.timestamp }
+    }
+
+    func insertGlucose(_ measurement: GlucoseMeasurement) async throws {
+        glucose[measurement.id] = measurement
+    }
+
+    func updateGlucose(_ measurement: GlucoseMeasurement) async throws {
+        glucose[measurement.id] = measurement
+    }
+
+    func deleteGlucose(_ measurement: GlucoseMeasurement) async throws {
+        glucose.removeValue(forKey: measurement.id)
+    }
+
+    func glucoseMeasurement(id: UUID) async throws -> GlucoseMeasurement? {
+        glucose[id]
+    }
+
+    func glucoseMeasurements(from: Date, to: Date) async throws -> [GlucoseMeasurement] {
+        glucoseMeasurementsCallCount += 1
+        return glucose.values
+            .filter { $0.timestamp >= from && $0.timestamp <= to }
+            .sorted { $0.timestamp < $1.timestamp }
+    }
+
+    func pendingOrFailedGlucoseSync() async throws -> [GlucoseMeasurement] {
+        pendingOrFailedGlucoseSyncCallCount += 1
+        return glucose.values
+            .filter { $0.googleSyncStatus == .pending || $0.googleSyncStatus == .failed }
+            .sorted { $0.timestamp < $1.timestamp }
     }
 }
 

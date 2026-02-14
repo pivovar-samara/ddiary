@@ -142,6 +142,65 @@ final class SyncWithGoogleUseCaseTests: XCTestCase {
         XCTAssertEqual(bpUpsertCalls, 1)
         XCTAssertEqual(glucoseUpsertCalls, 0)
     }
+
+    func test_progressLifecycle_emitsIncrementalPendingAndFailedCounts() async throws {
+        let measurements = MockMeasurementsRepository()
+        let analytics = MockAnalyticsRepository()
+        let google = MockGoogleIntegrationRepository()
+        let integration = try await google.getOrCreate()
+        integration.isEnabled = true
+        integration.spreadsheetId = "sheet123"
+        integration.refreshToken = "token"
+
+        let bp = BPMeasurement(timestamp: Date(), systolic: 120, diastolic: 80, pulse: 70, comment: nil)
+        let glucose = GlucoseMeasurement(timestamp: Date(), value: 5.6, unit: .mmolL, measurementType: .beforeMeal, mealSlot: .breakfast, comment: nil)
+        try await measurements.insertBP(bp)
+        try await measurements.insertGlucose(glucose)
+
+        var progressSnapshots: [(pending: Int, failed: Int)] = []
+        var finishedSnapshot: (pending: Int, failed: Int)?
+        let observer = NotificationCenter.default.addObserver(
+            forName: .googleSyncLifecycleChanged,
+            object: nil,
+            queue: nil
+        ) { notification in
+            guard
+                let rawPhase = notification.userInfo?[GoogleSyncLifecycleUserInfoKey.phase.rawValue] as? String,
+                let phase = GoogleSyncLifecyclePhase(rawValue: rawPhase),
+                let pending = notification.userInfo?[GoogleSyncLifecycleUserInfoKey.pendingCount.rawValue] as? Int,
+                let failed = notification.userInfo?[GoogleSyncLifecycleUserInfoKey.failedCount.rawValue] as? Int
+            else {
+                return
+            }
+
+            switch phase {
+            case .progress:
+                progressSnapshots.append((pending: pending, failed: failed))
+            case .finished:
+                finishedSnapshot = (pending: pending, failed: failed)
+            case .started:
+                break
+            }
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
+
+        let client = RecordingGoogleSheetsClient(mode: .fail(TestError.forced))
+        let sut = SyncWithGoogleUseCase(
+            googleIntegrationRepository: google,
+            measurementsRepository: measurements,
+            analyticsRepository: analytics,
+            googleSheetsClient: client
+        )
+
+        await sut.execute()
+
+        XCTAssertEqual(progressSnapshots.first?.pending, 2)
+        XCTAssertEqual(progressSnapshots.first?.failed, 0)
+        XCTAssertEqual(progressSnapshots.last?.pending, 0)
+        XCTAssertEqual(progressSnapshots.last?.failed, 2)
+        XCTAssertEqual(finishedSnapshot?.pending, 0)
+        XCTAssertEqual(finishedSnapshot?.failed, 2)
+    }
 }
 
 private struct InvalidGrantGoogleSheetsClient: GoogleSheetsClient, Sendable {

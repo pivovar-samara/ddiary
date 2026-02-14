@@ -303,29 +303,58 @@ final class SettingsViewModel {
             object: nil,
             queue: nil
         ) { [weak self] notification in
-            guard let rawPhase = notification.userInfo?["phase"] as? String,
+            guard let rawPhase = notification.userInfo?[GoogleSyncLifecycleUserInfoKey.phase.rawValue] as? String,
                   let phase = GoogleSyncLifecyclePhase(rawValue: rawPhase)
             else {
                 return
             }
+
+            let snapshot = GoogleSyncStatusSnapshot(
+                pendingCount: notification.userInfo?[GoogleSyncLifecycleUserInfoKey.pendingCount.rawValue] as? Int,
+                failedCount: notification.userInfo?[GoogleSyncLifecycleUserInfoKey.failedCount.rawValue] as? Int,
+                lastSyncAt: notification.userInfo?[GoogleSyncLifecycleUserInfoKey.lastSyncAt.rawValue] as? Date
+            )
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                await self.handleGoogleSyncLifecycle(phase)
+                await self.handleGoogleSyncLifecycle(phase, snapshot: snapshot)
             }
         }
     }
 
-    private func handleGoogleSyncLifecycle(_ phase: GoogleSyncLifecyclePhase) async {
+    private func handleGoogleSyncLifecycle(_ phase: GoogleSyncLifecyclePhase, snapshot: GoogleSyncStatusSnapshot) async {
         switch phase {
         case .started:
             isGoogleSyncInProgress = true
             googleSummary = L10n.settingsGoogleSummarySyncing
-            await refreshSyncStatus()
+            applyGoogleSyncStatusSnapshot(snapshot)
         case .progress:
-            await refreshSyncStatus()
+            applyGoogleSyncStatusSnapshot(snapshot)
         case .finished:
             isGoogleSyncInProgress = false
+            applyGoogleSyncStatusSnapshot(snapshot)
             await refreshSyncStatus()
+        }
+    }
+
+    private struct GoogleSyncStatusSnapshot {
+        let pendingCount: Int?
+        let failedCount: Int?
+        let lastSyncAt: Date?
+    }
+
+    private func applyGoogleSyncStatusSnapshot(_ snapshot: GoogleSyncStatusSnapshot) {
+        if let pendingCount = snapshot.pendingCount {
+            self.pendingCount = pendingCount
+        }
+        if let failedCount = snapshot.failedCount {
+            self.failedCount = failedCount
+        }
+        if let snapshotLastSyncAt = snapshot.lastSyncAt {
+            if let currentLastSyncAt = lastSyncAt {
+                lastSyncAt = max(currentLastSyncAt, snapshotLastSyncAt)
+            } else {
+                lastSyncAt = snapshotLastSyncAt
+            }
         }
     }
 
