@@ -47,14 +47,11 @@ final class SwiftDataMeasurementsRepository: MeasurementsRepository {
     }
 
     func pendingOrFailedBPSync() async throws -> [BPMeasurement] {
-        let pendingStatus = GoogleSyncStatus.pending
-        let failedStatus = GoogleSyncStatus.failed
-        let predicate = #Predicate<BPMeasurement> { measurement in
-            measurement.googleSyncStatus == pendingStatus || measurement.googleSyncStatus == failedStatus
-        }
         let sort = [SortDescriptor(\BPMeasurement.timestamp, order: .forward)]
-        let descriptor = FetchDescriptor<BPMeasurement>(predicate: predicate, sortBy: sort)
-        return try context.fetch(descriptor)
+        let descriptor = FetchDescriptor<BPMeasurement>(sortBy: sort)
+        return try context.fetch(descriptor).filter { measurement in
+            measurement.googleSyncStatus == .pending || measurement.googleSyncStatus == .failed
+        }
     }
 
     // MARK: - Glucose CRUD
@@ -90,13 +87,10 @@ final class SwiftDataMeasurementsRepository: MeasurementsRepository {
     }
 
     func pendingOrFailedGlucoseSync() async throws -> [GlucoseMeasurement] {
-        let pendingStatus = GoogleSyncStatus.pending
-        let failedStatus = GoogleSyncStatus.failed
-        let predicate = #Predicate<GlucoseMeasurement> { measurement in
-            measurement.googleSyncStatus == pendingStatus || measurement.googleSyncStatus == failedStatus
-        }
         let sort = [SortDescriptor(\GlucoseMeasurement.timestamp, order: .forward)]
-        let descriptor = FetchDescriptor<GlucoseMeasurement>(predicate: predicate, sortBy: sort)
-        return try context.fetch(descriptor)
+        let descriptor = FetchDescriptor<GlucoseMeasurement>(sortBy: sort)
+        return try context.fetch(descriptor).filter { measurement in
+            measurement.googleSyncStatus == .pending || measurement.googleSyncStatus == .failed
+        }
     }
 }
