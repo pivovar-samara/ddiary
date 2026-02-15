@@ -157,8 +157,7 @@ final class SyncWithGoogleUseCaseTests: XCTestCase {
         try await measurements.insertBP(bp)
         try await measurements.insertGlucose(glucose)
 
-        var progressSnapshots: [(pending: Int, failed: Int)] = []
-        var finishedSnapshot: (pending: Int, failed: Int)?
+        let snapshotStore = SyncLifecycleSnapshotStore()
         let observer = NotificationCenter.default.addObserver(
             forName: .googleSyncLifecycleChanged,
             object: nil,
@@ -175,9 +174,9 @@ final class SyncWithGoogleUseCaseTests: XCTestCase {
 
             switch phase {
             case .progress:
-                progressSnapshots.append((pending: pending, failed: failed))
+                snapshotStore.appendProgress(pending: pending, failed: failed)
             case .finished:
-                finishedSnapshot = (pending: pending, failed: failed)
+                snapshotStore.setFinished(pending: pending, failed: failed)
             case .started:
                 break
             }
@@ -194,6 +193,8 @@ final class SyncWithGoogleUseCaseTests: XCTestCase {
 
         await sut.execute()
 
+        let progressSnapshots = snapshotStore.progressSnapshots()
+        let finishedSnapshot = snapshotStore.finishedSnapshot()
         XCTAssertEqual(progressSnapshots.first?.pending, 2)
         XCTAssertEqual(progressSnapshots.first?.failed, 0)
         XCTAssertEqual(progressSnapshots.last?.pending, 0)
@@ -251,5 +252,35 @@ private struct SlowCountingGoogleSheetsClient: GoogleSheetsClient, Sendable {
 
     func upsertGlucoseRow(_ row: GoogleSheetsGlucoseRow, credentials: GoogleSheetsCredentials) async throws {
         await counter.incrementGlucoseUpsert()
+    }
+}
+
+private final class SyncLifecycleSnapshotStore: @unchecked Sendable {
+    private let lock = NSLock()
+    private var progress: [(pending: Int, failed: Int)] = []
+    private var finished: (pending: Int, failed: Int)?
+
+    func appendProgress(pending: Int, failed: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        progress.append((pending: pending, failed: failed))
+    }
+
+    func setFinished(pending: Int, failed: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        finished = (pending: pending, failed: failed)
+    }
+
+    func progressSnapshots() -> [(pending: Int, failed: Int)] {
+        lock.lock()
+        defer { lock.unlock() }
+        return progress
+    }
+
+    func finishedSnapshot() -> (pending: Int, failed: Int)? {
+        lock.lock()
+        defer { lock.unlock() }
+        return finished
     }
 }

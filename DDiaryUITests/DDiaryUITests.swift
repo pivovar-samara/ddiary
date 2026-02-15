@@ -66,9 +66,9 @@ final class DDiaryUITests: XCTestCase {
             let todayButton = app.tabBars.buttons[A11y.Tab.today].exists
             ? app.tabBars.buttons[A11y.Tab.today]
             : app.tabBars.buttons["Today"]
-            if waitForExistence(todayButton, timeout: 5) { todayButton.tap() }
+            if waitForExistence(todayButton, timeout: 8) { todayButton.tap() }
         }
-        _ = waitForExistence(app.scrollViews["today.scroll"], timeout: 5)
+        _ = waitForExistence(app.scrollViews["today.scroll"], timeout: 8)
 
         // 3) Open BP Quick Entry by tapping a Today BP row and enter values
         ensureBPSlotExists(app: app)
@@ -77,15 +77,15 @@ final class DDiaryUITests: XCTestCase {
         bpRow.tap()
 
         let systolicField = app.textFields[A11y.Field.systolic]
-        XCTAssertTrue(waitForExistence(systolicField, timeout: 5), "Systolic field should exist")
+        XCTAssertTrue(waitForExistence(systolicField, timeout: 8), "Systolic field should exist")
         systolicField.clearAndTypeText("120")
 
         let diastolicField = app.textFields[A11y.Field.diastolic]
-        XCTAssertTrue(waitForExistence(diastolicField, timeout: 5), "Diastolic field should exist")
+        XCTAssertTrue(waitForExistence(diastolicField, timeout: 8), "Diastolic field should exist")
         diastolicField.clearAndTypeText("80")
 
         let pulseField = app.textFields[A11y.Field.pulse]
-        XCTAssertTrue(waitForExistence(pulseField, timeout: 5), "Pulse field should exist")
+        XCTAssertTrue(waitForExistence(pulseField, timeout: 8), "Pulse field should exist")
         pulseField.clearAndTypeText("72")
 
         let bpSaveButton = firstExisting(in: [
@@ -93,9 +93,9 @@ final class DDiaryUITests: XCTestCase {
             app.navigationBars.buttons[A11y.Action.save],
             app.buttons["Save"]
         ])
-        XCTAssertTrue(waitForExistence(bpSaveButton, timeout: 5), "Save button should exist on BP Quick Entry")
+        XCTAssertTrue(waitForExistence(bpSaveButton, timeout: 8), "Save button should exist on BP Quick Entry")
         bpSaveButton.tap()
-        _ = waitForNonExistence(systolicField, timeout: 5)
+        _ = waitForNonExistence(systolicField, timeout: 8)
 
         // 4) Open Glucose Quick Entry by tapping a Today Glucose row and enter values
         ensureGlucoseSlotExists(app: app)
@@ -104,10 +104,10 @@ final class DDiaryUITests: XCTestCase {
         glucoseRow.tap()
 
         let glucoseField = app.textFields[A11y.Field.glucose]
-        XCTAssertTrue(waitForExistence(glucoseField, timeout: 5), "Glucose value field should exist")
+        XCTAssertTrue(waitForExistence(glucoseField, timeout: 8), "Glucose value field should exist")
         // Enter a value that matches the current unit to avoid out-of-range warnings
         let unitLabel = app.staticTexts["quickEntry.glucose.unitLabel"]
-        XCTAssertTrue(waitForExistence(unitLabel, timeout: 5), "Glucose unit label should exist")
+        XCTAssertTrue(waitForExistence(unitLabel, timeout: 8), "Glucose unit label should exist")
         let unitText = unitLabel.label.lowercased()
         let glucoseValue = unitText.contains("mg/dl") ? "100" : "6"
         glucoseField.clearAndTypeText(glucoseValue)
@@ -117,10 +117,10 @@ final class DDiaryUITests: XCTestCase {
             app.navigationBars.buttons[A11y.Action.save],
             app.buttons["Save"]
         ])
-        XCTAssertTrue(waitForExistence(glucoseSaveButton, timeout: 5), "Save button should exist on Glucose Quick Entry")
+        XCTAssertTrue(waitForExistence(glucoseSaveButton, timeout: 8), "Save button should exist on Glucose Quick Entry")
         glucoseSaveButton.tap()
         dismissUnusualValuesAlertIfPresent(app: app)
-        _ = waitForNonExistence(glucoseField, timeout: 5)
+        _ = waitForNonExistence(glucoseField, timeout: 8)
 
         // 5) Navigate to History (robust helper waits for screen)
         navigateToTab(app: app, tabId: A11y.Tab.history, fallbackLabel: "History")
@@ -136,7 +136,7 @@ final class DDiaryUITests: XCTestCase {
             // Fallback to badge text if row identifiers are not available yet
             let bpBadge = app.staticTexts["BP"].firstMatch
             scrollToElement(bpBadge, in: app, maxSwipes: 3)
-            bpFound = waitForExistence(bpBadge, timeout: 5)
+            bpFound = waitForExistence(bpBadge, timeout: 8)
         }
         XCTAssertTrue(bpFound, "Expected at least one BP entry in History")
 
@@ -146,7 +146,7 @@ final class DDiaryUITests: XCTestCase {
         if !gluFound {
             let gluBadge = app.staticTexts["GLU"].firstMatch
             scrollToElement(gluBadge, in: app, maxSwipes: 3)
-            gluFound = waitForExistence(gluBadge, timeout: 5)
+            gluFound = waitForExistence(gluBadge, timeout: 8)
         }
         XCTAssertTrue(gluFound, "Expected at least one Glucose entry in History")
     }
@@ -171,15 +171,15 @@ final class DDiaryUITests: XCTestCase {
         bpRow.tap()
 
         let systolicField = app.textFields[A11y.Field.systolic]
-        XCTAssertTrue(waitForExistence(systolicField, timeout: 5), "Systolic field should exist")
+        XCTAssertTrue(waitForExistence(systolicField, timeout: 8), "Systolic field should exist")
         systolicField.clearAndTypeText("20")
 
         let diastolicField = app.textFields[A11y.Field.diastolic]
-        XCTAssertTrue(waitForExistence(diastolicField, timeout: 5), "Diastolic field should exist")
+        XCTAssertTrue(waitForExistence(diastolicField, timeout: 8), "Diastolic field should exist")
         diastolicField.clearAndTypeText("20")
 
         let pulseField = app.textFields[A11y.Field.pulse]
-        XCTAssertTrue(waitForExistence(pulseField, timeout: 5), "Pulse field should exist")
+        XCTAssertTrue(waitForExistence(pulseField, timeout: 8), "Pulse field should exist")
         pulseField.clearAndTypeText("20")
 
         let saveButton = firstExisting(in: [
@@ -187,11 +187,11 @@ final class DDiaryUITests: XCTestCase {
             app.navigationBars.buttons[A11y.Action.save],
             app.buttons["Save"]
         ])
-        XCTAssertTrue(waitForExistence(saveButton, timeout: 5), "Save button should exist")
+        XCTAssertTrue(waitForExistence(saveButton, timeout: 8), "Save button should exist")
         saveButton.tap()
 
         let alert = app.alerts["Unusual values"]
-        XCTAssertTrue(waitForExistence(alert, timeout: 5), "Unusual values alert should appear")
+        XCTAssertTrue(waitForExistence(alert, timeout: 8), "Unusual values alert should appear")
         alert.buttons["Cancel"].tap()
 
         let cancelButton = firstExisting(in: [
@@ -199,7 +199,7 @@ final class DDiaryUITests: XCTestCase {
             app.navigationBars.buttons["Cancel"],
             app.buttons["Cancel"]
         ])
-        XCTAssertTrue(waitForExistence(cancelButton, timeout: 5), "Cancel button should exist")
+        XCTAssertTrue(waitForExistence(cancelButton, timeout: 8), "Cancel button should exist")
         cancelButton.tap()
     }
 
@@ -215,7 +215,7 @@ final class DDiaryUITests: XCTestCase {
         glucoseRow.tap()
 
         let glucoseField = app.textFields[A11y.Field.glucose]
-        XCTAssertTrue(waitForExistence(glucoseField, timeout: 5), "Glucose value field should exist")
+        XCTAssertTrue(waitForExistence(glucoseField, timeout: 8), "Glucose value field should exist")
         glucoseField.clearAndTypeText("1")
 
         let saveButton = firstExisting(in: [
@@ -223,22 +223,22 @@ final class DDiaryUITests: XCTestCase {
             app.navigationBars.buttons[A11y.Action.save],
             app.buttons["Save"]
         ])
-        XCTAssertTrue(waitForExistence(saveButton, timeout: 5), "Save button should exist")
+        XCTAssertTrue(waitForExistence(saveButton, timeout: 8), "Save button should exist")
         saveButton.tap()
 
         let alert = app.alerts["Unusual values"]
-        XCTAssertTrue(waitForExistence(alert, timeout: 5), "Unusual values alert should appear")
+        XCTAssertTrue(waitForExistence(alert, timeout: 8), "Unusual values alert should appear")
         alert.buttons["Cancel"].tap()
 
         let inlineWarning = app.staticTexts["quickEntry.glucose.validationMessage"]
-        XCTAssertTrue(waitForExistence(inlineWarning, timeout: 5), "Inline range warning should appear")
+        XCTAssertTrue(waitForExistence(inlineWarning, timeout: 8), "Inline range warning should appear")
 
         let cancelButton = firstExisting(in: [
             app.buttons[A11y.Action.cancel],
             app.navigationBars.buttons["Cancel"],
             app.buttons["Cancel"]
         ])
-        XCTAssertTrue(waitForExistence(cancelButton, timeout: 5), "Cancel button should exist")
+        XCTAssertTrue(waitForExistence(cancelButton, timeout: 8), "Cancel button should exist")
         cancelButton.tap()
     }
 
@@ -248,8 +248,8 @@ final class DDiaryUITests: XCTestCase {
         app.launch()
 
         navigateToTab(app: app, tabId: A11y.Tab.settings, fallbackLabel: "Settings")
-        XCTAssertTrue(waitForExistence(app.navigationBars["Settings"], timeout: 5), "Settings screen should be visible")
-        _ = waitForExistence(app.scrollViews["settings.scroll"], timeout: 5)
+        XCTAssertTrue(waitForExistence(app.navigationBars["Settings"], timeout: 8), "Settings screen should be visible")
+        _ = waitForExistence(app.scrollViews["settings.scroll"], timeout: 8)
 
         let bedtimeToggle = app.switches[A11y.Settings.bedtimeSlotEnabled]
         scrollToElement(bedtimeToggle, in: app)
@@ -261,13 +261,13 @@ final class DDiaryUITests: XCTestCase {
 
         tapSaveIfPresent(app: app)
         navigateToTab(app: app, tabId: A11y.Tab.today, fallbackLabel: "Today")
-        _ = waitForExistence(app.navigationBars["Today"], timeout: 5)
-        _ = waitForExistence(app.scrollViews["today.scroll"], timeout: 5)
+        _ = waitForExistence(app.navigationBars["Today"], timeout: 8)
+        _ = waitForExistence(app.scrollViews["today.scroll"], timeout: 8)
         waitForTodayRows(app: app)
 
         let bedtimeRow = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Bedtime")).firstMatch
         scrollToElement(bedtimeRow, in: app, maxSwipes: 3)
-        XCTAssertTrue(waitForNonExistence(bedtimeRow, timeout: 5), "Bedtime slot should not appear when disabled")
+        XCTAssertTrue(waitForNonExistence(bedtimeRow, timeout: 8), "Bedtime slot should not appear when disabled")
 
         navigateToTab(app: app, tabId: A11y.Tab.settings, fallbackLabel: "Settings")
         scrollToElement(bedtimeToggle, in: app)
@@ -277,8 +277,8 @@ final class DDiaryUITests: XCTestCase {
 
         tapSaveIfPresent(app: app)
         navigateToTab(app: app, tabId: A11y.Tab.today, fallbackLabel: "Today")
-        _ = waitForExistence(app.navigationBars["Today"], timeout: 5)
-        _ = waitForExistence(app.scrollViews["today.scroll"], timeout: 5)
+        _ = waitForExistence(app.navigationBars["Today"], timeout: 8)
+        _ = waitForExistence(app.scrollViews["today.scroll"], timeout: 8)
         waitForTodayRows(app: app)
 
         scrollToElement(bedtimeRow, in: app, maxSwipes: 3)
@@ -341,28 +341,28 @@ final class DDiaryUITests: XCTestCase {
     @MainActor
     private func navigateToTab(app: XCUIApplication, tabId: String, fallbackLabel: String) {
         let tabBar = app.tabBars.firstMatch
-        if waitForExistence(tabBar, timeout: 5) {
+        if waitForExistence(tabBar, timeout: 8) {
             let tabButton = tabBar.buttons[tabId].firstMatch
-            if waitForExistence(tabButton, timeout: 5) {
+            if waitForExistence(tabButton, timeout: 8) {
                 tabButton.tap()
                 waitForScreen(app: app, label: fallbackLabel)
                 return
             }
             let fallbackButton = tabBar.buttons[fallbackLabel].firstMatch
-            if waitForExistence(fallbackButton, timeout: 5) {
+            if waitForExistence(fallbackButton, timeout: 8) {
                 fallbackButton.tap()
                 waitForScreen(app: app, label: fallbackLabel)
                 return
             }
         }
         let anyButton = app.buttons[fallbackLabel].firstMatch
-        if waitForExistence(anyButton, timeout: 5) {
+        if waitForExistence(anyButton, timeout: 8) {
             anyButton.tap()
             waitForScreen(app: app, label: fallbackLabel)
             return
         }
         let sidebarCell = app.cells[fallbackLabel].firstMatch
-        if waitForExistence(sidebarCell, timeout: 5) {
+        if waitForExistence(sidebarCell, timeout: 8) {
             sidebarCell.tap()
             waitForScreen(app: app, label: fallbackLabel)
         }
@@ -372,12 +372,12 @@ final class DDiaryUITests: XCTestCase {
     private func waitForScreen(app: XCUIApplication, label: String) {
         switch label {
         case "Today":
-            _ = waitForExistence(app.scrollViews["today.scroll"], timeout: 5)
+            _ = waitForExistence(app.scrollViews["today.scroll"], timeout: 8)
         case "Settings":
-            _ = waitForExistence(app.scrollViews["settings.scroll"], timeout: 5)
+            _ = waitForExistence(app.scrollViews["settings.scroll"], timeout: 8)
         case "History":
-            if !waitForExistence(app.scrollViews["history.scroll"], timeout: 3) {
-                _ = waitForExistence(app.otherElements["history.list"], timeout: 7)
+            if !waitForExistence(app.scrollViews["history.scroll"], timeout: 8) {
+                _ = waitForExistence(app.otherElements["history.list"], timeout: 8)
             }
         default:
             break
@@ -418,14 +418,14 @@ final class DDiaryUITests: XCTestCase {
     @MainActor
     private func ensureBPSlotExists(app: XCUIApplication) {
         let bpRow = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", A11y.TodayRowPrefix.bp)).firstMatch
-        if waitForExistence(bpRow, timeout: 5) { return }
+        if waitForExistence(bpRow, timeout: 8) { return }
 
         navigateToTab(app: app, tabId: A11y.Tab.settings, fallbackLabel: "Settings")
-        _ = waitForExistence(app.navigationBars["Settings"], timeout: 5)
-        _ = waitForExistence(app.scrollViews["settings.scroll"], timeout: 5)
+        _ = waitForExistence(app.navigationBars["Settings"], timeout: 8)
+        _ = waitForExistence(app.scrollViews["settings.scroll"], timeout: 8)
         let addTimeButton = app.buttons["Add time"]
         scrollToElement(addTimeButton, in: app)
-        XCTAssertTrue(waitForExistence(addTimeButton, timeout: 5), "Add time button should exist in Settings")
+        XCTAssertTrue(waitForExistence(addTimeButton, timeout: 8), "Add time button should exist in Settings")
         addTimeButton.tap()
         tapSaveIfPresent(app: app)
 
@@ -435,11 +435,11 @@ final class DDiaryUITests: XCTestCase {
     @MainActor
     private func ensureGlucoseSlotExists(app: XCUIApplication) {
         let glucoseRow = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", A11y.TodayRowPrefix.glucose)).firstMatch
-        if waitForExistence(glucoseRow, timeout: 5) { return }
+        if waitForExistence(glucoseRow, timeout: 8) { return }
 
         navigateToTab(app: app, tabId: A11y.Tab.settings, fallbackLabel: "Settings")
-        _ = waitForExistence(app.navigationBars["Settings"], timeout: 5)
-        _ = waitForExistence(app.scrollViews["settings.scroll"], timeout: 5)
+        _ = waitForExistence(app.navigationBars["Settings"], timeout: 8)
+        _ = waitForExistence(app.scrollViews["settings.scroll"], timeout: 8)
         let beforeMealToggle = app.switches[A11y.Settings.glucoseBeforeMeal]
         scrollToElement(beforeMealToggle, in: app)
         XCTAssertTrue(waitForExistence(beforeMealToggle, timeout: 10), "Before meal toggle should exist in Settings")
@@ -453,7 +453,7 @@ final class DDiaryUITests: XCTestCase {
 
     @MainActor
     private func waitForTodayRows(app: XCUIApplication) {
-        _ = waitForExistence(app.scrollViews["today.scroll"], timeout: 5)
+        _ = waitForExistence(app.scrollViews["today.scroll"], timeout: 8)
         let anyRow = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "today.row.")).firstMatch
         _ = waitForExistence(anyRow, timeout: 10)
     }

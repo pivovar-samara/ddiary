@@ -87,12 +87,55 @@ private extension SwiftDataSettingsRepository {
     }
 
     func isPreferredPrimary(_ lhs: UserSettings, _ rhs: UserSettings) -> Bool {
+        let lhsCustomizationScore = customizationScore(for: lhs)
+        let rhsCustomizationScore = customizationScore(for: rhs)
+        if lhsCustomizationScore != rhsCustomizationScore {
+            return lhsCustomizationScore > rhsCustomizationScore
+        }
         if lhs.id == UserSettings.singletonRecordID, rhs.id != UserSettings.singletonRecordID { return true }
         if rhs.id == UserSettings.singletonRecordID, lhs.id != UserSettings.singletonRecordID { return false }
         if lhs.id != rhs.id {
             return lhs.id.uuidString < rhs.id.uuidString
         }
         return stableModelIdentifier(lhs) > stableModelIdentifier(rhs)
+    }
+
+    func customizationScore(for settings: UserSettings) -> Int {
+        let defaults = UserSettings.default()
+        var score = 0
+
+        if settings.glucoseUnit != defaults.glucoseUnit { score += 1 }
+
+        if settings.bpSystolicMin != defaults.bpSystolicMin { score += 1 }
+        if settings.bpSystolicMax != defaults.bpSystolicMax { score += 1 }
+        if settings.bpDiastolicMin != defaults.bpDiastolicMin { score += 1 }
+        if settings.bpDiastolicMax != defaults.bpDiastolicMax { score += 1 }
+
+        if settings.glucoseMin != defaults.glucoseMin { score += 1 }
+        if settings.glucoseMax != defaults.glucoseMax { score += 1 }
+
+        if settings.breakfastHour != defaults.breakfastHour { score += 1 }
+        if settings.breakfastMinute != defaults.breakfastMinute { score += 1 }
+        if settings.lunchHour != defaults.lunchHour { score += 1 }
+        if settings.lunchMinute != defaults.lunchMinute { score += 1 }
+        if settings.dinnerHour != defaults.dinnerHour { score += 1 }
+        if settings.dinnerMinute != defaults.dinnerMinute { score += 1 }
+
+        if settings.bedtimeSlotEnabled != defaults.bedtimeSlotEnabled { score += 1 }
+        if settings.bedtimeHour != defaults.bedtimeHour { score += 1 }
+        if settings.bedtimeMinute != defaults.bedtimeMinute { score += 1 }
+
+        if settings.bpTimes != defaults.bpTimes { score += 1 }
+        if settings.bpActiveWeekdays != defaults.bpActiveWeekdays { score += 1 }
+
+        if settings.enableBeforeMeal != defaults.enableBeforeMeal { score += 1 }
+        if settings.enableAfterMeal2h != defaults.enableAfterMeal2h { score += 1 }
+        if settings.enableBedtime != defaults.enableBedtime { score += 1 }
+
+        if settings.enableDailyCycleMode != defaults.enableDailyCycleMode { score += 1 }
+        if settings.currentCycleIndex != defaults.currentCycleIndex { score += 1 }
+
+        return score
     }
 
     func stableModelIdentifier(_ model: UserSettings) -> String {
