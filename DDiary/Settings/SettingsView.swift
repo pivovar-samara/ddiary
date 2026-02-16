@@ -135,18 +135,21 @@ struct SettingsView: View {
                             isOn: $bvm.enableBeforeMeal,
                             toggleAccessibilityId: "settings.glucose.beforeMeal"
                         )
+                        .disabled(bvm.enableDailyCycleMode)
                         SettingsDivider()
                         SettingsToggleRow(
                             title: L10n.settingsRowAfterMeal2h,
                             isOn: $bvm.enableAfterMeal2h,
                             toggleAccessibilityId: "settings.glucose.afterMeal2h"
                         )
+                        .disabled(bvm.enableDailyCycleMode)
                         SettingsDivider()
                         SettingsToggleRow(
                             title: L10n.settingsRowBedtimeToggle,
                             isOn: $bvm.enableBedtime,
                             toggleAccessibilityId: "settings.glucose.bedtime"
                         )
+                        .disabled(bvm.enableDailyCycleMode)
                         SettingsDivider()
                         SettingsToggleRow(
                             title: L10n.settingsRowDailyCycleMode,

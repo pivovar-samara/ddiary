@@ -44,7 +44,7 @@ final class LogGlucoseMeasurementUseCaseTests: XCTestCase {
         XCTAssertTrue(analytics.measurementLogged.isEmpty)
     }
 
-    func test_cycleMode_beforeMealAtTarget_advancesCurrentCycleIndex() async throws {
+    func test_cycleMode_loggingBeforeMeal_doesNotAdvanceCurrentCycleIndex() async throws {
         let measurements = MockMeasurementsRepository()
         let settings = MockSettingsRepository()
         let analytics = MockAnalyticsRepository()
@@ -58,10 +58,10 @@ final class LogGlucoseMeasurementUseCaseTests: XCTestCase {
 
         try await sut.execute(value: 5.3, measurementType: .beforeMeal, mealSlot: .breakfast, comment: nil)
 
-        XCTAssertEqual(userSettings.currentCycleIndex, 1)
+        XCTAssertEqual(userSettings.currentCycleIndex, 0)
     }
 
-    func test_cycleMode_beforeMealNonTarget_doesNotAdvanceCurrentCycleIndex() async throws {
+    func test_cycleMode_loggingNonTargetBeforeMeal_keepsCurrentCycleIndex() async throws {
         let measurements = MockMeasurementsRepository()
         let settings = MockSettingsRepository()
         let analytics = MockAnalyticsRepository()

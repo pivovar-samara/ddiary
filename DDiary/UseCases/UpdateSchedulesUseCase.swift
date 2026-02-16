@@ -52,9 +52,19 @@ public final class UpdateSchedulesUseCase: SchedulesUpdating {
     /// Call this after saving settings.
     public func scheduleFromCurrentSettings() async throws {
         let settings = try await settingsRepository.getOrCreate()
+        try await ensureCycleAnchorIfNeeded(settings: settings)
         try await notificationsRepository.scheduleAllNotifications(settings: settings)
         await analyticsRepository.logScheduleUpdated(kind: .bloodPressure)
         await analyticsRepository.logScheduleUpdated(kind: .glucose)
+    }
+
+    private func ensureCycleAnchorIfNeeded(settings: UserSettings) async throws {
+        guard settings.enableDailyCycleMode else { return }
+        guard settings.dailyCycleAnchorDate == nil else { return }
+        settings.dailyCycleAnchorDate = GlucoseCyclePlanner.fallbackAnchorDate(
+            currentCycleIndex: settings.currentCycleIndex
+        )
+        try await settingsRepository.save(settings)
     }
 
     private func log(_ error: Error, operation: String, policy: UserSurfacePolicy) {

@@ -101,12 +101,60 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         }
     }
 
+    func test_rescheduleGlucoseCycle_schedulesOnlyCycleRemindersForWindow() async throws {
+        let center = FakeNotificationCenter()
+        let repository = UserNotificationsRepository(center: center)
+        let calendar = Calendar.current
+        let startDate = calendar.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 7, minute: 30)) ?? Date()
+
+        let configuration = GlucoseCycleConfiguration(
+            anchorDate: calendar.startOfDay(for: startDate),
+            breakfast: DateComponents(hour: 8, minute: 0),
+            lunch: DateComponents(hour: 13, minute: 0),
+            dinner: DateComponents(hour: 19, minute: 0),
+            bedtime: DateComponents(hour: 22, minute: 15)
+        )
+
+        try await repository.rescheduleGlucoseCycle(
+            configuration: configuration,
+            startDate: startDate,
+            numberOfDays: 4
+        )
+
+        let day1 = calendar.startOfDay(for: startDate)
+        let day2 = calendar.date(byAdding: .day, value: 1, to: day1) ?? day1
+        let day3 = calendar.date(byAdding: .day, value: 2, to: day1) ?? day1
+        let day4 = calendar.date(byAdding: .day, value: 3, to: day1) ?? day1
+
+        let expected = Set([
+            cycleID(prefix: UserNotificationsRepository.IDs.glucoseBeforePrefix, day: day1, hour: 8, minute: 0, calendar: calendar),
+            cycleID(prefix: UserNotificationsRepository.IDs.glucoseAfterPrefix, day: day1, hour: 10, minute: 0, calendar: calendar),
+            cycleID(prefix: UserNotificationsRepository.IDs.glucoseBeforePrefix, day: day2, hour: 13, minute: 0, calendar: calendar),
+            cycleID(prefix: UserNotificationsRepository.IDs.glucoseAfterPrefix, day: day2, hour: 15, minute: 0, calendar: calendar),
+            cycleID(prefix: UserNotificationsRepository.IDs.glucoseBeforePrefix, day: day3, hour: 19, minute: 0, calendar: calendar),
+            cycleID(prefix: UserNotificationsRepository.IDs.glucoseAfterPrefix, day: day3, hour: 21, minute: 0, calendar: calendar),
+            cycleID(prefix: UserNotificationsRepository.IDs.glucoseBedtimePrefix, day: day4, hour: 22, minute: 15, calendar: calendar),
+        ])
+
+        XCTAssertEqual(Set(center.pendingRequests.keys), expected)
+    }
+
     private func makeRequest(id: String) -> UNNotificationRequest {
         UNNotificationRequest(
             identifier: id,
             content: UNMutableNotificationContent(),
             trigger: nil
         )
+    }
+
+    private func cycleID(prefix: String, day: Date, hour: Int, minute: Int, calendar: Calendar) -> String {
+        var dayParts = calendar.dateComponents([.year, .month, .day], from: day)
+        dayParts.hour = hour
+        dayParts.minute = minute
+        let y = dayParts.year ?? 0
+        let mo = dayParts.month ?? 0
+        let d = dayParts.day ?? 0
+        return "\(prefix)d\(String(format: "%04d", y))\(String(format: "%02d", mo))\(String(format: "%02d", d)).\(String(format: "%02d", hour))\(String(format: "%02d", minute))"
     }
 }
 

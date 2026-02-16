@@ -280,6 +280,19 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         try await scheduleGlucoseBedtime(isEnabled: enableBedtime, time: bedtimeTime)
     }
 
+    func rescheduleGlucoseCycle(
+        configuration: GlucoseCycleConfiguration,
+        startDate: Date,
+        numberOfDays: Int
+    ) async throws {
+        await cancelGlucose()
+        try await scheduleGlucoseCycle(
+            configuration: configuration,
+            startDate: startDate,
+            numberOfDays: numberOfDays
+        )
+    }
+
     func cancelAll() async {
         center.removeAllPendingNotificationRequests()
         center.removeAllDeliveredNotifications()
@@ -358,6 +371,101 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         return content
     }
 
+    private func scheduleGlucoseCycle(
+        configuration: GlucoseCycleConfiguration,
+        startDate: Date,
+        numberOfDays: Int
+    ) async throws {
+        guard numberOfDays > 0 else { return }
+        let calendar = Calendar.current
+        let startOfWindow = calendar.startOfDay(for: startDate)
+
+        for dayOffset in 0..<numberOfDays {
+            guard let day = calendar.date(byAdding: .day, value: dayOffset, to: startOfWindow) else { continue }
+            let reminders = GlucoseCyclePlanner.reminders(on: day, configuration: configuration, calendar: calendar)
+                .filter { $0.date >= startDate }
+
+            for reminder in reminders {
+                let payload = cycleNotificationPayload(for: reminder)
+                let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: reminder.date)
+                let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+                let request = UNNotificationRequest(
+                    identifier: cycleIdentifier(prefix: payload.prefix, at: reminder.date, calendar: calendar),
+                    content: makeContent(
+                        title: payload.title,
+                        body: payload.body,
+                        categoryIdentifier: payload.categoryIdentifier
+                    ),
+                    trigger: trigger
+                )
+                await center.addOrReplace(request: request)
+            }
+        }
+    }
+
+    private func cycleNotificationPayload(
+        for reminder: GlucoseCycleReminder
+    ) -> (title: String, body: String, categoryIdentifier: String, prefix: String) {
+        switch (reminder.measurementType, reminder.mealSlot) {
+        case (.beforeMeal, .breakfast):
+            return (
+                L10n.notificationGlucoseBeforeBreakfastTitle,
+                L10n.notificationGlucoseBeforeBreakfastBody,
+                IDs.glucoseBeforeCategory,
+                IDs.glucoseBeforePrefix
+            )
+        case (.beforeMeal, .lunch):
+            return (
+                L10n.notificationGlucoseBeforeLunchTitle,
+                L10n.notificationGlucoseBeforeLunchBody,
+                IDs.glucoseBeforeCategory,
+                IDs.glucoseBeforePrefix
+            )
+        case (.beforeMeal, .dinner):
+            return (
+                L10n.notificationGlucoseBeforeDinnerTitle,
+                L10n.notificationGlucoseBeforeDinnerBody,
+                IDs.glucoseBeforeCategory,
+                IDs.glucoseBeforePrefix
+            )
+        case (.afterMeal2h, .breakfast):
+            return (
+                L10n.notificationGlucoseAfterBreakfast2hTitle,
+                L10n.notificationGlucoseAfterBreakfast2hBody,
+                IDs.glucoseAfterCategory,
+                IDs.glucoseAfterPrefix
+            )
+        case (.afterMeal2h, .lunch):
+            return (
+                L10n.notificationGlucoseAfterLunch2hTitle,
+                L10n.notificationGlucoseAfterLunch2hBody,
+                IDs.glucoseAfterCategory,
+                IDs.glucoseAfterPrefix
+            )
+        case (.afterMeal2h, .dinner):
+            return (
+                L10n.notificationGlucoseAfterDinner2hTitle,
+                L10n.notificationGlucoseAfterDinner2hBody,
+                IDs.glucoseAfterCategory,
+                IDs.glucoseAfterPrefix
+            )
+        case (.bedtime, _):
+            return (
+                L10n.notificationGlucoseBedtimeTitle,
+                L10n.notificationGlucoseBedtimeBody,
+                IDs.glucoseBedtimeCategory,
+                IDs.glucoseBedtimePrefix
+            )
+        default:
+            return (
+                L10n.notificationGlucoseBedtimeTitle,
+                L10n.notificationGlucoseBedtimeBody,
+                IDs.glucoseBedtimeCategory,
+                IDs.glucoseBedtimePrefix
+            )
+        }
+    }
+
     private func minutesToHourMinute(_ minutes: Int) -> (hour: Int, minute: Int) {
         let hour = (minutes / 60) % 24
         let minute = minutes % 60
@@ -370,6 +478,16 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         let m = components.minute ?? 0
         if let w = weekday { return "\(prefix)w\(w).\(String(format: "%02d", h))\(String(format: "%02d", m))" }
         return "\(prefix)\(String(format: "%02d", h))\(String(format: "%02d", m))"
+    }
+
+    private func cycleIdentifier(prefix: String, at date: Date, calendar: Calendar) -> String {
+        let parts = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+        let y = parts.year ?? 0
+        let mo = parts.month ?? 0
+        let d = parts.day ?? 0
+        let h = parts.hour ?? 0
+        let m = parts.minute ?? 0
+        return "\(prefix)d\(String(format: "%04d", y))\(String(format: "%02d", mo))\(String(format: "%02d", d)).\(String(format: "%02d", h))\(String(format: "%02d", m))"
     }
 
     private func addingHours(_ components: DateComponents, hours: Int) -> DateComponents {

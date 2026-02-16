@@ -37,6 +37,30 @@ public struct TodayView: View {
                         .foregroundStyle(.red)
                 }
 
+                if bvm.isDailyCycleModeEnabled {
+                    HStack(spacing: DS.Spacing.small) {
+                        Text(String(localized: "Daily cycle mode", comment: "Today screen cycle mode status title"))
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button {
+                            Task { await vm.shiftCycleDayForward() }
+                        } label: {
+                            HStack(spacing: DS.Spacing.xSmall) {
+                                if bvm.isShiftingCycleDay {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                }
+                                Text(String(localized: "Shift +1 day", comment: "Action title to move today's daily cycle step to the next day"))
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .disabled(bvm.isShiftingCycleDay || bvm.isLoading)
+                        .accessibilityIdentifier("today.cycle.shift")
+                    }
+                }
+
                 // Unified Today blocks
                 if !bvm.itemsDue.isEmpty {
                     VStack(alignment: .leading, spacing: DS.Spacing.xSmall) {
@@ -179,7 +203,9 @@ public struct TodayView: View {
             let vm = TodayViewModel(
                 getTodayOverviewUseCase: container.getTodayOverviewUseCase,
                 logBPMeasurementUseCase: container.logBPMeasurementUseCase,
-                logGlucoseMeasurementUseCase: container.logGlucoseMeasurementUseCase
+                logGlucoseMeasurementUseCase: container.logGlucoseMeasurementUseCase,
+                rescheduleGlucoseCycleUseCase: container.rescheduleGlucoseCycleUseCase,
+                schedulesUpdater: container.updateSchedulesUseCase
             )
             self.viewModel = vm
             await vm.refresh()

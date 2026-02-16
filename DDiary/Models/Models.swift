@@ -164,6 +164,7 @@ public final class UserSettings {
 
     var enableDailyCycleMode: Bool = false
     var currentCycleIndex: Int = 0
+    var dailyCycleAnchorDate: Date?
 
     init(
         id: UUID = UserSettings.singletonRecordID,
@@ -190,7 +191,8 @@ public final class UserSettings {
         enableAfterMeal2h: Bool,
         enableBedtime: Bool,
         enableDailyCycleMode: Bool,
-        currentCycleIndex: Int
+        currentCycleIndex: Int,
+        dailyCycleAnchorDate: Date?
     ) {
         self.id = id
         self.singletonKey = singletonKey
@@ -217,6 +219,7 @@ public final class UserSettings {
         self.enableBedtime = enableBedtime
         self.enableDailyCycleMode = enableDailyCycleMode
         self.currentCycleIndex = currentCycleIndex
+        self.dailyCycleAnchorDate = dailyCycleAnchorDate
     }
 }
 
@@ -252,7 +255,8 @@ extension UserSettings {
             enableAfterMeal2h: true,
             enableBedtime: false,
             enableDailyCycleMode: false,
-            currentCycleIndex: 0
+            currentCycleIndex: 0,
+            dailyCycleAnchorDate: nil
         )
     }
 }

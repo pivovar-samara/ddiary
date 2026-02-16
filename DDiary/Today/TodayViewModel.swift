@@ -73,9 +73,13 @@ public final class TodayViewModel {
     private let getTodayOverviewUseCase: GetTodayOverviewUseCase
     private let logBPMeasurementUseCase: LogBPMeasurementUseCase
     private let logGlucoseMeasurementUseCase: LogGlucoseMeasurementUseCase
+    private let rescheduleGlucoseCycleUseCase: RescheduleGlucoseCycleUseCase
+    private let schedulesUpdater: any SchedulesUpdating
 
     // State
     public private(set) var isLoading: Bool = false
+    public private(set) var isShiftingCycleDay: Bool = false
+    public private(set) var isDailyCycleModeEnabled: Bool = false
     public private(set) var errorMessage: String? = nil
 
     public private(set) var bpSlots: [BPSlotViewModel] = []
@@ -209,11 +213,15 @@ public final class TodayViewModel {
     public init(
         getTodayOverviewUseCase: GetTodayOverviewUseCase,
         logBPMeasurementUseCase: LogBPMeasurementUseCase,
-        logGlucoseMeasurementUseCase: LogGlucoseMeasurementUseCase
+        logGlucoseMeasurementUseCase: LogGlucoseMeasurementUseCase,
+        rescheduleGlucoseCycleUseCase: RescheduleGlucoseCycleUseCase,
+        schedulesUpdater: any SchedulesUpdating
     ) {
         self.getTodayOverviewUseCase = getTodayOverviewUseCase
         self.logBPMeasurementUseCase = logBPMeasurementUseCase
         self.logGlucoseMeasurementUseCase = logGlucoseMeasurementUseCase
+        self.rescheduleGlucoseCycleUseCase = rescheduleGlucoseCycleUseCase
+        self.schedulesUpdater = schedulesUpdater
     }
 
     // MARK: - Intents
@@ -222,6 +230,7 @@ public final class TodayViewModel {
         isLoading = true
         
         let overview = await getTodayOverviewUseCase.compute()
+        isDailyCycleModeEnabled = overview.isDailyCycleModeEnabled
         let now = Date()
 
         // BP slots
@@ -249,6 +258,24 @@ public final class TodayViewModel {
         }
 
         isLoading = false
+    }
+
+    public func shiftCycleDayForward() async {
+        guard isDailyCycleModeEnabled else { return }
+        guard !isShiftingCycleDay else { return }
+
+        isShiftingCycleDay = true
+        defer { isShiftingCycleDay = false }
+
+        let shifted = await rescheduleGlucoseCycleUseCase.shiftTodayForward()
+        guard shifted else { return }
+
+        do {
+            try await schedulesUpdater.scheduleFromCurrentSettings()
+        } catch {
+            errorMessage = L10n.settingsErrorSavedButRemindersNotUpdated
+        }
+        await refresh()
     }
 
     public func onBPSlotTapped(_ slot: BPSlotViewModel) {

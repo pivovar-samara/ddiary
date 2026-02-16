@@ -194,6 +194,15 @@ final class SettingsViewModel {
             settings.enableAfterMeal2h = enableAfterMeal2h
             settings.enableBedtime = enableBedtime
             settings.enableDailyCycleMode = enableDailyCycleMode
+            if enableDailyCycleMode {
+                if settings.dailyCycleAnchorDate == nil {
+                    settings.dailyCycleAnchorDate = GlucoseCyclePlanner.fallbackAnchorDate(
+                        currentCycleIndex: settings.currentCycleIndex
+                    )
+                }
+            } else {
+                settings.dailyCycleAnchorDate = nil
+            }
 
             settings.bpSystolicMin = bpSystolicMin
             settings.bpSystolicMax = bpSystolicMax

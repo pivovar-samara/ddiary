@@ -128,6 +128,14 @@ public protocol NotificationsRepository: Sendable {
         bedtimeTime: DateComponents?
     ) async throws
 
+    /// Reschedule glucose notifications in a fixed 4-day cycle:
+    /// breakfast+2h, lunch+2h, dinner+2h, bedtime, then repeat.
+    func rescheduleGlucoseCycle(
+        configuration: GlucoseCycleConfiguration,
+        startDate: Date,
+        numberOfDays: Int
+    ) async throws
+
     // MARK: One-off helpers for actions (snooze/move/cancel by id)
     /// Schedule a one-off notification at a specific date (non-repeating).
     func scheduleOneOff(
@@ -173,20 +181,37 @@ public extension NotificationsRepository {
         let breakfast = DateComponents(hour: settings.breakfastHour, minute: settings.breakfastMinute)
         let lunch = DateComponents(hour: settings.lunchHour, minute: settings.lunchMinute)
         let dinner = DateComponents(hour: settings.dinnerHour, minute: settings.dinnerMinute)
-        // Use the user-configured bedtime time when the slot and reminders are enabled.
-        let bedtimeEnabled = settings.enableBedtime && settings.bedtimeSlotEnabled
-        let bedtimeTime: DateComponents? = bedtimeEnabled
-            ? DateComponents(hour: settings.bedtimeHour, minute: settings.bedtimeMinute)
-            : nil
-        try await rescheduleGlucose(
-            breakfast: breakfast,
-            lunch: lunch,
-            dinner: dinner,
-            enableBeforeMeal: settings.enableBeforeMeal,
-            enableAfterMeal2h: settings.enableAfterMeal2h,
-            enableBedtime: bedtimeEnabled,
-            bedtimeTime: bedtimeTime
-        )
+        let bedtime = DateComponents(hour: settings.bedtimeHour, minute: settings.bedtimeMinute)
+
+        if settings.enableDailyCycleMode {
+            let anchorDate = settings.dailyCycleAnchorDate
+                ?? GlucoseCyclePlanner.fallbackAnchorDate(currentCycleIndex: settings.currentCycleIndex)
+            let configuration = GlucoseCycleConfiguration(
+                anchorDate: anchorDate,
+                breakfast: breakfast,
+                lunch: lunch,
+                dinner: dinner,
+                bedtime: bedtime
+            )
+            try await rescheduleGlucoseCycle(
+                configuration: configuration,
+                startDate: Date(),
+                numberOfDays: 28
+            )
+        } else {
+            // Use the user-configured bedtime time when the slot and reminders are enabled.
+            let bedtimeEnabled = settings.enableBedtime && settings.bedtimeSlotEnabled
+            let bedtimeTime: DateComponents? = bedtimeEnabled ? bedtime : nil
+            try await rescheduleGlucose(
+                breakfast: breakfast,
+                lunch: lunch,
+                dinner: dinner,
+                enableBeforeMeal: settings.enableBeforeMeal,
+                enableAfterMeal2h: settings.enableAfterMeal2h,
+                enableBedtime: bedtimeEnabled,
+                bedtimeTime: bedtimeTime
+            )
+        }
     }
 
     /// Convenience: Cancel all pending notifications (BP and Glucose).

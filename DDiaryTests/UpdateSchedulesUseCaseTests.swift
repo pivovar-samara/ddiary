@@ -68,6 +68,41 @@ final class UpdateSchedulesUseCaseTests: XCTestCase {
         XCTAssertNil(notificationsRepository.bedtimeTime)
     }
 
+    func test_scheduleFromCurrentSettings_cycleMode_usesCycleScheduling() async throws {
+        let settings = UserSettings.default()
+        settings.enableDailyCycleMode = true
+        settings.currentCycleIndex = 2
+        settings.breakfastHour = 8
+        settings.breakfastMinute = 0
+        settings.lunchHour = 13
+        settings.lunchMinute = 0
+        settings.dinnerHour = 19
+        settings.dinnerMinute = 0
+        settings.bedtimeHour = 22
+        settings.bedtimeMinute = 15
+
+        let settingsRepository = FixedSettingsRepository(settings: settings)
+        let notificationsRepository = SpyNotificationsRepository()
+        let analyticsRepository = MockAnalyticsRepository()
+        let sut = UpdateSchedulesUseCase(
+            settingsRepository: settingsRepository,
+            notificationsRepository: notificationsRepository,
+            analyticsRepository: analyticsRepository
+        )
+
+        try await sut.scheduleFromCurrentSettings()
+
+        XCTAssertEqual(notificationsRepository.rescheduleGlucoseCycleCallCount, 1)
+        XCTAssertNotNil(notificationsRepository.glucoseCycleConfiguration)
+        XCTAssertEqual(notificationsRepository.glucoseCycleConfiguration?.dinner.hour, 19)
+        XCTAssertEqual(notificationsRepository.glucoseCycleConfiguration?.bedtime.minute, 15)
+        XCTAssertEqual(notificationsRepository.glucoseCycleNumberOfDays, 28)
+        XCTAssertNotNil(settings.dailyCycleAnchorDate)
+        XCTAssertEqual(notificationsRepository.enableBeforeMeal, false)
+        XCTAssertEqual(notificationsRepository.enableAfterMeal2h, false)
+        XCTAssertEqual(notificationsRepository.enableBedtime, false)
+    }
+
     func test_scheduleFromCurrentSettings_whenSettingsLoadFails_doesNotLogAnalytics() async {
         let settings = UserSettings.default()
         let settingsRepository = FixedSettingsRepository(settings: settings)
@@ -123,6 +158,10 @@ private final class SpyNotificationsRepository: NotificationsRepository, @unchec
     private(set) var enableAfterMeal2h = false
     private(set) var enableBedtime = false
     private(set) var bedtimeTime: DateComponents?
+    private(set) var rescheduleGlucoseCycleCallCount = 0
+    private(set) var glucoseCycleConfiguration: GlucoseCycleConfiguration?
+    private(set) var glucoseCycleStartDate: Date?
+    private(set) var glucoseCycleNumberOfDays: Int?
 
     func requestAuthorization() async throws -> Bool { true }
 
@@ -162,6 +201,17 @@ private final class SpyNotificationsRepository: NotificationsRepository, @unchec
         self.enableAfterMeal2h = enableAfterMeal2h
         self.enableBedtime = enableBedtime
         self.bedtimeTime = bedtimeTime
+    }
+
+    func rescheduleGlucoseCycle(
+        configuration: GlucoseCycleConfiguration,
+        startDate: Date,
+        numberOfDays: Int
+    ) async throws {
+        rescheduleGlucoseCycleCallCount += 1
+        glucoseCycleConfiguration = configuration
+        glucoseCycleStartDate = startDate
+        glucoseCycleNumberOfDays = numberOfDays
     }
 
     func scheduleOneOff(at date: Date, identifier: String, title: String, body: String, categoryIdentifier: String) async {}

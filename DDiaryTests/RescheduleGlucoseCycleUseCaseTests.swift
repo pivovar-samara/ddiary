@@ -65,7 +65,6 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
     func test_currentTarget_handlesNegativeIndexByWrapping() async {
         let settings = UserSettings.default()
         settings.enableDailyCycleMode = true
-        settings.bedtimeSlotEnabled = false
         settings.currentCycleIndex = -1
 
         let settingsRepository = SpyCycleSettingsRepository(settings: settings)
@@ -77,7 +76,52 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
 
         let target = await sut.currentTarget()
 
-        XCTAssertEqual(target, .dinner)
+        XCTAssertEqual(target, MealSlot.none)
+    }
+
+    func test_shiftTodayForward_movesAnchorBackwardAndRotatesTarget() async throws {
+        let settings = UserSettings.default()
+        settings.enableDailyCycleMode = true
+        settings.currentCycleIndex = 0
+        let calendar = Calendar.current
+        let today = calendar.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 9, minute: 0)) ?? Date()
+        settings.dailyCycleAnchorDate = calendar.startOfDay(for: today)
+
+        let settingsRepository = SpyCycleSettingsRepository(settings: settings)
+        let analyticsRepository = MockAnalyticsRepository()
+        let sut = RescheduleGlucoseCycleUseCase(
+            settingsRepository: settingsRepository,
+            analyticsRepository: analyticsRepository
+        )
+
+        let shifted = await sut.shiftTodayForward(today: today)
+
+        XCTAssertTrue(shifted)
+        let shiftedAnchor = try XCTUnwrap(settings.dailyCycleAnchorDate)
+        let expectedAnchor = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: today))
+        XCTAssertEqual(shiftedAnchor, expectedAnchor)
+        let target = await sut.currentTarget()
+        XCTAssertEqual(target, .lunch)
+    }
+
+    func test_shiftTodayForward_returnsFalseWhenCycleModeDisabled() async {
+        let settings = UserSettings.default()
+        settings.enableDailyCycleMode = false
+        settings.currentCycleIndex = 0
+        settings.dailyCycleAnchorDate = Date(timeIntervalSince1970: 1_700_000_000)
+
+        let settingsRepository = SpyCycleSettingsRepository(settings: settings)
+        let analyticsRepository = MockAnalyticsRepository()
+        let sut = RescheduleGlucoseCycleUseCase(
+            settingsRepository: settingsRepository,
+            analyticsRepository: analyticsRepository
+        )
+
+        let shifted = await sut.shiftTodayForward()
+
+        XCTAssertFalse(shifted)
+        XCTAssertEqual(settings.dailyCycleAnchorDate, Date(timeIntervalSince1970: 1_700_000_000))
+        XCTAssertEqual(settingsRepository.saveCount, 0)
     }
 }
 

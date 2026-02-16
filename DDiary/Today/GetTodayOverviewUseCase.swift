@@ -33,10 +33,16 @@ public struct GlucosePlannedSlot: Sendable, Equatable {
 public struct TodayOverview: Sendable, Equatable {
     public let bpSlots: [BPScheduledSlot]
     public let glucoseSlots: [GlucosePlannedSlot]
+    public let isDailyCycleModeEnabled: Bool
 
-    public init(bpSlots: [BPScheduledSlot], glucoseSlots: [GlucosePlannedSlot]) {
+    public init(
+        bpSlots: [BPScheduledSlot],
+        glucoseSlots: [GlucosePlannedSlot],
+        isDailyCycleModeEnabled: Bool = false
+    ) {
         self.bpSlots = bpSlots
         self.glucoseSlots = glucoseSlots
+        self.isDailyCycleModeEnabled = isDailyCycleModeEnabled
     }
 }
 
@@ -69,6 +75,8 @@ public final class GetTodayOverviewUseCase {
             return Self.defaultOverview(for: today, calendar: calendar)
         }
 
+        let cycleAnchorDate: Date? = await persistCycleAnchorIfNeeded(settings: settings, today: today, calendar: calendar)
+
         let dayRange = Self.dayRange(for: today, calendar: calendar)
 
         // Build BP scheduled dates from minutes since midnight
@@ -81,41 +89,58 @@ public final class GetTodayOverviewUseCase {
 
         // Build Glucose planned slots from meal times and toggles
         var glucosePlanned: [(slot: GlucosePlannedSlot, baseDate: Date)] = []
-        let activeBeforeMealTarget: MealSlot? = {
-            guard settings.enableDailyCycleMode, settings.enableBeforeMeal else { return nil }
-            return Self.currentCycleTarget(from: settings)
-        }()
-        // Breakfast
-        if let breakfast = Self.date(on: today, using: DateComponents(hour: settings.breakfastHour, minute: settings.breakfastMinute), calendar: calendar) {
-            if settings.enableBeforeMeal && (activeBeforeMealTarget == nil || activeBeforeMealTarget == .breakfast) {
-                glucosePlanned.append((GlucosePlannedSlot(mealSlot: .breakfast, measurementType: .beforeMeal, date: breakfast, completed: false, matchedMeasurementId: nil), breakfast))
+        if settings.enableDailyCycleMode {
+            let cycleConfig = GlucoseCycleConfiguration(
+                anchorDate: cycleAnchorDate ?? calendar.startOfDay(for: today),
+                breakfast: DateComponents(hour: settings.breakfastHour, minute: settings.breakfastMinute),
+                lunch: DateComponents(hour: settings.lunchHour, minute: settings.lunchMinute),
+                dinner: DateComponents(hour: settings.dinnerHour, minute: settings.dinnerMinute),
+                bedtime: DateComponents(hour: settings.bedtimeHour, minute: settings.bedtimeMinute)
+            )
+            let reminders = GlucoseCyclePlanner.reminders(on: today, configuration: cycleConfig, calendar: calendar)
+            glucosePlanned = reminders.map { reminder in
+                let slot = GlucosePlannedSlot(
+                    mealSlot: reminder.mealSlot,
+                    measurementType: reminder.measurementType,
+                    date: reminder.date,
+                    completed: false,
+                    matchedMeasurementId: nil
+                )
+                return (slot, reminder.date)
             }
-            if settings.enableAfterMeal2h, let after = calendar.date(byAdding: .hour, value: 2, to: breakfast) {
-                glucosePlanned.append((GlucosePlannedSlot(mealSlot: .breakfast, measurementType: .afterMeal2h, date: after, completed: false, matchedMeasurementId: nil), after))
+        } else {
+            // Breakfast
+            if let breakfast = Self.date(on: today, using: DateComponents(hour: settings.breakfastHour, minute: settings.breakfastMinute), calendar: calendar) {
+                if settings.enableBeforeMeal {
+                    glucosePlanned.append((GlucosePlannedSlot(mealSlot: .breakfast, measurementType: .beforeMeal, date: breakfast, completed: false, matchedMeasurementId: nil), breakfast))
+                }
+                if settings.enableAfterMeal2h, let after = calendar.date(byAdding: .hour, value: 2, to: breakfast) {
+                    glucosePlanned.append((GlucosePlannedSlot(mealSlot: .breakfast, measurementType: .afterMeal2h, date: after, completed: false, matchedMeasurementId: nil), after))
+                }
             }
-        }
-        // Lunch
-        if let lunch = Self.date(on: today, using: DateComponents(hour: settings.lunchHour, minute: settings.lunchMinute), calendar: calendar) {
-            if settings.enableBeforeMeal && (activeBeforeMealTarget == nil || activeBeforeMealTarget == .lunch) {
-                glucosePlanned.append((GlucosePlannedSlot(mealSlot: .lunch, measurementType: .beforeMeal, date: lunch, completed: false, matchedMeasurementId: nil), lunch))
+            // Lunch
+            if let lunch = Self.date(on: today, using: DateComponents(hour: settings.lunchHour, minute: settings.lunchMinute), calendar: calendar) {
+                if settings.enableBeforeMeal {
+                    glucosePlanned.append((GlucosePlannedSlot(mealSlot: .lunch, measurementType: .beforeMeal, date: lunch, completed: false, matchedMeasurementId: nil), lunch))
+                }
+                if settings.enableAfterMeal2h, let after = calendar.date(byAdding: .hour, value: 2, to: lunch) {
+                    glucosePlanned.append((GlucosePlannedSlot(mealSlot: .lunch, measurementType: .afterMeal2h, date: after, completed: false, matchedMeasurementId: nil), after))
+                }
             }
-            if settings.enableAfterMeal2h, let after = calendar.date(byAdding: .hour, value: 2, to: lunch) {
-                glucosePlanned.append((GlucosePlannedSlot(mealSlot: .lunch, measurementType: .afterMeal2h, date: after, completed: false, matchedMeasurementId: nil), after))
+            // Dinner
+            if let dinner = Self.date(on: today, using: DateComponents(hour: settings.dinnerHour, minute: settings.dinnerMinute), calendar: calendar) {
+                if settings.enableBeforeMeal {
+                    glucosePlanned.append((GlucosePlannedSlot(mealSlot: .dinner, measurementType: .beforeMeal, date: dinner, completed: false, matchedMeasurementId: nil), dinner))
+                }
+                if settings.enableAfterMeal2h, let after = calendar.date(byAdding: .hour, value: 2, to: dinner) {
+                    glucosePlanned.append((GlucosePlannedSlot(mealSlot: .dinner, measurementType: .afterMeal2h, date: after, completed: false, matchedMeasurementId: nil), after))
+                }
             }
-        }
-        // Dinner
-        if let dinner = Self.date(on: today, using: DateComponents(hour: settings.dinnerHour, minute: settings.dinnerMinute), calendar: calendar) {
-            if settings.enableBeforeMeal && (activeBeforeMealTarget == nil || activeBeforeMealTarget == .dinner) {
-                glucosePlanned.append((GlucosePlannedSlot(mealSlot: .dinner, measurementType: .beforeMeal, date: dinner, completed: false, matchedMeasurementId: nil), dinner))
+            // Bedtime (use user-configured time when slot enabled)
+            if settings.bedtimeSlotEnabled,
+               let bedtime = Self.date(on: today, using: DateComponents(hour: settings.bedtimeHour, minute: settings.bedtimeMinute), calendar: calendar) {
+                glucosePlanned.append((GlucosePlannedSlot(mealSlot: .none, measurementType: .bedtime, date: bedtime, completed: false, matchedMeasurementId: nil), bedtime))
             }
-            if settings.enableAfterMeal2h, let after = calendar.date(byAdding: .hour, value: 2, to: dinner) {
-                glucosePlanned.append((GlucosePlannedSlot(mealSlot: .dinner, measurementType: .afterMeal2h, date: after, completed: false, matchedMeasurementId: nil), after))
-            }
-        }
-        // Bedtime (use user-configured time when slot enabled)
-        if settings.bedtimeSlotEnabled,
-           let bedtime = Self.date(on: today, using: DateComponents(hour: settings.bedtimeHour, minute: settings.bedtimeMinute), calendar: calendar) {
-            glucosePlanned.append((GlucosePlannedSlot(mealSlot: .none, measurementType: .bedtime, date: bedtime, completed: false, matchedMeasurementId: nil), bedtime))
         }
 
         glucosePlanned.sort { $0.baseDate < $1.baseDate }
@@ -136,7 +161,11 @@ public final class GetTodayOverviewUseCase {
                                   completed: false,
                                   matchedMeasurementId: nil)
             }
-            return TodayOverview(bpSlots: bpSlots, glucoseSlots: glSlots)
+            return TodayOverview(
+                bpSlots: bpSlots,
+                glucoseSlots: glSlots,
+                isDailyCycleModeEnabled: settings.enableDailyCycleMode
+            )
         }
 
         // Mark BP completion by assigning each measurement to the nearest scheduled slot (no time tolerance)
@@ -181,7 +210,11 @@ public final class GetTodayOverviewUseCase {
             }
         }
 
-        return TodayOverview(bpSlots: bpSlots, glucoseSlots: glSlots)
+        return TodayOverview(
+            bpSlots: bpSlots,
+            glucoseSlots: glSlots,
+            isDailyCycleModeEnabled: settings.enableDailyCycleMode
+        )
     }
 
     // MARK: - Helpers
@@ -200,25 +233,22 @@ public final class GetTodayOverviewUseCase {
         return (start, end)
     }
 
-    private static func currentCycleTarget(from settings: UserSettings) -> MealSlot? {
-        let order = cycleOrder(from: settings)
-        guard !order.isEmpty else { return nil }
-        let index = positiveModulo(settings.currentCycleIndex, order.count)
-        return order[index]
-    }
-
-    private static func cycleOrder(from settings: UserSettings) -> [MealSlot] {
-        var order: [MealSlot] = [.breakfast, .lunch, .dinner]
-        if settings.bedtimeSlotEnabled {
-            // `none` is used to represent the bedtime step in cycle mode.
-            order.append(.none)
+    private func persistCycleAnchorIfNeeded(settings: UserSettings, today: Date, calendar: Calendar) async -> Date? {
+        guard settings.enableDailyCycleMode else { return nil }
+        let anchorDate = settings.dailyCycleAnchorDate
+            ?? GlucoseCyclePlanner.fallbackAnchorDate(
+                currentCycleIndex: settings.currentCycleIndex,
+                referenceDate: today,
+                calendar: calendar
+            )
+        guard settings.dailyCycleAnchorDate == nil else { return anchorDate }
+        settings.dailyCycleAnchorDate = anchorDate
+        do {
+            try await settingsRepository.save(settings)
+        } catch {
+            // Best-effort persistence only; `anchorDate` still drives this compute cycle.
         }
-        return order
-    }
-
-    private static func positiveModulo(_ value: Int, _ modulus: Int) -> Int {
-        let remainder = value % modulus
-        return remainder >= 0 ? remainder : remainder + modulus
+        return anchorDate
     }
 
     // Fallback overview using hardcoded defaults when settings cannot be loaded
@@ -251,6 +281,10 @@ public final class GetTodayOverviewUseCase {
             }
         }
         let bpSlots = bpDates.map { BPScheduledSlot(date: $0, completed: false, matchedMeasurementId: nil) }
-        return TodayOverview(bpSlots: bpSlots, glucoseSlots: glucose.sorted { $0.date < $1.date })
+        return TodayOverview(
+            bpSlots: bpSlots,
+            glucoseSlots: glucose.sorted { $0.date < $1.date },
+            isDailyCycleModeEnabled: false
+        )
     }
 }
