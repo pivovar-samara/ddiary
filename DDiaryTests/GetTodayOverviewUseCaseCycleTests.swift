@@ -3,6 +3,66 @@ import XCTest
 
 @MainActor
 final class GetTodayOverviewUseCaseCycleTests: XCTestCase {
+    func test_nonCycle_afterMealSlotShiftsFromLoggedBeforeMealTimestamp() async throws {
+        let measurements = MockMeasurementsRepository()
+        let settings = MockSettingsRepository()
+        let sut = GetTodayOverviewUseCase(measurementsRepository: measurements, settingsRepository: settings)
+
+        let userSettings = try await settings.getOrCreate()
+        userSettings.enableDailyCycleMode = false
+        userSettings.enableBeforeMeal = true
+        userSettings.enableAfterMeal2h = true
+        userSettings.lunchHour = 13
+        userSettings.lunchMinute = 0
+
+        let fixedToday = try date(year: 2025, month: 1, day: 1, hour: 9, minute: 0)
+        let beforeLunchTimestamp = try date(year: 2025, month: 1, day: 1, hour: 13, minute: 20)
+        try await measurements.insertGlucose(
+            GlucoseMeasurement(
+                id: UUID(),
+                timestamp: beforeLunchTimestamp,
+                value: 5.4,
+                unit: .mmolL,
+                measurementType: .beforeMeal,
+                mealSlot: .lunch,
+                comment: nil
+            )
+        )
+
+        let overview = await sut.compute(today: fixedToday)
+        let afterLunch = try XCTUnwrap(
+            overview.glucoseSlots.first(where: { $0.mealSlot == .lunch && $0.measurementType == .afterMeal2h })
+        )
+        let beforeLunch = try XCTUnwrap(
+            overview.glucoseSlots.first(where: { $0.mealSlot == .lunch && $0.measurementType == .beforeMeal })
+        )
+        let expectedAfterLunch = try XCTUnwrap(Calendar.current.date(byAdding: .hour, value: 2, to: beforeLunchTimestamp))
+
+        XCTAssertEqual(afterLunch.date, expectedAfterLunch)
+        XCTAssertEqual(beforeLunch.date, try date(year: 2025, month: 1, day: 1, hour: 13, minute: 0))
+    }
+
+    func test_nonCycle_afterMealSlotStaysPlannedWhenNoBeforeMealLogged() async throws {
+        let measurements = MockMeasurementsRepository()
+        let settings = MockSettingsRepository()
+        let sut = GetTodayOverviewUseCase(measurementsRepository: measurements, settingsRepository: settings)
+
+        let userSettings = try await settings.getOrCreate()
+        userSettings.enableDailyCycleMode = false
+        userSettings.enableBeforeMeal = true
+        userSettings.enableAfterMeal2h = true
+        userSettings.lunchHour = 13
+        userSettings.lunchMinute = 0
+
+        let fixedToday = try date(year: 2025, month: 1, day: 1, hour: 9, minute: 0)
+        let overview = await sut.compute(today: fixedToday)
+        let afterLunch = try XCTUnwrap(
+            overview.glucoseSlots.first(where: { $0.mealSlot == .lunch && $0.measurementType == .afterMeal2h })
+        )
+
+        XCTAssertEqual(afterLunch.date, try date(year: 2025, month: 1, day: 1, hour: 15, minute: 0))
+    }
+
     func test_cycleMode_breakfastDay_returnsBreakfastAndAfterBreakfastOnly() async throws {
         let measurements = MockMeasurementsRepository()
         let settings = MockSettingsRepository()
@@ -70,5 +130,44 @@ final class GetTodayOverviewUseCaseCycleTests: XCTestCase {
         XCTAssertEqual(overview.glucoseSlots.count, 1)
         XCTAssertEqual(overview.glucoseSlots.first?.mealSlot, MealSlot.none)
         XCTAssertEqual(overview.glucoseSlots.first?.measurementType, .bedtime)
+    }
+
+    func test_cycleMode_afterMealSlotShiftsFromLoggedBeforeMealTimestamp() async throws {
+        let measurements = MockMeasurementsRepository()
+        let settings = MockSettingsRepository()
+        let sut = GetTodayOverviewUseCase(measurementsRepository: measurements, settingsRepository: settings)
+
+        let userSettings = try await settings.getOrCreate()
+        userSettings.enableDailyCycleMode = true
+        userSettings.currentCycleIndex = 1
+        userSettings.lunchHour = 13
+        userSettings.lunchMinute = 0
+
+        let fixedToday = try date(year: 2025, month: 1, day: 1, hour: 9, minute: 0)
+        let beforeLunchTimestamp = try date(year: 2025, month: 1, day: 1, hour: 13, minute: 20)
+        try await measurements.insertGlucose(
+            GlucoseMeasurement(
+                id: UUID(),
+                timestamp: beforeLunchTimestamp,
+                value: 5.1,
+                unit: .mmolL,
+                measurementType: .beforeMeal,
+                mealSlot: .lunch,
+                comment: nil
+            )
+        )
+
+        let overview = await sut.compute(today: fixedToday)
+        let afterLunch = try XCTUnwrap(
+            overview.glucoseSlots.first(where: { $0.mealSlot == .lunch && $0.measurementType == .afterMeal2h })
+        )
+        let expectedAfterLunch = try XCTUnwrap(Calendar.current.date(byAdding: .hour, value: 2, to: beforeLunchTimestamp))
+
+        XCTAssertEqual(afterLunch.date, expectedAfterLunch)
+    }
+
+    private func date(year: Int, month: Int, day: Int, hour: Int, minute: Int) throws -> Date {
+        let components = DateComponents(year: year, month: month, day: day, hour: hour, minute: minute)
+        return try XCTUnwrap(Calendar.current.date(from: components))
     }
 }

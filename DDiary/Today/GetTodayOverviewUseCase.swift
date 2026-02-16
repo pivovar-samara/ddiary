@@ -168,6 +168,28 @@ public final class GetTodayOverviewUseCase {
             )
         }
 
+        let adjustedAfterDatesByIndex = Self.adjustedAfterMealDatesByIndex(
+            plannedSlots: glucosePlanned,
+            glucoseMeasurements: glucoseMeasurements,
+            calendar: calendar
+        )
+        if !adjustedAfterDatesByIndex.isEmpty {
+            glucosePlanned = glucosePlanned.enumerated().map { index, pair in
+                guard let adjustedDate = adjustedAfterDatesByIndex[index] else { return pair }
+                return (
+                    slot: GlucosePlannedSlot(
+                        mealSlot: pair.slot.mealSlot,
+                        measurementType: pair.slot.measurementType,
+                        date: adjustedDate,
+                        completed: pair.slot.completed,
+                        matchedMeasurementId: pair.slot.matchedMeasurementId
+                    ),
+                    baseDate: adjustedDate
+                )
+            }
+            glucosePlanned.sort { $0.baseDate < $1.baseDate }
+        }
+
         // Mark BP completion by assigning each measurement to the nearest scheduled slot (no time tolerance)
         var unassignedIndices = Array(bpDates.indices)
         var assignment: [Int: UUID] = [:]
@@ -231,6 +253,44 @@ public final class GetTodayOverviewUseCase {
         let start = calendar.startOfDay(for: date)
         let end = calendar.date(byAdding: DateComponents(day: 1, second: -1), to: start) ?? start
         return (start, end)
+    }
+
+    private static func adjustedAfterMealDatesByIndex(
+        plannedSlots: [(slot: GlucosePlannedSlot, baseDate: Date)],
+        glucoseMeasurements: [GlucoseMeasurement],
+        calendar: Calendar
+    ) -> [Int: Date] {
+        var unmatchedBeforeMeal = glucoseMeasurements
+            .filter { $0.measurementType == .beforeMeal && $0.mealSlot != .none }
+            .sorted { $0.timestamp < $1.timestamp }
+        var adjustedByIndex: [Int: Date] = [:]
+
+        for (index, pair) in plannedSlots.enumerated() where pair.slot.measurementType == .afterMeal2h {
+            let mealSlot = pair.slot.mealSlot
+            guard mealSlot != .none else { continue }
+            guard let plannedBeforeDate = calendar.date(byAdding: .hour, value: -2, to: pair.baseDate) else { continue }
+
+            let candidates = unmatchedBeforeMeal.enumerated().filter { _, measurement in
+                measurement.mealSlot == mealSlot
+            }
+            guard let nearest = candidates.min(by: { lhs, rhs in
+                let lhsDistance = abs(lhs.element.timestamp.timeIntervalSince(plannedBeforeDate))
+                let rhsDistance = abs(rhs.element.timestamp.timeIntervalSince(plannedBeforeDate))
+                if lhsDistance == rhsDistance {
+                    let lhsIsAfter = lhs.element.timestamp >= plannedBeforeDate
+                    let rhsIsAfter = rhs.element.timestamp >= plannedBeforeDate
+                    if lhsIsAfter != rhsIsAfter { return lhsIsAfter }
+                    return lhs.offset < rhs.offset
+                }
+                return lhsDistance < rhsDistance
+            }) else { continue }
+
+            let beforeMeasurement = unmatchedBeforeMeal.remove(at: nearest.offset)
+            guard let shiftedAfterDate = calendar.date(byAdding: .hour, value: 2, to: beforeMeasurement.timestamp) else { continue }
+            adjustedByIndex[index] = shiftedAfterDate
+        }
+
+        return adjustedByIndex
     }
 
     private func persistCycleAnchorIfNeeded(settings: UserSettings, today: Date, calendar: Calendar) async -> Date? {
