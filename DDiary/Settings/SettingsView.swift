@@ -96,14 +96,31 @@ struct SettingsView: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             SettingsDivider()
                         } else {
-                            ForEach(Array(bvm.bpTimes.enumerated()), id: \.offset) { index, minutes in
-                                SettingsRow(title: bpTimeLabel(minutes)) {
+                            ForEach(Array(bvm.bpTimes.indices), id: \.self) { index in
+                                HStack(spacing: DS.Spacing.small) {
+                                    TimeOfDayPicker(
+                                        minutesSinceMidnight: Binding(
+                                            get: {
+                                                guard bvm.bpTimes.indices.contains(index) else { return 9 * 60 }
+                                                return bvm.bpTimes[index]
+                                            },
+                                            set: { newValue in
+                                                guard bvm.bpTimes.indices.contains(index) else { return }
+                                                bvm.bpTimes[index] = clampedMinutesSinceMidnight(newValue)
+                                            }
+                                        )
+                                    )
+                                    .accessibilityIdentifier("settings.bp.time.\(index)")
+                                    Spacer(minLength: DS.Spacing.small)
                                     Button(role: .destructive) {
                                         bvm.bpTimes.remove(at: index)
                                     } label: {
                                         Image(systemName: "trash")
                                     }
+                                    .buttonStyle(.plain)
+                                    .accessibilityIdentifier("settings.bp.remove.\(index)")
                                 }
+                                .frame(minHeight: 48)
                                 if index < bvm.bpTimes.count - 1 {
                                     SettingsDivider()
                                 }
@@ -380,10 +397,8 @@ struct SettingsView: View {
         switch unit { case .mmolL: return L10n.unitMmolL; case .mgdL: return L10n.unitMgDL }
     }
 
-    private func bpTimeLabel(_ minutes: Int) -> String {
-        let h = minutes / 60
-        let m = minutes % 60
-        return String(format: "%02d:%02d", h, m)
+    private func clampedMinutesSinceMidnight(_ value: Int) -> Int {
+        min(max(value, 0), (23 * 60) + 59)
     }
 
     private func dateString(_ date: Date) -> String {
@@ -690,6 +705,41 @@ private struct DateRowPicker: View {
             .allowsHitTesting(false)
         }
         .frame(height: 44)
+    }
+}
+
+private struct TimeOfDayPicker: View {
+    @Binding var minutesSinceMidnight: Int
+
+    private var selection: Binding<Date> {
+        Binding<Date>(
+            get: { date(from: minutesSinceMidnight) },
+            set: { minutesSinceMidnight = minutes(from: $0) }
+        )
+    }
+
+    var body: some View {
+        DatePicker("", selection: selection, displayedComponents: [.hourAndMinute])
+            .labelsHidden()
+            .datePickerStyle(.compact)
+            .frame(height: 44)
+    }
+
+    private func date(from minutes: Int) -> Date {
+        let clamped = min(max(minutes, 0), (23 * 60) + 59)
+        let calendar = Calendar.autoupdatingCurrent
+        var components = calendar.dateComponents([.year, .month, .day], from: Date())
+        components.hour = clamped / 60
+        components.minute = clamped % 60
+        components.second = 0
+        return calendar.date(from: components) ?? Date()
+    }
+
+    private func minutes(from date: Date) -> Int {
+        let components = Calendar.autoupdatingCurrent.dateComponents([.hour, .minute], from: date)
+        let hour = min(max(components.hour ?? 0, 0), 23)
+        let minute = min(max(components.minute ?? 0, 0), 59)
+        return hour * 60 + minute
     }
 }
 
