@@ -208,6 +208,28 @@ final class SettingsViewModelSaveSettingsTests: XCTestCase {
         )
     }
 
+    func test_measurementsDidChange_refreshesPendingCountImmediately() async throws {
+        let settingsRepository = SpySettingsRepository()
+        let updater = SpySchedulesUpdater()
+        let measurementsRepository = MockMeasurementsRepository()
+        let sut = makeSUT(
+            settingsRepository: settingsRepository,
+            measurementsRepository: measurementsRepository,
+            schedulesUpdater: updater
+        )
+
+        await sut.loadSettings()
+        XCTAssertEqual(sut.pendingCount, 0)
+
+        try await measurementsRepository.insertBP(
+            BPMeasurement(timestamp: Date(), systolic: 120, diastolic: 80, pulse: 70, comment: nil)
+        )
+        NotificationCenter.default.post(name: .measurementsDidChange, object: nil)
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        XCTAssertEqual(sut.pendingCount, 1)
+    }
+
     private func makeSUT(
         settingsRepository: SpySettingsRepository,
         measurementsRepository: any MeasurementsRepository,

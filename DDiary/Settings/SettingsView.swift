@@ -333,6 +333,9 @@ struct SettingsView: View {
         .refreshable {
             await vm.refreshCloudBackedState()
         }
+        .onAppear {
+            Task { await vm.refreshCloudBackedState() }
+        }
         .accessibilityIdentifier("settings.scroll")
         .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
         .onChange(of: scenePhase) { _, newPhase in

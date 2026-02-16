@@ -57,6 +57,7 @@ final class HistoryViewModel {
     // Change propagation
     private var pendingReload = false
     private var reloadDebounceTask: Task<Void, Never>?
+    private var measurementsDidChangeObserver: NSObjectProtocol?
 
     // MARK: - Dependencies
     private let getHistory: GetHistoryUseCase
@@ -65,6 +66,15 @@ final class HistoryViewModel {
     init(getHistory: GetHistoryUseCase, initialRange: DateRange = HistoryViewModel.defaultRange(.days7)) {
         self.getHistory = getHistory
         self.selectedDateRange = initialRange
+        observeMeasurementsChanges()
+    }
+
+    @MainActor
+    deinit {
+        if let observer = measurementsDidChangeObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
+        reloadDebounceTask?.cancel()
     }
 
     // MARK: - Public API
@@ -192,12 +202,18 @@ final class HistoryViewModel {
         }
     }
 
-    func listenForChanges() async {
-        for await _ in NotificationCenter.default.notifications(named: .measurementsDidChange) {
-            scheduleReloadDebounced()
+    private func observeMeasurementsChanges() {
+        measurementsDidChangeObserver = NotificationCenter.default.addObserver(
+            forName: .measurementsDidChange,
+            object: nil,
+            queue: nil
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.scheduleReloadDebounced()
+            }
         }
     }
-    
+
     private func scheduleReloadDebounced() {
         reloadDebounceTask?.cancel()
         reloadDebounceTask = Task { [weak self] in

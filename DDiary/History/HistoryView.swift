@@ -17,7 +17,6 @@ struct HistoryView: View {
         Group {
             if let vm = viewModel {
                 content(for: vm)
-                    .task { await vm.listenForChanges() }
             } else {
                 ProgressView()
                     .accessibilityIdentifier("history.scroll")
@@ -58,6 +57,9 @@ struct HistoryView: View {
         }
         .refreshable {
             await vm.loadHistory()
+        }
+        .onAppear {
+            Task { await vm.loadHistory() }
         }
         .accessibilityIdentifier("history.scroll")
         .sheet(isPresented: $presentBPQuickEntry) {

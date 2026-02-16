@@ -118,6 +118,43 @@ final class SwiftDataMeasurementsRepositoryTests: XCTestCase {
         let deletedGlucose = try await repository.glucoseMeasurement(id: gOld.id)
         XCTAssertNil(deletedGlucose)
     }
+
+    func test_measurementMutations_postMeasurementsDidChangeNotification() async throws {
+        let container = try makeInMemoryModelContainer()
+        let repository = SwiftDataMeasurementsRepository(modelContext: ModelContext(container))
+
+        let notificationExpectation = expectation(description: "Measurements did change")
+        notificationExpectation.expectedFulfillmentCount = 6
+        let observer = NotificationCenter.default.addObserver(
+            forName: .measurementsDidChange,
+            object: nil,
+            queue: nil
+        ) { _ in
+            notificationExpectation.fulfill()
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
+
+        let bp = BPMeasurement(timestamp: Date(), systolic: 120, diastolic: 80, pulse: 70, comment: nil)
+        try await repository.insertBP(bp)
+        bp.comment = "updated"
+        try await repository.updateBP(bp)
+        try await repository.deleteBP(bp)
+
+        let glucose = GlucoseMeasurement(
+            timestamp: Date(),
+            value: 5.6,
+            unit: .mmolL,
+            measurementType: .beforeMeal,
+            mealSlot: .breakfast,
+            comment: nil
+        )
+        try await repository.insertGlucose(glucose)
+        glucose.comment = "updated"
+        try await repository.updateGlucose(glucose)
+        try await repository.deleteGlucose(glucose)
+
+        await fulfillment(of: [notificationExpectation], timeout: 1.0)
+    }
 }
 
 @MainActor

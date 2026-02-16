@@ -95,6 +95,8 @@ final class SettingsViewModel {
     var isLikelyRestoringFromICloud: Bool = false
     private let restoreHintUntil = Date().addingTimeInterval(120)
     private var googleSyncLifecycleObserver: NSObjectProtocol?
+    private var measurementsDidChangeObserver: NSObjectProtocol?
+    private var syncStatusRefreshDebounceTask: Task<Void, Never>?
 
     // MARK: - Init
     init(
@@ -112,6 +114,7 @@ final class SettingsViewModel {
         self.googleSheetsClient = googleSheetsClient
         self.schedulesUpdater = schedulesUpdater
         observeGoogleSyncLifecycle()
+        observeMeasurementsDidChange()
     }
 
     @MainActor
@@ -119,6 +122,10 @@ final class SettingsViewModel {
         if let observer = googleSyncLifecycleObserver {
             NotificationCenter.default.removeObserver(observer)
         }
+        if let observer = measurementsDidChangeObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
+        syncStatusRefreshDebounceTask?.cancel()
     }
 
     // MARK: - Public API
@@ -346,6 +353,30 @@ final class SettingsViewModel {
                 guard let self else { return }
                 await self.handleGoogleSyncLifecycle(phase, snapshot: snapshot)
             }
+        }
+    }
+
+    private func observeMeasurementsDidChange() {
+        measurementsDidChangeObserver = NotificationCenter.default.addObserver(
+            forName: .measurementsDidChange,
+            object: nil,
+            queue: nil
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.scheduleSyncStatusRefreshDebounced()
+            }
+        }
+    }
+
+    private func scheduleSyncStatusRefreshDebounced() {
+        guard !isGoogleSyncInProgress else { return }
+
+        syncStatusRefreshDebounceTask?.cancel()
+        syncStatusRefreshDebounceTask = Task { [weak self] in
+            guard let self else { return }
+            try? await Task.sleep(nanoseconds: 200_000_000)
+            guard !Task.isCancelled else { return }
+            await self.refreshSyncStatus()
         }
     }
 

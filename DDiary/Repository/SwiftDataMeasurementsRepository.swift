@@ -18,16 +18,19 @@ final class SwiftDataMeasurementsRepository: MeasurementsRepository {
     func insertBP(_ measurement: BPMeasurement) async throws {
         context.insert(measurement)
         try context.save()
+        notifyMeasurementsDidChange()
     }
 
     func updateBP(_ measurement: BPMeasurement) async throws {
         // SwiftData tracks changes on managed instances automatically.
         try context.save()
+        notifyMeasurementsDidChange()
     }
 
     func deleteBP(_ measurement: BPMeasurement) async throws {
         context.delete(measurement)
         try context.save()
+        notifyMeasurementsDidChange()
     }
 
     func bpMeasurement(id: UUID) async throws -> BPMeasurement? {
@@ -58,16 +61,19 @@ final class SwiftDataMeasurementsRepository: MeasurementsRepository {
     func insertGlucose(_ measurement: GlucoseMeasurement) async throws {
         context.insert(measurement)
         try context.save()
+        notifyMeasurementsDidChange()
     }
 
     func updateGlucose(_ measurement: GlucoseMeasurement) async throws {
         // SwiftData tracks changes on managed instances automatically.
         try context.save()
+        notifyMeasurementsDidChange()
     }
 
     func deleteGlucose(_ measurement: GlucoseMeasurement) async throws {
         context.delete(measurement)
         try context.save()
+        notifyMeasurementsDidChange()
     }
 
     func glucoseMeasurement(id: UUID) async throws -> GlucoseMeasurement? {
@@ -92,5 +98,9 @@ final class SwiftDataMeasurementsRepository: MeasurementsRepository {
         return try context.fetch(descriptor).filter { measurement in
             measurement.googleSyncStatus == .pending || measurement.googleSyncStatus == .failed
         }
+    }
+
+    private func notifyMeasurementsDidChange() {
+        NotificationCenter.default.post(name: .measurementsDidChange, object: nil)
     }
 }
