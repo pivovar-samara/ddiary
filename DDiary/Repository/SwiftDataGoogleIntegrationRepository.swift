@@ -76,6 +76,7 @@ private extension SwiftDataGoogleIntegrationRepository {
         }
 
         let primary = deterministicPrimary(from: allRecords)
+        mergeDuplicateValues(into: primary, from: allRecords)
         primary.singletonKey = GoogleIntegration.singletonRecordKey
         for duplicate in allRecords where duplicate !== primary {
             context.delete(duplicate)
@@ -87,6 +88,7 @@ private extension SwiftDataGoogleIntegrationRepository {
     func collapseToDeterministicSingleton(from candidates: [GoogleIntegration]) throws -> GoogleIntegration? {
         guard !candidates.isEmpty else { return nil }
         let primary = deterministicPrimary(from: candidates)
+        mergeDuplicateValues(into: primary, from: candidates)
         primary.singletonKey = GoogleIntegration.singletonRecordKey
         for duplicate in candidates where duplicate !== primary {
             context.delete(duplicate)
@@ -102,6 +104,11 @@ private extension SwiftDataGoogleIntegrationRepository {
     }
 
     func isPreferredPrimary(_ lhs: GoogleIntegration, _ rhs: GoogleIntegration) -> Bool {
+        let lhsCompletenessScore = completenessScore(for: lhs)
+        let rhsCompletenessScore = completenessScore(for: rhs)
+        if lhsCompletenessScore != rhsCompletenessScore {
+            return lhsCompletenessScore > rhsCompletenessScore
+        }
         if lhs.id == GoogleIntegration.singletonRecordID, rhs.id != GoogleIntegration.singletonRecordID { return true }
         if rhs.id == GoogleIntegration.singletonRecordID, lhs.id != GoogleIntegration.singletonRecordID { return false }
         if lhs.id != rhs.id {
@@ -110,8 +117,34 @@ private extension SwiftDataGoogleIntegrationRepository {
         return stableModelIdentifier(lhs) > stableModelIdentifier(rhs)
     }
 
+    func completenessScore(for integration: GoogleIntegration) -> Int {
+        var score = 0
+        if integration.isEnabled { score += 1 }
+        if normalized(integration.refreshToken) != nil { score += 1 }
+        if normalized(integration.spreadsheetId) != nil { score += 1 }
+        if normalized(integration.googleUserId) != nil { score += 1 }
+        return score
+    }
+
     func stableModelIdentifier(_ model: GoogleIntegration) -> String {
         String(describing: model.persistentModelID)
+    }
+
+    func mergeDuplicateValues(into primary: GoogleIntegration, from candidates: [GoogleIntegration]) {
+        for candidate in candidates where candidate !== primary {
+            if primary.refreshToken == nil, let refreshToken = normalized(candidate.refreshToken) {
+                primary.refreshToken = refreshToken
+            }
+            if primary.spreadsheetId == nil, let spreadsheetId = normalized(candidate.spreadsheetId) {
+                primary.spreadsheetId = spreadsheetId
+            }
+            if primary.googleUserId == nil, let googleUserId = normalized(candidate.googleUserId) {
+                primary.googleUserId = googleUserId
+            }
+            if !primary.isEnabled && candidate.isEnabled {
+                primary.isEnabled = true
+            }
+        }
     }
 
     func copyIntegrationValues(from source: GoogleIntegration, to target: GoogleIntegration) {
