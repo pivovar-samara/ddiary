@@ -79,6 +79,29 @@ final class SyncWithGoogleUseCase {
     /// Push pending/failed measurements to Google Sheets and update their sync status.
     func execute() async { await syncPendingMeasurements() }
 
+    /// Schedule a best-effort sync trigger that runs only when Google is connected.
+    /// This keeps value save flows fast while still starting sync immediately.
+    func scheduleSyncIfConnected() {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.syncPendingMeasurementsIfConnected()
+        }
+    }
+
+    /// Attempt sync only when integration is connected with required credentials.
+    /// No analytics failure is logged when integration is not connected.
+    func syncPendingMeasurementsIfConnected() async {
+        do {
+            guard try await hasConnectedIntegration() else {
+                log("Auto-sync skipped: integration not connected")
+                return
+            }
+            await syncPendingMeasurements()
+        } catch {
+            log("Auto-sync preflight failed: \(error)")
+        }
+    }
+
     /// Push pending/failed measurements to Google Sheets and update their sync status.
     func syncPendingMeasurements() async {
         guard !isSyncInProgress else {
@@ -260,5 +283,12 @@ final class SyncWithGoogleUseCase {
         #if DEBUG
         print("[GoogleSync] \(message)")
         #endif
+    }
+
+    private func hasConnectedIntegration() async throws -> Bool {
+        let integration = try await googleIntegrationRepository.getOrCreate()
+        return integration.isEnabled
+            && integration.spreadsheetId != nil
+            && integration.refreshToken != nil
     }
 }

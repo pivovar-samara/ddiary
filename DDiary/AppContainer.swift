@@ -111,14 +111,28 @@ struct AppContainer {
             measurementsRepository: measurementsRepository
         )
 
+        let syncWithGoogleUseCase = SyncWithGoogleUseCase(
+            googleIntegrationRepository: googleIntegrationRepository,
+            measurementsRepository: measurementsRepository,
+            analyticsRepository: analyticsRepository,
+            googleSheetsClient: googleSheetsClient
+        )
+        self.syncWithGoogleUseCase = syncWithGoogleUseCase
+
         self.logBPMeasurementUseCase = LogBPMeasurementUseCase(
             measurementsRepository: measurementsRepository,
-            analyticsRepository: analyticsRepository
+            analyticsRepository: analyticsRepository,
+            scheduleGoogleSyncIfConnected: { [syncWithGoogleUseCase] in
+                syncWithGoogleUseCase.scheduleSyncIfConnected()
+            }
         )
         self.logGlucoseMeasurementUseCase = LogGlucoseMeasurementUseCase(
             measurementsRepository: measurementsRepository,
             settingsRepository: settingsRepository,
-            analyticsRepository: analyticsRepository
+            analyticsRepository: analyticsRepository,
+            scheduleGoogleSyncIfConnected: { [syncWithGoogleUseCase] in
+                syncWithGoogleUseCase.scheduleSyncIfConnected()
+            }
         )
         self.updateBPMeasurementUseCase = UpdateBPMeasurementUseCase(
             measurementsRepository: measurementsRepository,
@@ -130,12 +144,6 @@ struct AppContainer {
         )
         self.exportCSVUseCase = ExportCSVUseCase(
             measurementsRepository: measurementsRepository
-        )
-        self.syncWithGoogleUseCase = SyncWithGoogleUseCase(
-            googleIntegrationRepository: googleIntegrationRepository,
-            measurementsRepository: measurementsRepository,
-            analyticsRepository: analyticsRepository,
-            googleSheetsClient: googleSheetsClient
         )
         self.updateSchedulesUseCase = UpdateSchedulesUseCase(
             settingsRepository: settingsRepository,

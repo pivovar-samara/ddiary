@@ -7,13 +7,16 @@ import Foundation
 public final class LogBPMeasurementUseCase {
     private let measurementsRepository: MeasurementsRepository
     private let analyticsRepository: AnalyticsRepository
+    private let scheduleGoogleSyncIfConnected: @MainActor () -> Void
 
     public init(
         measurementsRepository: MeasurementsRepository,
-        analyticsRepository: AnalyticsRepository
+        analyticsRepository: AnalyticsRepository,
+        scheduleGoogleSyncIfConnected: @escaping @MainActor () -> Void = {}
     ) {
         self.measurementsRepository = measurementsRepository
         self.analyticsRepository = analyticsRepository
+        self.scheduleGoogleSyncIfConnected = scheduleGoogleSyncIfConnected
     }
 
     /// Create and persist a new `BPMeasurement` and log analytics.
@@ -43,6 +46,9 @@ public final class LogBPMeasurementUseCase {
 
         // Persist via the repository (MainActor-bound).
         try await measurementsRepository.insertBP(measurement)
+
+        // Start best-effort Google sync immediately when integration is connected.
+        scheduleGoogleSyncIfConnected()
 
         // Fire analytics in the background of this async context.
         await analyticsRepository.logMeasurementLogged(kind: .bloodPressure)

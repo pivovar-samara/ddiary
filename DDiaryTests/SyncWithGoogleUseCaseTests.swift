@@ -58,6 +58,29 @@ final class SyncWithGoogleUseCaseTests: XCTestCase {
         XCTAssertFalse(analytics.googleSyncFailureReasons.isEmpty)
     }
 
+    func test_syncPendingMeasurementsIfConnected_skipsWhenDisconnected_withoutFailureAnalytics() async throws {
+        let measurements = MockMeasurementsRepository()
+        let analytics = MockAnalyticsRepository()
+        let google = MockGoogleIntegrationRepository()
+
+        let bp = BPMeasurement(timestamp: Date(), systolic: 120, diastolic: 80, pulse: 70, comment: nil)
+        try await measurements.insertBP(bp)
+
+        let client = RecordingGoogleSheetsClient(mode: .succeed)
+        let sut = SyncWithGoogleUseCase(
+            googleIntegrationRepository: google,
+            measurementsRepository: measurements,
+            analyticsRepository: analytics,
+            googleSheetsClient: client
+        )
+
+        await sut.syncPendingMeasurementsIfConnected()
+
+        let unchanged = try await measurements.bpMeasurement(id: bp.id)
+        XCTAssertEqual(unchanged?.googleSyncStatus, .pending)
+        XCTAssertTrue(analytics.googleSyncFailureReasons.isEmpty)
+    }
+
     func test_errorPath_clientFails_marksFailed() async throws {
         let measurements = MockMeasurementsRepository()
         let analytics = MockAnalyticsRepository()

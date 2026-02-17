@@ -13,7 +13,12 @@ final class LogBPMeasurementUseCaseTests: XCTestCase {
     func test_happyPath_insertsAndLogsAnalytics() async throws {
         let repo = MockMeasurementsRepository()
         let analytics = MockAnalyticsRepository()
-        let sut = LogBPMeasurementUseCase(measurementsRepository: repo, analyticsRepository: analytics)
+        var syncScheduleCount = 0
+        let sut = LogBPMeasurementUseCase(
+            measurementsRepository: repo,
+            analyticsRepository: analytics,
+            scheduleGoogleSyncIfConnected: { syncScheduleCount += 1 }
+        )
 
         try await sut.execute(systolic: 120, diastolic: 80, pulse: 70, comment: "ok")
 
@@ -23,6 +28,7 @@ final class LogBPMeasurementUseCaseTests: XCTestCase {
         XCTAssertEqual(all.first?.googleSyncStatus, .pending)
         // Analytics called
         XCTAssertEqual(analytics.measurementLogged, [.bloodPressure])
+        XCTAssertEqual(syncScheduleCount, 1)
     }
 
     func test_errorPath_repositoryThrows() async throws {
@@ -44,7 +50,12 @@ final class LogBPMeasurementUseCaseTests: XCTestCase {
         }
         let repo = ThrowingInsertBPRepo()
         let analytics = MockAnalyticsRepository()
-        let sut = LogBPMeasurementUseCase(measurementsRepository: repo, analyticsRepository: analytics)
+        var syncScheduleCount = 0
+        let sut = LogBPMeasurementUseCase(
+            measurementsRepository: repo,
+            analyticsRepository: analytics,
+            scheduleGoogleSyncIfConnected: { syncScheduleCount += 1 }
+        )
 
         await XCTAssertThrowsErrorAsync(try await sut.execute(systolic: 120, diastolic: 80, pulse: 70, comment: nil))
         // Ensure nothing inserted
@@ -52,6 +63,7 @@ final class LogBPMeasurementUseCaseTests: XCTestCase {
         XCTAssertTrue(all.isEmpty)
         // Analytics should not record success
         XCTAssertTrue(analytics.measurementLogged.isEmpty)
+        XCTAssertEqual(syncScheduleCount, 0)
     }
 
     func test_concurrentCalls_doNotCrash() async throws {

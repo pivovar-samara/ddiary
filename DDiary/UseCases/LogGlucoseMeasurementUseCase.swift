@@ -8,15 +8,18 @@ public final class LogGlucoseMeasurementUseCase {
     private let measurementsRepository: MeasurementsRepository
     private let settingsRepository: SettingsRepository
     private let analyticsRepository: AnalyticsRepository
+    private let scheduleGoogleSyncIfConnected: @MainActor () -> Void
 
     public init(
         measurementsRepository: MeasurementsRepository,
         settingsRepository: SettingsRepository,
-        analyticsRepository: AnalyticsRepository
+        analyticsRepository: AnalyticsRepository,
+        scheduleGoogleSyncIfConnected: @escaping @MainActor () -> Void = {}
     ) {
         self.measurementsRepository = measurementsRepository
         self.settingsRepository = settingsRepository
         self.analyticsRepository = analyticsRepository
+        self.scheduleGoogleSyncIfConnected = scheduleGoogleSyncIfConnected
     }
 
     /// Create and persist a new `GlucoseMeasurement` and log analytics.
@@ -51,6 +54,9 @@ public final class LogGlucoseMeasurementUseCase {
 
         // Persist via the repository (MainActor-bound).
         try await measurementsRepository.insertGlucose(measurement)
+
+        // Start best-effort Google sync immediately when integration is connected.
+        scheduleGoogleSyncIfConnected()
 
         // Fire analytics in the background of this async context.
         await analyticsRepository.logMeasurementLogged(kind: .glucose)

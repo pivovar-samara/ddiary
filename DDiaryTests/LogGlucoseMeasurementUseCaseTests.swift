@@ -14,7 +14,13 @@ final class LogGlucoseMeasurementUseCaseTests: XCTestCase {
         let measurements = MockMeasurementsRepository()
         let settings = MockSettingsRepository()
         let analytics = MockAnalyticsRepository()
-        let sut = LogGlucoseMeasurementUseCase(measurementsRepository: measurements, settingsRepository: settings, analyticsRepository: analytics)
+        var syncScheduleCount = 0
+        let sut = LogGlucoseMeasurementUseCase(
+            measurementsRepository: measurements,
+            settingsRepository: settings,
+            analyticsRepository: analytics,
+            scheduleGoogleSyncIfConnected: { syncScheduleCount += 1 }
+        )
 
         try await sut.execute(value: 5.5, measurementType: .beforeMeal, mealSlot: .breakfast, comment: "fasting")
 
@@ -24,6 +30,7 @@ final class LogGlucoseMeasurementUseCaseTests: XCTestCase {
         XCTAssertEqual(all.first?.unit, settingsUnit)
         XCTAssertEqual(all.first?.googleSyncStatus, .pending)
         XCTAssertEqual(analytics.measurementLogged, [.glucose])
+        XCTAssertEqual(syncScheduleCount, 1)
     }
 
     func test_errorPath_repositoryThrows() async throws {
@@ -36,12 +43,19 @@ final class LogGlucoseMeasurementUseCaseTests: XCTestCase {
         let measurements = MockMeasurementsRepository()
         let settings = ThrowingSettingsRepository()
         let analytics = MockAnalyticsRepository()
-        let sut = LogGlucoseMeasurementUseCase(measurementsRepository: measurements, settingsRepository: settings, analyticsRepository: analytics)
+        var syncScheduleCount = 0
+        let sut = LogGlucoseMeasurementUseCase(
+            measurementsRepository: measurements,
+            settingsRepository: settings,
+            analyticsRepository: analytics,
+            scheduleGoogleSyncIfConnected: { syncScheduleCount += 1 }
+        )
 
         await XCTAssertThrowsErrorAsync(try await sut.execute(value: 4.2, measurementType: .beforeMeal, mealSlot: .breakfast, comment: nil))
         let all = try await measurements.glucoseMeasurements(from: Date.distantPast, to: Date.distantFuture)
         XCTAssertTrue(all.isEmpty)
         XCTAssertTrue(analytics.measurementLogged.isEmpty)
+        XCTAssertEqual(syncScheduleCount, 0)
     }
 
     func test_cycleMode_loggingBeforeMeal_doesNotAdvanceCurrentCycleIndex() async throws {
