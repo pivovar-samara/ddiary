@@ -143,7 +143,8 @@ public protocol NotificationsRepository: Sendable {
         identifier: String,
         title: String,
         body: String,
-        categoryIdentifier: String
+        categoryIdentifier: String,
+        userInfo: [AnyHashable: Any]
     ) async
 
     /// Convenience for snoozing: schedule a one-off notification after N minutes.
@@ -225,6 +226,37 @@ public extension NotificationsRepository {
         await cancelAll()
         try await scheduleBPNotifications(settings: settings)
         try await scheduleGlucoseNotifications(settings: settings)
+    }
+
+    /// Schedules a debug-only BP notification that matches production category/content.
+    func scheduleDebugBloodPressureNotification(after seconds: TimeInterval = 10) async {
+        let date = Date().addingTimeInterval(seconds)
+        let identifier = "ddiary.debug.bp.\(Int(date.timeIntervalSince1970))"
+        await scheduleOneOff(
+            at: date,
+            identifier: identifier,
+            title: L10n.notificationBPTitle,
+            body: L10n.notificationBPBody,
+            categoryIdentifier: UserNotificationsRepository.IDs.bpCategory,
+            userInfo: [:]
+        )
+    }
+
+    /// Schedules a debug-only Glucose notification that matches production category/content.
+    func scheduleDebugGlucoseNotification(after seconds: TimeInterval = 10) async {
+        let date = Date().addingTimeInterval(seconds)
+        let identifier = "ddiary.debug.glucose.before.breakfast.\(Int(date.timeIntervalSince1970))"
+        await scheduleOneOff(
+            at: date,
+            identifier: identifier,
+            title: L10n.notificationGlucoseBeforeBreakfastTitle,
+            body: L10n.notificationGlucoseBeforeBreakfastBody,
+            categoryIdentifier: UserNotificationsRepository.IDs.glucoseBeforeCategory,
+            userInfo: [
+                UserNotificationsRepository.PayloadKeys.mealSlot: MealSlot.breakfast.rawValue,
+                UserNotificationsRepository.PayloadKeys.measurementType: GlucoseMeasurementType.beforeMeal.rawValue,
+            ]
+        )
     }
 }
 

@@ -4,6 +4,17 @@ import UserNotifications
 
 @MainActor
 final class UserNotificationsRepositoryTests: XCTestCase {
+    func test_parseAction_treatsDefaultTapAsEnter() {
+        XCTAssertEqual(
+            UserNotificationsRepository.parseAction(actionIdentifier: UNNotificationDefaultActionIdentifier),
+            .enter
+        )
+        XCTAssertEqual(
+            UserNotificationsRepository.parseAction(actionIdentifier: UserNotificationsRepository.IDs.enterAction),
+            .enter
+        )
+    }
+
     func test_registerCategories_setsAllExpectedCategories() {
         let center = FakeNotificationCenter()
 
@@ -41,6 +52,28 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         XCTAssertEqual(trigger.dateComponents.weekday, 2)
         XCTAssertEqual(trigger.dateComponents.hour, 9)
         XCTAssertEqual(trigger.dateComponents.minute, 0)
+    }
+
+    func test_scheduleGlucoseBeforeMeal_attachesQuickEntryMetadata() async throws {
+        let center = FakeNotificationCenter()
+        let repository = UserNotificationsRepository(center: center)
+
+        try await repository.scheduleGlucoseBeforeMeal(
+            breakfast: DateComponents(hour: 8, minute: 0),
+            lunch: DateComponents(hour: 13, minute: 0),
+            dinner: DateComponents(hour: 19, minute: 0),
+            isEnabled: true
+        )
+
+        let request = try XCTUnwrap(center.pendingRequests["ddiary.glucose.before.1300"])
+        XCTAssertEqual(
+            request.content.userInfo[UserNotificationsRepository.PayloadKeys.mealSlot] as? String,
+            MealSlot.lunch.rawValue
+        )
+        XCTAssertEqual(
+            request.content.userInfo[UserNotificationsRepository.PayloadKeys.measurementType] as? String,
+            GlucoseMeasurementType.beforeMeal.rawValue
+        )
     }
 
     func test_rescheduleGlucose_removesExistingPrefixedRequestsAndSchedulesEnabledKindsOnly() async throws {
@@ -137,6 +170,71 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         ])
 
         XCTAssertEqual(Set(center.pendingRequests.keys), expected)
+    }
+
+    func test_scheduleOneOff_attachesProvidedUserInfo() async {
+        let center = FakeNotificationCenter()
+        let repository = UserNotificationsRepository(center: center)
+        let fireDate = Calendar.current.date(
+            from: DateComponents(year: 2026, month: 2, day: 17, hour: 15, minute: 30, second: 42)
+        ) ?? Date()
+
+        await repository.scheduleOneOff(
+            at: fireDate,
+            identifier: "ddiary.oneoff.test",
+            title: "title",
+            body: "body",
+            categoryIdentifier: UserNotificationsRepository.IDs.glucoseBeforeCategory,
+            userInfo: [
+                UserNotificationsRepository.PayloadKeys.mealSlot: MealSlot.breakfast.rawValue,
+                UserNotificationsRepository.PayloadKeys.measurementType: GlucoseMeasurementType.beforeMeal.rawValue,
+            ]
+        )
+
+        guard let request = center.pendingRequests["ddiary.oneoff.test"] else {
+            XCTFail("Expected one-off request to be scheduled")
+            return
+        }
+        XCTAssertEqual(
+            request.content.userInfo[UserNotificationsRepository.PayloadKeys.mealSlot] as? String,
+            MealSlot.breakfast.rawValue
+        )
+        XCTAssertEqual(
+            request.content.userInfo[UserNotificationsRepository.PayloadKeys.measurementType] as? String,
+            GlucoseMeasurementType.beforeMeal.rawValue
+        )
+        let trigger = request.trigger as? UNCalendarNotificationTrigger
+        XCTAssertEqual(trigger?.dateComponents.second, 42)
+    }
+
+    func test_scheduleDebugNotifications_useProductionCategoriesAndPayload() async {
+        let center = FakeNotificationCenter()
+        let repository = UserNotificationsRepository(center: center)
+
+        await repository.scheduleDebugBloodPressureNotification(after: 10)
+        await repository.scheduleDebugGlucoseNotification(after: 10)
+
+        let bpRequest = center.pendingRequests.values.first {
+            $0.identifier.hasPrefix("ddiary.debug.bp.")
+        }
+        XCTAssertNotNil(bpRequest)
+        XCTAssertEqual(bpRequest?.content.categoryIdentifier, UserNotificationsRepository.IDs.bpCategory)
+        XCTAssertEqual(bpRequest?.content.title, L10n.notificationBPTitle)
+
+        let glucoseRequest = center.pendingRequests.values.first {
+            $0.identifier.hasPrefix("ddiary.debug.glucose.before.breakfast.")
+        }
+        XCTAssertNotNil(glucoseRequest)
+        XCTAssertEqual(glucoseRequest?.content.categoryIdentifier, UserNotificationsRepository.IDs.glucoseBeforeCategory)
+        XCTAssertEqual(glucoseRequest?.content.title, L10n.notificationGlucoseBeforeBreakfastTitle)
+        XCTAssertEqual(
+            glucoseRequest?.content.userInfo[UserNotificationsRepository.PayloadKeys.mealSlot] as? String,
+            MealSlot.breakfast.rawValue
+        )
+        XCTAssertEqual(
+            glucoseRequest?.content.userInfo[UserNotificationsRepository.PayloadKeys.measurementType] as? String,
+            GlucoseMeasurementType.beforeMeal.rawValue
+        )
     }
 
     private func makeRequest(id: String) -> UNNotificationRequest {

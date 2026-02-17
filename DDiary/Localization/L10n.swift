@@ -5,10 +5,44 @@ enum L10n {
     static let tabToday = tr("tab.today", "Today")
     static let tabHistory = tr("tab.history", "History")
     static let tabSettings = tr("tab.settings", "Settings")
+    static let tabDebug = tr("tab.debug", "Debug")
 
     static let screenTodayTitle = tr("screen.today.title", "Today")
     static let screenHistoryTitle = tr("screen.history.title", "History")
     static let screenSettingsTitle = tr("screen.settings.title", "Settings")
+    static let screenDebugTitle = tr("screen.debug.title", "Debug")
+
+    // MARK: - Debug
+    static let debugNotificationsHint = tr("debug.notifications.hint", "Schedules in 10 seconds.")
+    static let debugGenerateBPNotification = tr(
+        "debug.notifications.generate_bp",
+        "Generate test notification for BP"
+    )
+    static let debugGenerateGlucoseNotification = tr(
+        "debug.notifications.generate_glucose",
+        "Generate test notification for Glucose"
+    )
+    static let debugScheduledBP = tr(
+        "debug.notifications.scheduled_bp",
+        "Scheduled BP test notification."
+    )
+    static let debugScheduledGlucose = tr(
+        "debug.notifications.scheduled_glucose",
+        "Scheduled Glucose test notification."
+    )
+    static let debugAuthorizationDenied = tr(
+        "debug.notifications.authorization_denied",
+        "Notifications permission is not granted."
+    )
+    static func debugScheduleFailed(_ message: String) -> String {
+        String(
+            format: tr(
+                "debug.notifications.schedule_failed_format",
+                "Failed to schedule test notification: %@"
+            ),
+            message
+        )
+    }
 
     // MARK: - Today
     static let todayLoading = tr("today.loading", "Loading…")

@@ -133,6 +133,11 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         static let glucoseBedtimePrefix = "ddiary.glucose.bedtime."
     }
 
+    enum PayloadKeys {
+        static let mealSlot = "mealSlot"
+        static let measurementType = "measurementType"
+    }
+
     // MARK: - Public category registration
     static func registerCategories(center: any UserNotificationCentering = LiveUserNotificationCenter()) {
         let enter = UNNotificationAction(identifier: IDs.enterAction, title: L10n.notificationActionEnter, options: [.foreground])
@@ -213,18 +218,23 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
 
     func scheduleGlucoseBeforeMeal(breakfast: DateComponents, lunch: DateComponents, dinner: DateComponents, isEnabled: Bool) async throws {
         guard isEnabled else { return }
-        let items: [(String, String, DateComponents)] = [
-            (L10n.notificationGlucoseBeforeBreakfastTitle, L10n.notificationGlucoseBeforeBreakfastBody, breakfast),
-            (L10n.notificationGlucoseBeforeLunchTitle, L10n.notificationGlucoseBeforeLunchBody, lunch),
-            (L10n.notificationGlucoseBeforeDinnerTitle, L10n.notificationGlucoseBeforeDinnerBody, dinner)
+        let items: [(String, String, DateComponents, MealSlot)] = [
+            (L10n.notificationGlucoseBeforeBreakfastTitle, L10n.notificationGlucoseBeforeBreakfastBody, breakfast, .breakfast),
+            (L10n.notificationGlucoseBeforeLunchTitle, L10n.notificationGlucoseBeforeLunchBody, lunch, .lunch),
+            (L10n.notificationGlucoseBeforeDinnerTitle, L10n.notificationGlucoseBeforeDinnerBody, dinner, .dinner)
         ]
-        for (title, body, comps) in items {
+        for (title, body, comps, mealSlot) in items {
             var dc = DateComponents()
             dc.hour = comps.hour
             dc.minute = comps.minute
             let trigger = UNCalendarNotificationTrigger(dateMatching: dc, repeats: true)
             let id = identifier(prefix: IDs.glucoseBeforePrefix, components: dc)
-            let content = makeContent(title: title, body: body, categoryIdentifier: IDs.glucoseBeforeCategory)
+            let content = makeContent(
+                title: title,
+                body: body,
+                categoryIdentifier: IDs.glucoseBeforeCategory,
+                userInfo: quickEntryUserInfo(mealSlot: mealSlot, measurementType: .beforeMeal)
+            )
             let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
             await center.addOrReplace(request: request)
         }
@@ -232,18 +242,23 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
 
     func scheduleGlucoseAfterMeal2h(breakfast: DateComponents, lunch: DateComponents, dinner: DateComponents, isEnabled: Bool) async throws {
         guard isEnabled else { return }
-        let items: [(String, String, DateComponents)] = [
-            (L10n.notificationGlucoseAfterBreakfast2hTitle, L10n.notificationGlucoseAfterBreakfast2hBody, addingHours(breakfast, hours: 2)),
-            (L10n.notificationGlucoseAfterLunch2hTitle, L10n.notificationGlucoseAfterLunch2hBody, addingHours(lunch, hours: 2)),
-            (L10n.notificationGlucoseAfterDinner2hTitle, L10n.notificationGlucoseAfterDinner2hBody, addingHours(dinner, hours: 2))
+        let items: [(String, String, DateComponents, MealSlot)] = [
+            (L10n.notificationGlucoseAfterBreakfast2hTitle, L10n.notificationGlucoseAfterBreakfast2hBody, addingHours(breakfast, hours: 2), .breakfast),
+            (L10n.notificationGlucoseAfterLunch2hTitle, L10n.notificationGlucoseAfterLunch2hBody, addingHours(lunch, hours: 2), .lunch),
+            (L10n.notificationGlucoseAfterDinner2hTitle, L10n.notificationGlucoseAfterDinner2hBody, addingHours(dinner, hours: 2), .dinner)
         ]
-        for (title, body, comps) in items {
+        for (title, body, comps, mealSlot) in items {
             var dc = DateComponents()
             dc.hour = comps.hour
             dc.minute = comps.minute
             let trigger = UNCalendarNotificationTrigger(dateMatching: dc, repeats: true)
             let id = identifier(prefix: IDs.glucoseAfterPrefix, components: dc)
-            let content = makeContent(title: title, body: body, categoryIdentifier: IDs.glucoseAfterCategory)
+            let content = makeContent(
+                title: title,
+                body: body,
+                categoryIdentifier: IDs.glucoseAfterCategory,
+                userInfo: quickEntryUserInfo(mealSlot: mealSlot, measurementType: .afterMeal2h)
+            )
             let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
             await center.addOrReplace(request: request)
         }
@@ -256,7 +271,12 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         dc.minute = time.minute
         let trigger = UNCalendarNotificationTrigger(dateMatching: dc, repeats: true)
         let id = identifier(prefix: IDs.glucoseBedtimePrefix, components: dc)
-        let content = makeContent(title: L10n.notificationGlucoseBedtimeTitle, body: L10n.notificationGlucoseBedtimeBody, categoryIdentifier: IDs.glucoseBedtimeCategory)
+        let content = makeContent(
+            title: L10n.notificationGlucoseBedtimeTitle,
+            body: L10n.notificationGlucoseBedtimeBody,
+            categoryIdentifier: IDs.glucoseBedtimeCategory,
+            userInfo: quickEntryUserInfo(mealSlot: .none, measurementType: .bedtime)
+        )
         let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
         await center.addOrReplace(request: request)
     }
@@ -306,11 +326,17 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         identifier: String,
         title: String,
         body: String,
-        categoryIdentifier: String
+        categoryIdentifier: String,
+        userInfo: [AnyHashable: Any]
     ) async {
-        let comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+        let comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
         let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
-        let content = makeContent(title: title, body: body, categoryIdentifier: categoryIdentifier)
+        let content = makeContent(
+            title: title,
+            body: body,
+            categoryIdentifier: categoryIdentifier,
+            userInfo: userInfo
+        )
         let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
         await center.addOrReplace(request: request)
     }
@@ -326,7 +352,14 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
     ) async {
         let fireDate = Date().addingTimeInterval(TimeInterval(minutes * 60))
         let snoozedID = originalIdentifier + ".snooze.\(minutes)"
-        await scheduleOneOff(at: fireDate, identifier: snoozedID, title: title, body: body, categoryIdentifier: categoryIdentifier)
+        await scheduleOneOff(
+            at: fireDate,
+            identifier: snoozedID,
+            title: title,
+            body: body,
+            categoryIdentifier: categoryIdentifier,
+            userInfo: [:]
+        )
     }
 
     /// Cancel a specific notification by identifier (both pending and delivered).
@@ -340,8 +373,12 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
     /// Parses the action from a UNNotificationResponse.
     /// Use this inside your UNUserNotificationCenterDelegate's didReceive response method to handle actions.
     static func parseAction(from response: UNNotificationResponse) -> HandledAction? {
-        switch response.actionIdentifier {
-        case IDs.enterAction: return .enter
+        parseAction(actionIdentifier: response.actionIdentifier)
+    }
+
+    static func parseAction(actionIdentifier: String) -> HandledAction? {
+        switch actionIdentifier {
+        case IDs.enterAction, UNNotificationDefaultActionIdentifier: return .enter
         case IDs.skipAction: return .skip
         case IDs.snooze15Action: return .snooze(minutes: 15)
         case IDs.snooze30Action: return .snooze(minutes: 30)
@@ -352,7 +389,7 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         }
     }
 
-    enum HandledAction: Sendable {
+    enum HandledAction: Sendable, Equatable {
         case enter
         case skip
         case snooze(minutes: Int)
@@ -394,7 +431,11 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
                     content: makeContent(
                         title: payload.title,
                         body: payload.body,
-                        categoryIdentifier: payload.categoryIdentifier
+                        categoryIdentifier: payload.categoryIdentifier,
+                        userInfo: quickEntryUserInfo(
+                            mealSlot: payload.mealSlot,
+                            measurementType: payload.measurementType
+                        )
                     ),
                     trigger: trigger
                 )
@@ -405,65 +446,98 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
 
     private func cycleNotificationPayload(
         for reminder: GlucoseCycleReminder
-    ) -> (title: String, body: String, categoryIdentifier: String, prefix: String) {
+    ) -> (
+        title: String,
+        body: String,
+        categoryIdentifier: String,
+        prefix: String,
+        mealSlot: MealSlot,
+        measurementType: GlucoseMeasurementType
+    ) {
         switch (reminder.measurementType, reminder.mealSlot) {
         case (.beforeMeal, .breakfast):
             return (
                 L10n.notificationGlucoseBeforeBreakfastTitle,
                 L10n.notificationGlucoseBeforeBreakfastBody,
                 IDs.glucoseBeforeCategory,
-                IDs.glucoseBeforePrefix
+                IDs.glucoseBeforePrefix,
+                .breakfast,
+                .beforeMeal
             )
         case (.beforeMeal, .lunch):
             return (
                 L10n.notificationGlucoseBeforeLunchTitle,
                 L10n.notificationGlucoseBeforeLunchBody,
                 IDs.glucoseBeforeCategory,
-                IDs.glucoseBeforePrefix
+                IDs.glucoseBeforePrefix,
+                .lunch,
+                .beforeMeal
             )
         case (.beforeMeal, .dinner):
             return (
                 L10n.notificationGlucoseBeforeDinnerTitle,
                 L10n.notificationGlucoseBeforeDinnerBody,
                 IDs.glucoseBeforeCategory,
-                IDs.glucoseBeforePrefix
+                IDs.glucoseBeforePrefix,
+                .dinner,
+                .beforeMeal
             )
         case (.afterMeal2h, .breakfast):
             return (
                 L10n.notificationGlucoseAfterBreakfast2hTitle,
                 L10n.notificationGlucoseAfterBreakfast2hBody,
                 IDs.glucoseAfterCategory,
-                IDs.glucoseAfterPrefix
+                IDs.glucoseAfterPrefix,
+                .breakfast,
+                .afterMeal2h
             )
         case (.afterMeal2h, .lunch):
             return (
                 L10n.notificationGlucoseAfterLunch2hTitle,
                 L10n.notificationGlucoseAfterLunch2hBody,
                 IDs.glucoseAfterCategory,
-                IDs.glucoseAfterPrefix
+                IDs.glucoseAfterPrefix,
+                .lunch,
+                .afterMeal2h
             )
         case (.afterMeal2h, .dinner):
             return (
                 L10n.notificationGlucoseAfterDinner2hTitle,
                 L10n.notificationGlucoseAfterDinner2hBody,
                 IDs.glucoseAfterCategory,
-                IDs.glucoseAfterPrefix
+                IDs.glucoseAfterPrefix,
+                .dinner,
+                .afterMeal2h
             )
         case (.bedtime, _):
             return (
                 L10n.notificationGlucoseBedtimeTitle,
                 L10n.notificationGlucoseBedtimeBody,
                 IDs.glucoseBedtimeCategory,
-                IDs.glucoseBedtimePrefix
+                IDs.glucoseBedtimePrefix,
+                .none,
+                .bedtime
             )
         default:
             return (
                 L10n.notificationGlucoseBedtimeTitle,
                 L10n.notificationGlucoseBedtimeBody,
                 IDs.glucoseBedtimeCategory,
-                IDs.glucoseBedtimePrefix
+                IDs.glucoseBedtimePrefix,
+                .none,
+                .bedtime
             )
         }
+    }
+
+    private func quickEntryUserInfo(
+        mealSlot: MealSlot,
+        measurementType: GlucoseMeasurementType
+    ) -> [AnyHashable: Any] {
+        [
+            PayloadKeys.mealSlot: mealSlot.rawValue,
+            PayloadKeys.measurementType: measurementType.rawValue,
+        ]
     }
 
     private func minutesToHourMinute(_ minutes: Int) -> (hour: Int, minute: Int) {

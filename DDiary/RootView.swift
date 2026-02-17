@@ -6,17 +6,29 @@
 //
 
 import SwiftUI
+import Combine
+
+private enum RootTab: Hashable {
+    case today
+    case history
+    case settings
+#if DEBUG
+    case debug
+#endif
+}
 
 struct RootView: View {
     @Environment(\.appContainer) private var container: AppContainer
+    @State private var selectedTab: RootTab = .today
 
     var body: some View {
         ZStack(alignment: .top) {
-            TabView {
+            TabView(selection: $selectedTab) {
                 // Today
                 NavigationStack {
                     TodayView().navigationTitle(L10n.screenTodayTitle)
                 }
+                .tag(RootTab.today)
                 .tabItem {
                     Label(L10n.tabToday, systemImage: "calendar")
                 }
@@ -25,6 +37,7 @@ struct RootView: View {
                 NavigationStack {
                     HistoryView().navigationTitle(L10n.screenHistoryTitle)
                 }
+                .tag(RootTab.history)
                 .tabItem {
                     Label(L10n.tabHistory, systemImage: "clock")
                 }
@@ -33,14 +46,36 @@ struct RootView: View {
                 NavigationStack {
                     SettingsView().navigationTitle(L10n.screenSettingsTitle)
                 }
+                .tag(RootTab.settings)
                 .tabItem {
                     Label(L10n.tabSettings, systemImage: "gear")
                 }
+
+#if DEBUG
+                NavigationStack {
+                    DebugView().navigationTitle(L10n.screenDebugTitle)
+                }
+                .tag(RootTab.debug)
+                .tabItem {
+                    Label(L10n.tabDebug, systemImage: "ladybug")
+                }
+#endif
+            }
+            .onAppear {
+                routeToTodayIfPendingQuickEntry()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .notificationQuickEntryRequested)) { _ in
+                routeToTodayIfPendingQuickEntry()
             }
             .task {
                 await container.updateSchedulesUseCase.requestAuthorizationAndSchedule()
             }
         }
+    }
+
+    private func routeToTodayIfPendingQuickEntry() {
+        guard NotificationQuickEntryRouter.shared.hasPendingRequest else { return }
+        selectedTab = .today
     }
 }
 

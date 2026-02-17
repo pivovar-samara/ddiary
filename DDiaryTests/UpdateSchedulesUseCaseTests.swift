@@ -214,7 +214,14 @@ private final class SpyNotificationsRepository: NotificationsRepository, @unchec
         glucoseCycleNumberOfDays = numberOfDays
     }
 
-    func scheduleOneOff(at date: Date, identifier: String, title: String, body: String, categoryIdentifier: String) async {}
+    func scheduleOneOff(
+        at date: Date,
+        identifier: String,
+        title: String,
+        body: String,
+        categoryIdentifier: String,
+        userInfo: [AnyHashable: Any]
+    ) async {}
 
     func snooze(originalIdentifier: String, minutes: Int, title: String, body: String, categoryIdentifier: String) async {}
 

@@ -195,6 +195,11 @@ public struct TodayView: View {
         .onReceive(NotificationCenter.default.publisher(for: .settingsDidSave)) { _ in
             Task { await vm.refresh() }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .notificationQuickEntryRequested)) { _ in
+            Task { @MainActor in
+                handleNotificationQuickEntryIfNeeded(vm: vm)
+            }
+        }
     }
 
     @MainActor
@@ -209,7 +214,16 @@ public struct TodayView: View {
             )
             self.viewModel = vm
             await vm.refresh()
+            handleNotificationQuickEntryIfNeeded(vm: vm)
         }
+    }
+
+    @MainActor
+    private func handleNotificationQuickEntryIfNeeded(vm: TodayViewModel) {
+        guard let request = NotificationQuickEntryRouter.shared.consumePendingRequest() else { return }
+        editingBPMeasurementId = nil
+        editingGlucoseMeasurementId = nil
+        vm.presentQuickEntryFromNotification(target: request.target)
     }
     
     private func handleTap(_ item: TodayViewModel.TodayItem, vm: TodayViewModel) {

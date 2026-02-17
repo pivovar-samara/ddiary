@@ -3,6 +3,40 @@ import XCTest
 
 @MainActor
 final class NotificationsCoordinatorTests: XCTestCase {
+    func test_handleAction_enterRoutesToQuickEntryAndCallsCompletion() async {
+        let completionCalled = expectation(description: "completion called")
+        let actionHandler = BlockingNotificationsActionHandler(
+            skipStarted: nil,
+            snoozeStarted: nil,
+            moveStarted: nil,
+            gate: AsyncGate()
+        )
+        let quickEntryRouter = SpyQuickEntryRouter()
+        let sut = NotificationsCoordinator(
+            actionHandler: actionHandler,
+            quickEntryRouter: quickEntryRouter
+        )
+
+        sut.handleAction(
+            .enter,
+            context: NotificationActionContext(
+                identifier: "ddiary.glucose.before.0800",
+                categoryIdentifier: UserNotificationsRepository.IDs.glucoseBeforeCategory,
+                title: L10n.notificationGlucoseBeforeBreakfastTitle,
+                body: "Before breakfast",
+                mealSlotRawValue: MealSlot.breakfast.rawValue,
+                measurementTypeRawValue: GlucoseMeasurementType.beforeMeal.rawValue
+            ),
+            completionHandler: {
+                completionCalled.fulfill()
+            }
+        )
+
+        await fulfillment(of: [completionCalled], timeout: 1.0)
+        XCTAssertEqual(quickEntryRouter.receivedContexts.count, 1)
+        XCTAssertEqual(quickEntryRouter.receivedContexts.first?.identifier, "ddiary.glucose.before.0800")
+    }
+
     func test_handleAction_waitsForAsyncSkipBeforeCallingCompletion() async {
         let skipStarted = expectation(description: "skip started")
         let completionCalled = expectation(description: "completion called")
@@ -22,7 +56,9 @@ final class NotificationsCoordinatorTests: XCTestCase {
                 identifier: "ddiary.glucose.before.0800",
                 categoryIdentifier: UserNotificationsRepository.IDs.glucoseBeforeCategory,
                 title: "Glucose reminder",
-                body: "Before breakfast"
+                body: "Before breakfast",
+                mealSlotRawValue: nil,
+                measurementTypeRawValue: nil
             ),
             completionHandler: {
                 didCallCompletion = true
@@ -56,7 +92,9 @@ final class NotificationsCoordinatorTests: XCTestCase {
             identifier: "ddiary.glucose.before.0800",
             categoryIdentifier: UserNotificationsRepository.IDs.glucoseBeforeCategory,
             title: "Glucose reminder",
-            body: "Before breakfast"
+            body: "Before breakfast",
+            mealSlotRawValue: nil,
+            measurementTypeRawValue: nil
         )
 
         var didCallCompletion = false
@@ -103,7 +141,9 @@ final class NotificationsCoordinatorTests: XCTestCase {
                 identifier: "ddiary.glucose.before.0800",
                 categoryIdentifier: UserNotificationsRepository.IDs.glucoseBeforeCategory,
                 title: "Glucose reminder",
-                body: "Before breakfast"
+                body: "Before breakfast",
+                mealSlotRawValue: nil,
+                measurementTypeRawValue: nil
             ),
             completionHandler: {
                 didCallCompletion = true
@@ -200,5 +240,14 @@ private final class BlockingNotificationsActionHandler: NotificationsActionHandl
         moveStarted.fulfill()
         await gate.wait()
         didFinishMove = true
+    }
+}
+
+@MainActor
+private final class SpyQuickEntryRouter: NotificationQuickEntryRouting {
+    private(set) var receivedContexts: [NotificationActionContext] = []
+
+    func routeToQuickEntry(context: NotificationActionContext) {
+        receivedContexts.append(context)
     }
 }

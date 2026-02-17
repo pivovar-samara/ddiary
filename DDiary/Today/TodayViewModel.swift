@@ -292,7 +292,42 @@ public final class TodayViewModel {
         // Existing measurement reference will be handled in the view layer
     }
 
+    func presentQuickEntryFromNotification(target: NotificationQuickEntryTarget) {
+        switch target {
+        case .bloodPressure:
+            selectedGlucoseSlot = nil
+            presentGlucoseQuickEntry = false
+            presentBPQuickEntry = true
+        case .glucose(let mealSlot, let measurementType):
+            presentBPQuickEntry = false
+            selectedGlucoseSlot = matchingGlucoseSlot(
+                mealSlot: mealSlot,
+                measurementType: measurementType
+            ) ?? GlucoseSlotViewModel(
+                mealSlot: mealSlot,
+                measurementType: measurementType,
+                displayTime: "",
+                scheduledDate: Date(),
+                status: .due,
+                matchedMeasurementId: nil
+            )
+            presentGlucoseQuickEntry = true
+        }
+    }
+
     // MARK: - Helpers
+
+    private func matchingGlucoseSlot(
+        mealSlot: MealSlot,
+        measurementType: GlucoseMeasurementType
+    ) -> GlucoseSlotViewModel? {
+        let now = Date()
+        return glucoseSlots
+            .filter { $0.mealSlot == mealSlot && $0.measurementType == measurementType }
+            .min { left, right in
+                abs(left.scheduledDate.timeIntervalSince(now)) < abs(right.scheduledDate.timeIntervalSince(now))
+            }
+    }
 
     private static func computeStatus(now: Date, scheduled: Date, completed: Bool) -> SlotStatus {
         if completed { return .completed }

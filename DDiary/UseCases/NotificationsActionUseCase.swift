@@ -63,7 +63,8 @@ public final class NotificationsActionUseCase {
                     identifier: id,
                     title: title,
                     body: L10n.notificationRescheduledFromBreakfast,
-                    categoryIdentifier: UserNotificationsRepository.IDs.glucoseBeforeCategory
+                    categoryIdentifier: UserNotificationsRepository.IDs.glucoseBeforeCategory,
+                    userInfo: [:]
                 )
             }
         } catch {

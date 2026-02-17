@@ -29,6 +29,7 @@ final class DDiaryUITests: XCTestCase {
             static let today = "tab.today" // fallback to label "Today"
             static let history = "tab.history" // fallback to label "History"
             static let settings = "tab.settings" // fallback to label "Settings"
+            static let debug = "tab.debug" // fallback to label "Debug"
         }
         enum TodayRowPrefix {
             static let bp = "today.row.bp."
@@ -157,6 +158,26 @@ final class DDiaryUITests: XCTestCase {
             let app = makeApp()
             app.launch()
         }
+    }
+
+    @MainActor
+    func testDebugTabVisibilityMatchesBuildConfiguration() throws {
+        let app = makeApp()
+        app.launch()
+
+        let tabBar = app.tabBars.firstMatch
+        XCTAssertTrue(waitForExistence(tabBar, timeout: 8), "Tab bar should be visible")
+
+        let debugById = tabBar.buttons[A11y.Tab.debug].firstMatch
+        let debugByLabel = tabBar.buttons["Debug"].firstMatch
+
+        #if DEBUG
+        let isVisibleInDebug = waitForExistence(debugById, timeout: 2) || waitForExistence(debugByLabel, timeout: 2)
+        XCTAssertTrue(isVisibleInDebug, "Debug tab should be visible in Debug builds")
+        #else
+        XCTAssertTrue(waitForNonExistence(debugById, timeout: 2), "Debug tab should be hidden in Production builds")
+        XCTAssertTrue(waitForNonExistence(debugByLabel, timeout: 2), "Debug tab should be hidden in Production builds")
+        #endif
     }
 
     @MainActor
@@ -469,4 +490,3 @@ private extension XCUIElement {
         typeText(text)
     }
 }
-

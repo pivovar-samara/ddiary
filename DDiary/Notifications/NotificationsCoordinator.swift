@@ -10,24 +10,112 @@ protocol NotificationsActionHandling: AnyObject {
 
 extension NotificationsActionUseCase: NotificationsActionHandling {}
 
+extension Notification.Name {
+    nonisolated static let notificationQuickEntryRequested = Notification.Name("NotificationQuickEntryRequested")
+}
+
+enum NotificationQuickEntryTarget: Sendable, Equatable {
+    case bloodPressure
+    case glucose(mealSlot: MealSlot, measurementType: GlucoseMeasurementType)
+}
+
+struct NotificationQuickEntryRequest: Sendable, Equatable {
+    let identifier: String
+    let target: NotificationQuickEntryTarget
+}
+
+@MainActor
+protocol NotificationQuickEntryRouting: AnyObject {
+    func routeToQuickEntry(context: NotificationActionContext)
+}
+
+@MainActor
+final class NotificationQuickEntryRouter: NotificationQuickEntryRouting {
+    static let shared = NotificationQuickEntryRouter()
+
+    private let notificationCenter: NotificationCenter
+    private var pendingRequest: NotificationQuickEntryRequest?
+
+    init(notificationCenter: NotificationCenter = .default) {
+        self.notificationCenter = notificationCenter
+    }
+
+    var hasPendingRequest: Bool {
+        pendingRequest != nil
+    }
+
+    func consumePendingRequest() -> NotificationQuickEntryRequest? {
+        defer { pendingRequest = nil }
+        return pendingRequest
+    }
+
+    func routeToQuickEntry(context: NotificationActionContext) {
+        guard let target = Self.decodeTarget(from: context) else { return }
+        pendingRequest = NotificationQuickEntryRequest(identifier: context.identifier, target: target)
+        notificationCenter.post(name: .notificationQuickEntryRequested, object: nil)
+    }
+
+    static func decodeTarget(from context: NotificationActionContext) -> NotificationQuickEntryTarget? {
+        switch context.categoryIdentifier {
+        case UserNotificationsRepository.IDs.bpCategory:
+            return .bloodPressure
+        case UserNotificationsRepository.IDs.glucoseBedtimeCategory:
+            return .glucose(mealSlot: .none, measurementType: .bedtime)
+        case UserNotificationsRepository.IDs.glucoseBeforeCategory:
+            guard let mealSlot = decodeMealSlot(from: context) else { return nil }
+            return .glucose(mealSlot: mealSlot, measurementType: .beforeMeal)
+        case UserNotificationsRepository.IDs.glucoseAfterCategory:
+            guard let mealSlot = decodeMealSlot(from: context) else { return nil }
+            return .glucose(mealSlot: mealSlot, measurementType: .afterMeal2h)
+        default:
+            return nil
+        }
+    }
+
+    private static func decodeMealSlot(from context: NotificationActionContext) -> MealSlot? {
+        if let rawValue = context.mealSlotRawValue, let mealSlot = MealSlot(rawValue: rawValue) {
+            return mealSlot
+        }
+
+        switch context.title {
+        case L10n.notificationGlucoseBeforeBreakfastTitle, L10n.notificationGlucoseAfterBreakfast2hTitle:
+            return .breakfast
+        case L10n.notificationGlucoseBeforeLunchTitle, L10n.notificationGlucoseAfterLunch2hTitle:
+            return .lunch
+        case L10n.notificationGlucoseBeforeDinnerTitle, L10n.notificationGlucoseAfterDinner2hTitle:
+            return .dinner
+        default:
+            return nil
+        }
+    }
+}
+
 struct NotificationActionContext: Sendable {
     let identifier: String
     let categoryIdentifier: String
     let title: String
     let body: String
+    let mealSlotRawValue: String?
+    let measurementTypeRawValue: String?
 }
 
 /// Central notifications delegate that routes actions into MainActor use cases.
 final class NotificationsCoordinator: NSObject, UNUserNotificationCenterDelegate {
     private let actionHandler: any NotificationsActionHandling
+    private let quickEntryRouter: any NotificationQuickEntryRouting
 
     init(container: AppContainer) {
         self.actionHandler = container.notificationsActionUseCase
+        self.quickEntryRouter = NotificationQuickEntryRouter.shared
         super.init()
     }
 
-    init(actionHandler: any NotificationsActionHandling) {
+    init(
+        actionHandler: any NotificationsActionHandling,
+        quickEntryRouter: any NotificationQuickEntryRouting = NotificationQuickEntryRouter.shared
+    ) {
         self.actionHandler = actionHandler
+        self.quickEntryRouter = quickEntryRouter
         super.init()
     }
 
@@ -51,7 +139,9 @@ final class NotificationsCoordinator: NSObject, UNUserNotificationCenterDelegate
             identifier: response.notification.request.identifier,
             categoryIdentifier: content.categoryIdentifier,
             title: content.title,
-            body: content.body
+            body: content.body,
+            mealSlotRawValue: content.userInfo[UserNotificationsRepository.PayloadKeys.mealSlot] as? String,
+            measurementTypeRawValue: content.userInfo[UserNotificationsRepository.PayloadKeys.measurementType] as? String
         )
         handleAction(action, context: context, completionHandler: completionHandler)
     }
@@ -59,11 +149,10 @@ final class NotificationsCoordinator: NSObject, UNUserNotificationCenterDelegate
     func handleAction(_ action: UserNotificationsRepository.HandledAction,
                       context: NotificationActionContext,
                       completionHandler: @escaping () -> Void) {
-        Task { @MainActor [actionHandler] in
+        Task { @MainActor [actionHandler, quickEntryRouter] in
             switch action {
             case .enter:
-                // In v1, we rely on the app opening to the Today screen; further routing can be added later.
-                break
+                quickEntryRouter.routeToQuickEntry(context: context)
             case .skip:
                 await actionHandler.skip()
             case .snooze(let minutes):
