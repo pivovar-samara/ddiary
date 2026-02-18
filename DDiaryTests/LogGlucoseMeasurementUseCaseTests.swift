@@ -117,4 +117,61 @@ final class LogGlucoseMeasurementUseCaseTests: XCTestCase {
         XCTAssertEqual(canceled.first?.0, .beforeMeal)
         XCTAssertEqual(canceled.first?.1, expectedDate)
     }
+
+    func test_beforeMealWithPlannedScheduledDate_reschedulesShiftedAfterMealNotification() async throws {
+        let measurements = MockMeasurementsRepository()
+        let settings = MockSettingsRepository()
+        let analytics = MockAnalyticsRepository()
+        let plannedBeforeDate = Date(timeIntervalSince1970: 1_770_700_800)
+        var rescheduled: [(MealSlot, Date, Date)] = []
+        let sut = LogGlucoseMeasurementUseCase(
+            measurementsRepository: measurements,
+            settingsRepository: settings,
+            analyticsRepository: analytics,
+            rescheduleShiftedAfterMealNotification: { rescheduled.append(($0, $1, $2)) }
+        )
+
+        try await sut.execute(
+            value: 5.2,
+            measurementType: .beforeMeal,
+            mealSlot: .lunch,
+            comment: nil,
+            plannedScheduledDate: plannedBeforeDate
+        )
+
+        let loggedMeasurements = try await measurements.glucoseMeasurements(from: .distantPast, to: .distantFuture)
+        let logged = try XCTUnwrap(loggedMeasurements.first)
+        let calendar = Calendar.current
+        let expectedOriginalAfter = try XCTUnwrap(calendar.date(byAdding: .hour, value: 2, to: plannedBeforeDate))
+        let expectedShiftedAfter = try XCTUnwrap(calendar.date(byAdding: .hour, value: 2, to: logged.timestamp))
+
+        XCTAssertEqual(rescheduled.count, 1)
+        XCTAssertEqual(rescheduled.first?.0, .lunch)
+        XCTAssertEqual(rescheduled.first?.1, expectedOriginalAfter)
+        XCTAssertEqual(rescheduled.first?.2, expectedShiftedAfter)
+    }
+
+    func test_nonBeforeMealWithPlannedScheduledDate_doesNotRescheduleShiftedAfterMealNotification() async throws {
+        let measurements = MockMeasurementsRepository()
+        let settings = MockSettingsRepository()
+        let analytics = MockAnalyticsRepository()
+        let plannedDate = Date(timeIntervalSince1970: 1_770_700_800)
+        var rescheduleCallCount = 0
+        let sut = LogGlucoseMeasurementUseCase(
+            measurementsRepository: measurements,
+            settingsRepository: settings,
+            analyticsRepository: analytics,
+            rescheduleShiftedAfterMealNotification: { _, _, _ in rescheduleCallCount += 1 }
+        )
+
+        try await sut.execute(
+            value: 5.2,
+            measurementType: .afterMeal2h,
+            mealSlot: .lunch,
+            comment: nil,
+            plannedScheduledDate: plannedDate
+        )
+
+        XCTAssertEqual(rescheduleCallCount, 0)
+    }
 }

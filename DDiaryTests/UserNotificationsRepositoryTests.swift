@@ -273,6 +273,54 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         XCTAssertEqual(trigger?.dateComponents.second, 42)
     }
 
+    func test_rescheduleShiftedAfterMeal2hNotification_cancelsOriginalAndSchedulesShiftedOneOff() async {
+        let center = FakeNotificationCenter()
+        let repository = UserNotificationsRepository(center: center)
+        let calendar = Calendar.current
+        let originalAfterDate = calendar.date(
+            from: DateComponents(year: 2099, month: 2, day: 16, hour: 15, minute: 0)
+        ) ?? Date()
+        let shiftedAfterDate = calendar.date(
+            from: DateComponents(year: 2099, month: 2, day: 16, hour: 15, minute: 35)
+        ) ?? Date()
+
+        let originalCycleID = cycleID(
+            prefix: UserNotificationsRepository.IDs.glucoseAfterPrefix,
+            day: originalAfterDate,
+            hour: 15,
+            minute: 0,
+            calendar: calendar
+        )
+        center.pendingRequests[originalCycleID] = makeRequest(id: originalCycleID)
+        center.deliveredIdentifiers = [originalCycleID, "ddiary.glucose.after.1500"]
+
+        await repository.rescheduleShiftedAfterMeal2hNotification(
+            mealSlot: .lunch,
+            originalAfterDate: originalAfterDate,
+            shiftedAfterDate: shiftedAfterDate
+        )
+
+        XCTAssertNil(center.pendingRequests[originalCycleID])
+        let shiftedID = shiftedAfterID(mealSlot: .lunch, day: shiftedAfterDate, calendar: calendar)
+        let shiftedRequest = try? XCTUnwrap(center.pendingRequests[shiftedID])
+        XCTAssertNotNil(shiftedRequest)
+        XCTAssertEqual(shiftedRequest?.content.categoryIdentifier, UserNotificationsRepository.IDs.glucoseAfterCategory)
+        XCTAssertEqual(shiftedRequest?.content.title, L10n.notificationGlucoseAfterLunch2hTitle)
+        XCTAssertEqual(
+            shiftedRequest?.content.userInfo[UserNotificationsRepository.PayloadKeys.mealSlot] as? String,
+            MealSlot.lunch.rawValue
+        )
+        XCTAssertEqual(
+            shiftedRequest?.content.userInfo[UserNotificationsRepository.PayloadKeys.measurementType] as? String,
+            GlucoseMeasurementType.afterMeal2h.rawValue
+        )
+        let removedPending = Set(center.removedPendingIdentifiers.flatMap { $0 })
+        XCTAssertTrue(removedPending.contains(originalCycleID))
+        let removedDelivered = Set(center.removedDeliveredIdentifiers.flatMap { $0 })
+        XCTAssertTrue(removedDelivered.contains(originalCycleID))
+        XCTAssertTrue(removedDelivered.contains("ddiary.glucose.after.1500"))
+    }
+
     func test_scheduleDebugNotifications_useProductionCategoriesAndPayload() async {
         let center = FakeNotificationCenter()
         let repository = UserNotificationsRepository(center: center)
@@ -319,6 +367,14 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         let mo = dayParts.month ?? 0
         let d = dayParts.day ?? 0
         return "\(prefix)d\(String(format: "%04d", y))\(String(format: "%02d", mo))\(String(format: "%02d", d)).\(String(format: "%02d", hour))\(String(format: "%02d", minute))"
+    }
+
+    private func shiftedAfterID(mealSlot: MealSlot, day: Date, calendar: Calendar) -> String {
+        let parts = calendar.dateComponents([.year, .month, .day], from: day)
+        let y = parts.year ?? 0
+        let mo = parts.month ?? 0
+        let d = parts.day ?? 0
+        return "\(UserNotificationsRepository.IDs.glucoseAfterPrefix)shifted.\(mealSlot.rawValue).\(String(format: "%04d", y))\(String(format: "%02d", mo))\(String(format: "%02d", d))"
     }
 }
 

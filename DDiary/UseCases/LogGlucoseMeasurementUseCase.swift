@@ -10,19 +10,22 @@ public final class LogGlucoseMeasurementUseCase {
     private let analyticsRepository: AnalyticsRepository
     private let scheduleGoogleSyncIfConnected: @MainActor () -> Void
     private let cancelPlannedNotification: @MainActor (GlucoseMeasurementType, Date) async -> Void
+    private let rescheduleShiftedAfterMealNotification: @MainActor (MealSlot, Date, Date) async -> Void
 
     public init(
         measurementsRepository: MeasurementsRepository,
         settingsRepository: SettingsRepository,
         analyticsRepository: AnalyticsRepository,
         scheduleGoogleSyncIfConnected: @escaping @MainActor () -> Void = {},
-        cancelPlannedNotification: @escaping @MainActor (GlucoseMeasurementType, Date) async -> Void = { _, _ in }
+        cancelPlannedNotification: @escaping @MainActor (GlucoseMeasurementType, Date) async -> Void = { _, _ in },
+        rescheduleShiftedAfterMealNotification: @escaping @MainActor (MealSlot, Date, Date) async -> Void = { _, _, _ in }
     ) {
         self.measurementsRepository = measurementsRepository
         self.settingsRepository = settingsRepository
         self.analyticsRepository = analyticsRepository
         self.scheduleGoogleSyncIfConnected = scheduleGoogleSyncIfConnected
         self.cancelPlannedNotification = cancelPlannedNotification
+        self.rescheduleShiftedAfterMealNotification = rescheduleShiftedAfterMealNotification
     }
 
     /// Create and persist a new `GlucoseMeasurement` and log analytics.
@@ -64,9 +67,33 @@ public final class LogGlucoseMeasurementUseCase {
 
         if let plannedScheduledDate {
             await cancelPlannedNotification(measurementType, plannedScheduledDate)
+            await rescheduleAfterMealNotificationIfNeeded(
+                measurementType: measurementType,
+                mealSlot: mealSlot,
+                plannedBeforeDate: plannedScheduledDate,
+                loggedBeforeDate: measurement.timestamp
+            )
         }
 
         // Fire analytics in the background of this async context.
         await analyticsRepository.logMeasurementLogged(kind: .glucose)
+    }
+
+    private func rescheduleAfterMealNotificationIfNeeded(
+        measurementType: GlucoseMeasurementType,
+        mealSlot: MealSlot,
+        plannedBeforeDate: Date,
+        loggedBeforeDate: Date
+    ) async {
+        guard measurementType == .beforeMeal else { return }
+        guard mealSlot != .none else { return }
+        let calendar = Calendar.current
+        guard
+            let originalAfterDate = calendar.date(byAdding: .hour, value: 2, to: plannedBeforeDate),
+            let shiftedAfterDate = calendar.date(byAdding: .hour, value: 2, to: loggedBeforeDate)
+        else {
+            return
+        }
+        await rescheduleShiftedAfterMealNotification(mealSlot, originalAfterDate, shiftedAfterDate)
     }
 }

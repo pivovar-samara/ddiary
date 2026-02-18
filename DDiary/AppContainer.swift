@@ -141,6 +141,13 @@ struct AppContainer {
                     measurementType: measurementType,
                     at: scheduledDate
                 )
+            },
+            rescheduleShiftedAfterMealNotification: { [notificationsRepository] mealSlot, originalAfterDate, shiftedAfterDate in
+                await notificationsRepository.rescheduleShiftedAfterMeal2hNotification(
+                    mealSlot: mealSlot,
+                    originalAfterDate: originalAfterDate,
+                    shiftedAfterDate: shiftedAfterDate
+                )
             }
         )
         self.updateBPMeasurementUseCase = UpdateBPMeasurementUseCase(

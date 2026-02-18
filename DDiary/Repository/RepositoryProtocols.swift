@@ -228,6 +228,47 @@ public extension NotificationsRepository {
         await cancelAll()
     }
 
+    /// When a before-meal measurement is logged off schedule, shift today's paired
+    /// after-meal (2h) reminder from the original planned time to the new +2h time.
+    func rescheduleShiftedAfterMeal2hNotification(
+        mealSlot: MealSlot,
+        originalAfterDate: Date,
+        shiftedAfterDate: Date
+    ) async {
+        guard mealSlot != .none else { return }
+        guard shiftedAfterDate > Date() else { return }
+        guard abs(shiftedAfterDate.timeIntervalSince(originalAfterDate)) >= 60 else { return }
+
+        await cancelPlannedGlucoseNotification(measurementType: .afterMeal2h, at: originalAfterDate)
+
+        let payload: (title: String, body: String)
+        switch mealSlot {
+        case .breakfast:
+            payload = (L10n.notificationGlucoseAfterBreakfast2hTitle, L10n.notificationGlucoseAfterBreakfast2hBody)
+        case .lunch:
+            payload = (L10n.notificationGlucoseAfterLunch2hTitle, L10n.notificationGlucoseAfterLunch2hBody)
+        case .dinner:
+            payload = (L10n.notificationGlucoseAfterDinner2hTitle, L10n.notificationGlucoseAfterDinner2hBody)
+        case .none:
+            return
+        }
+
+        let calendar = Calendar.current
+        let identifier = shiftedAfterMealIdentifier(mealSlot: mealSlot, date: shiftedAfterDate, calendar: calendar)
+        await cancel(withIdentifier: identifier)
+        await scheduleOneOff(
+            at: shiftedAfterDate,
+            identifier: identifier,
+            title: payload.title,
+            body: payload.body,
+            categoryIdentifier: UserNotificationsRepository.IDs.glucoseAfterCategory,
+            userInfo: [
+                UserNotificationsRepository.PayloadKeys.mealSlot: mealSlot.rawValue,
+                UserNotificationsRepository.PayloadKeys.measurementType: GlucoseMeasurementType.afterMeal2h.rawValue,
+            ]
+        )
+    }
+
     /// Convenience: Cancel everything and schedule both BP and Glucose from settings.
     /// Call this after saving settings or after first authorization is granted.
     func scheduleAllNotifications(settings: UserSettings) async throws {
@@ -265,6 +306,14 @@ public extension NotificationsRepository {
                 UserNotificationsRepository.PayloadKeys.measurementType: GlucoseMeasurementType.beforeMeal.rawValue,
             ]
         )
+    }
+
+    private func shiftedAfterMealIdentifier(mealSlot: MealSlot, date: Date, calendar: Calendar) -> String {
+        let parts = calendar.dateComponents([.year, .month, .day], from: date)
+        let year = parts.year ?? 0
+        let month = parts.month ?? 0
+        let day = parts.day ?? 0
+        return "\(UserNotificationsRepository.IDs.glucoseAfterPrefix)shifted.\(mealSlot.rawValue).\(String(format: "%04d", year))\(String(format: "%02d", month))\(String(format: "%02d", day))"
     }
 }
 
