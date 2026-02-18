@@ -14,6 +14,7 @@ public struct GlucoseQuickEntryForm: View {
     let mealSlot: MealSlot?
     let measurementType: GlucoseMeasurementType?
     let existingMeasurementId: UUID?
+    let plannedScheduledDate: Date?
 
     @State private var valueText: String = ""
     @State private var comment: String = ""
@@ -33,6 +34,22 @@ public struct GlucoseQuickEntryForm: View {
 
     let onCancel: () -> Void
     let onSaved: () -> Void
+
+    public init(
+        mealSlot: MealSlot?,
+        measurementType: GlucoseMeasurementType?,
+        existingMeasurementId: UUID?,
+        plannedScheduledDate: Date? = nil,
+        onCancel: @escaping () -> Void,
+        onSaved: @escaping () -> Void
+    ) {
+        self.mealSlot = mealSlot
+        self.measurementType = measurementType
+        self.existingMeasurementId = existingMeasurementId
+        self.plannedScheduledDate = plannedScheduledDate
+        self.onCancel = onCancel
+        self.onSaved = onSaved
+    }
 
     private var isSaveDisabled: Bool {
         if isSaving { return true }
@@ -260,7 +277,8 @@ public struct GlucoseQuickEntryForm: View {
                         value: value,
                         measurementType: mt,
                         mealSlot: ms,
-                        comment: comment.isEmpty ? nil : comment
+                        comment: comment.isEmpty ? nil : comment,
+                        plannedScheduledDate: plannedScheduledDate
                     )
                 }
                 #if canImport(UIKit)

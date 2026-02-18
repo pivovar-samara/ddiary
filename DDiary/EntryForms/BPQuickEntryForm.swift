@@ -12,6 +12,7 @@ public struct BPQuickEntryForm: View {
     @Environment(\.appContainer) private var container
 
     let existingMeasurementId: UUID?
+    let plannedScheduledDate: Date?
 
     @State private var systolicText: String = ""
     @State private var diastolicText: String = ""
@@ -37,6 +38,18 @@ public struct BPQuickEntryForm: View {
 
     let onCancel: () -> Void
     let onSaved: () -> Void
+
+    public init(
+        existingMeasurementId: UUID?,
+        plannedScheduledDate: Date? = nil,
+        onCancel: @escaping () -> Void,
+        onSaved: @escaping () -> Void
+    ) {
+        self.existingMeasurementId = existingMeasurementId
+        self.plannedScheduledDate = plannedScheduledDate
+        self.onCancel = onCancel
+        self.onSaved = onSaved
+    }
 
     private var isSaveDisabled: Bool {
         if isSaving { return true }
@@ -322,7 +335,8 @@ public struct BPQuickEntryForm: View {
                         systolic: sys,
                         diastolic: dia,
                         pulse: pulse,
-                        comment: comment.isEmpty ? nil : comment
+                        comment: comment.isEmpty ? nil : comment,
+                        plannedScheduledDate: plannedScheduledDate
                     )
                 }
                 #if canImport(UIKit)

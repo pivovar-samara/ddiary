@@ -121,6 +121,72 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         XCTAssertTrue(removedDelivered.contains("ddiary.glucose.bedtime.2200"))
     }
 
+    func test_cancelPlannedGlucoseNotification_cycleIdentifier_removesPendingAndDelivered() async {
+        let center = FakeNotificationCenter()
+        let repository = UserNotificationsRepository(center: center)
+        let calendar = Calendar.current
+        let scheduledDate = calendar.date(
+            from: DateComponents(year: 2026, month: 2, day: 16, hour: 8, minute: 0)
+        ) ?? Date()
+        let cycleID = self.cycleID(
+            prefix: UserNotificationsRepository.IDs.glucoseBeforePrefix,
+            day: scheduledDate,
+            hour: 8,
+            minute: 0,
+            calendar: calendar
+        )
+        center.pendingRequests[cycleID] = makeRequest(id: cycleID)
+        center.deliveredIdentifiers = [cycleID]
+
+        await repository.cancelPlannedGlucoseNotification(
+            measurementType: .beforeMeal,
+            at: scheduledDate
+        )
+
+        XCTAssertNil(center.pendingRequests[cycleID])
+        XCTAssertTrue(Set(center.removedPendingIdentifiers.flatMap { $0 }).contains(cycleID))
+        XCTAssertTrue(Set(center.removedDeliveredIdentifiers.flatMap { $0 }).contains(cycleID))
+    }
+
+    func test_cancelPlannedGlucoseNotification_repeatingIdentifier_keepsPendingButClearsDelivered() async {
+        let center = FakeNotificationCenter()
+        let repository = UserNotificationsRepository(center: center)
+        let calendar = Calendar.current
+        let scheduledDate = calendar.date(
+            from: DateComponents(year: 2026, month: 2, day: 16, hour: 13, minute: 0)
+        ) ?? Date()
+        let repeatingID = "ddiary.glucose.before.1300"
+        center.pendingRequests[repeatingID] = makeRequest(id: repeatingID)
+        center.deliveredIdentifiers = [repeatingID]
+
+        await repository.cancelPlannedGlucoseNotification(
+            measurementType: .beforeMeal,
+            at: scheduledDate
+        )
+
+        XCTAssertNotNil(center.pendingRequests[repeatingID])
+        XCTAssertFalse(Set(center.removedPendingIdentifiers.flatMap { $0 }).contains(repeatingID))
+        XCTAssertTrue(Set(center.removedDeliveredIdentifiers.flatMap { $0 }).contains(repeatingID))
+    }
+
+    func test_cancelPlannedBloodPressureNotification_keepsPendingButClearsDelivered() async {
+        let center = FakeNotificationCenter()
+        let repository = UserNotificationsRepository(center: center)
+        let calendar = Calendar.current
+        let scheduledDate = calendar.date(
+            from: DateComponents(year: 2026, month: 2, day: 16, hour: 9, minute: 0)
+        ) ?? Date()
+        let repeatingID = "ddiary.bp.w2.0900"
+        center.pendingRequests[repeatingID] = makeRequest(id: repeatingID)
+        center.deliveredIdentifiers = [repeatingID]
+
+        await repository.cancelPlannedBloodPressureNotification(at: scheduledDate)
+
+        XCTAssertNotNil(center.pendingRequests[repeatingID])
+        XCTAssertFalse(Set(center.removedPendingIdentifiers.flatMap { $0 }).contains(repeatingID))
+        XCTAssertTrue(Set(center.removedDeliveredIdentifiers.flatMap { $0 }).contains(repeatingID))
+    }
+
     func test_requestAuthorization_passthroughError() async {
         let center = FakeNotificationCenter()
         center.authorizationResult = .failure(TestError.forced)

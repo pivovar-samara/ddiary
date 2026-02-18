@@ -78,4 +78,26 @@ final class LogBPMeasurementUseCaseTests: XCTestCase {
         let all = try await repo.bpMeasurements(from: Date.distantPast, to: Date.distantFuture)
         XCTAssertEqual(all.count, 2)
     }
+
+    func test_withPlannedScheduledDate_cancelsPlannedNotification() async throws {
+        let repo = MockMeasurementsRepository()
+        let analytics = MockAnalyticsRepository()
+        let expectedDate = Date(timeIntervalSince1970: 1_770_700_800)
+        var canceledDates: [Date] = []
+        let sut = LogBPMeasurementUseCase(
+            measurementsRepository: repo,
+            analyticsRepository: analytics,
+            cancelPlannedNotification: { canceledDates.append($0) }
+        )
+
+        try await sut.execute(
+            systolic: 120,
+            diastolic: 80,
+            pulse: 70,
+            comment: nil,
+            plannedScheduledDate: expectedDate
+        )
+
+        XCTAssertEqual(canceledDates, [expectedDate])
+    }
 }

@@ -368,6 +368,43 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         center.removeDeliveredNotifications(withIdentifiers: [id])
     }
 
+    public func cancelPlannedBloodPressureNotification(at scheduledDate: Date) async {
+        let calendar = Calendar.current
+        let weekday = calendar.component(.weekday, from: scheduledDate)
+        let components = calendar.dateComponents([.hour, .minute], from: scheduledDate)
+        let repeatingID = identifier(prefix: IDs.bpPrefix, components: components, weekday: weekday)
+        center.removeDeliveredNotifications(withIdentifiers: [repeatingID])
+    }
+
+    public func cancelPlannedGlucoseNotification(
+        measurementType: GlucoseMeasurementType,
+        at scheduledDate: Date
+    ) async {
+        let calendar = Calendar.current
+        let prefix = glucosePrefix(for: measurementType)
+        let components = calendar.dateComponents([.hour, .minute], from: scheduledDate)
+        let repeatingID = identifier(prefix: prefix, components: components)
+        let cycleID = cycleIdentifier(prefix: prefix, at: scheduledDate, calendar: calendar)
+
+        let pendingIDs = Set(await center.pendingRequestIdentifiers())
+        let deliveredIDs = Set(await center.deliveredNotificationIdentifiers())
+
+        if pendingIDs.contains(cycleID) {
+            center.removePendingNotificationRequests(withIdentifiers: [cycleID])
+        }
+
+        var deliveredToRemove: Set<String> = []
+        if deliveredIDs.contains(cycleID) {
+            deliveredToRemove.insert(cycleID)
+        }
+        if deliveredIDs.contains(repeatingID) {
+            deliveredToRemove.insert(repeatingID)
+        }
+        if !deliveredToRemove.isEmpty {
+            center.removeDeliveredNotifications(withIdentifiers: Array(deliveredToRemove))
+        }
+    }
+
     // MARK: - Handling helpers for App/Scene delegate
 
     /// Parses the action from a UNNotificationResponse.
@@ -571,6 +608,17 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         dc.hour = newHour >= 0 ? newHour : (newHour + 24)
         dc.minute = components.minute ?? 0
         return dc
+    }
+
+    private func glucosePrefix(for measurementType: GlucoseMeasurementType) -> String {
+        switch measurementType {
+        case .beforeMeal:
+            IDs.glucoseBeforePrefix
+        case .afterMeal2h:
+            IDs.glucoseAfterPrefix
+        case .bedtime:
+            IDs.glucoseBedtimePrefix
+        }
     }
 
     private func removeAll(withPrefixes prefixes: [String]) async {

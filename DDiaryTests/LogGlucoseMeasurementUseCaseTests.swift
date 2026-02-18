@@ -91,4 +91,30 @@ final class LogGlucoseMeasurementUseCaseTests: XCTestCase {
 
         XCTAssertEqual(userSettings.currentCycleIndex, 1)
     }
+
+    func test_withPlannedScheduledDate_cancelsPlannedNotification() async throws {
+        let measurements = MockMeasurementsRepository()
+        let settings = MockSettingsRepository()
+        let analytics = MockAnalyticsRepository()
+        let expectedDate = Date(timeIntervalSince1970: 1_770_700_800)
+        var canceled: [(GlucoseMeasurementType, Date)] = []
+        let sut = LogGlucoseMeasurementUseCase(
+            measurementsRepository: measurements,
+            settingsRepository: settings,
+            analyticsRepository: analytics,
+            cancelPlannedNotification: { canceled.append(($0, $1)) }
+        )
+
+        try await sut.execute(
+            value: 5.5,
+            measurementType: .beforeMeal,
+            mealSlot: .breakfast,
+            comment: nil,
+            plannedScheduledDate: expectedDate
+        )
+
+        XCTAssertEqual(canceled.count, 1)
+        XCTAssertEqual(canceled.first?.0, .beforeMeal)
+        XCTAssertEqual(canceled.first?.1, expectedDate)
+    }
 }

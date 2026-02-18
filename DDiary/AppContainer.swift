@@ -124,6 +124,9 @@ struct AppContainer {
             analyticsRepository: analyticsRepository,
             scheduleGoogleSyncIfConnected: { [syncWithGoogleUseCase] in
                 syncWithGoogleUseCase.scheduleSyncIfConnected()
+            },
+            cancelPlannedNotification: { [notificationsRepository] scheduledDate in
+                await notificationsRepository.cancelPlannedBloodPressureNotification(at: scheduledDate)
             }
         )
         self.logGlucoseMeasurementUseCase = LogGlucoseMeasurementUseCase(
@@ -132,6 +135,12 @@ struct AppContainer {
             analyticsRepository: analyticsRepository,
             scheduleGoogleSyncIfConnected: { [syncWithGoogleUseCase] in
                 syncWithGoogleUseCase.scheduleSyncIfConnected()
+            },
+            cancelPlannedNotification: { [notificationsRepository] measurementType, scheduledDate in
+                await notificationsRepository.cancelPlannedGlucoseNotification(
+                    measurementType: measurementType,
+                    at: scheduledDate
+                )
             }
         )
         self.updateBPMeasurementUseCase = UpdateBPMeasurementUseCase(

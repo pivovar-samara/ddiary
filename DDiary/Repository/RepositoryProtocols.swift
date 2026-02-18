@@ -159,6 +159,14 @@ public protocol NotificationsRepository: Sendable {
     /// Cancel a specific notification by identifier (pending and delivered).
     func cancel(withIdentifier id: String) async
 
+    /// Mark a planned BP slot as completed by dismissing its delivered notification.
+    /// Keeps repeating schedules intact for future days.
+    func cancelPlannedBloodPressureNotification(at scheduledDate: Date) async
+
+    /// Mark a planned glucose slot as completed.
+    /// Cancels one-off cycle reminders and dismisses delivered repeating reminders.
+    func cancelPlannedGlucoseNotification(measurementType: GlucoseMeasurementType, at scheduledDate: Date) async
+
     /// Cancel all scheduled notifications (BP and Glucose).
     func cancelAll() async
 }

@@ -10,6 +10,8 @@ public struct TodayView: View {
     @State private var viewModel: TodayViewModel? = nil
     @State private var editingBPMeasurementId: UUID? = nil
     @State private var editingGlucoseMeasurementId: UUID? = nil
+    @State private var selectedBPScheduledDate: Date? = nil
+    @State private var selectedGlucoseScheduledDate: Date? = nil
 
     public init() {}
 
@@ -147,48 +149,20 @@ public struct TodayView: View {
         }
         .accessibilityIdentifier("today.scroll")
         .sheet(isPresented: $bvm.presentBPQuickEntry) {
-            NavigationStack {
-                BPQuickEntryForm(
-                    existingMeasurementId: editingBPMeasurementId,
-                    onCancel: {
-                        bvm.presentBPQuickEntry = false
-                        editingBPMeasurementId = nil
-                    },
-                    onSaved: {
-                        bvm.presentBPQuickEntry = false
-                        editingBPMeasurementId = nil
-                        Task { await vm.refresh() }
-                    }
-                )
-                .navigationTitle(L10n.todayQuickEntryTitle)
-            }
+            bpQuickEntrySheet(vm: vm)
         }
         .sheet(isPresented: $bvm.presentGlucoseQuickEntry) {
-            NavigationStack {
-                GlucoseQuickEntryForm(
-                    mealSlot: vm.selectedGlucoseSlot?.mealSlot,
-                    measurementType: vm.selectedGlucoseSlot?.measurementType,
-                    existingMeasurementId: editingGlucoseMeasurementId,
-                    onCancel: {
-                        bvm.presentGlucoseQuickEntry = false
-                        editingGlucoseMeasurementId = nil
-                    },
-                    onSaved: {
-                        bvm.presentGlucoseQuickEntry = false
-                        editingGlucoseMeasurementId = nil
-                        Task { await vm.refresh() }
-                    }
-                )
-                .navigationTitle(L10n.todayQuickEntryTitle)
-            }
+            glucoseQuickEntrySheet(vm: vm)
         }
         .onChange(of: bvm.presentBPQuickEntry) { _, isPresented in
             if !isPresented {
+                selectedBPScheduledDate = nil
                 Task { await vm.refresh() }
             }
         }
         .onChange(of: bvm.presentGlucoseQuickEntry) { _, isPresented in
             if !isPresented {
+                selectedGlucoseScheduledDate = nil
                 Task { await vm.refresh() }
             }
         }
@@ -199,6 +173,52 @@ public struct TodayView: View {
             Task { @MainActor in
                 handleNotificationQuickEntryIfNeeded(vm: vm)
             }
+        }
+    }
+
+    @ViewBuilder
+    private func bpQuickEntrySheet(vm: TodayViewModel) -> some View {
+        NavigationStack {
+            BPQuickEntryForm(
+                existingMeasurementId: editingBPMeasurementId,
+                plannedScheduledDate: selectedBPScheduledDate,
+                onCancel: {
+                    vm.presentBPQuickEntry = false
+                    editingBPMeasurementId = nil
+                    selectedBPScheduledDate = nil
+                },
+                onSaved: {
+                    vm.presentBPQuickEntry = false
+                    editingBPMeasurementId = nil
+                    selectedBPScheduledDate = nil
+                    Task { await vm.refresh() }
+                }
+            )
+            .navigationTitle(L10n.todayQuickEntryTitle)
+        }
+    }
+
+    @ViewBuilder
+    private func glucoseQuickEntrySheet(vm: TodayViewModel) -> some View {
+        NavigationStack {
+            GlucoseQuickEntryForm(
+                mealSlot: vm.selectedGlucoseSlot?.mealSlot,
+                measurementType: vm.selectedGlucoseSlot?.measurementType,
+                existingMeasurementId: editingGlucoseMeasurementId,
+                plannedScheduledDate: selectedGlucoseScheduledDate,
+                onCancel: {
+                    vm.presentGlucoseQuickEntry = false
+                    editingGlucoseMeasurementId = nil
+                    selectedGlucoseScheduledDate = nil
+                },
+                onSaved: {
+                    vm.presentGlucoseQuickEntry = false
+                    editingGlucoseMeasurementId = nil
+                    selectedGlucoseScheduledDate = nil
+                    Task { await vm.refresh() }
+                }
+            )
+            .navigationTitle(L10n.todayQuickEntryTitle)
         }
     }
 
@@ -223,7 +243,10 @@ public struct TodayView: View {
         guard let request = NotificationQuickEntryRouter.shared.consumePendingRequest() else { return }
         editingBPMeasurementId = nil
         editingGlucoseMeasurementId = nil
+        selectedBPScheduledDate = nil
+        selectedGlucoseScheduledDate = nil
         vm.presentQuickEntryFromNotification(target: request.target)
+        selectedGlucoseScheduledDate = vm.selectedGlucoseSlot?.scheduledDate
     }
     
     private func handleTap(_ item: TodayViewModel.TodayItem, vm: TodayViewModel) {
@@ -238,12 +261,14 @@ public struct TodayView: View {
     @MainActor
     private func prepareAndPresentBP(slot: BPSlotViewModel, vm: TodayViewModel) async {
         editingBPMeasurementId = slot.matchedMeasurementId
+        selectedBPScheduledDate = slot.scheduledDate
         vm.onBPSlotTapped(slot)
     }
 
     @MainActor
     private func prepareAndPresentGlucose(slot: GlucoseSlotViewModel, vm: TodayViewModel) async {
         editingGlucoseMeasurementId = slot.matchedMeasurementId
+        selectedGlucoseScheduledDate = slot.scheduledDate
         vm.onGlucoseSlotTapped(slot)
     }
 

@@ -9,17 +9,20 @@ public final class LogGlucoseMeasurementUseCase {
     private let settingsRepository: SettingsRepository
     private let analyticsRepository: AnalyticsRepository
     private let scheduleGoogleSyncIfConnected: @MainActor () -> Void
+    private let cancelPlannedNotification: @MainActor (GlucoseMeasurementType, Date) async -> Void
 
     public init(
         measurementsRepository: MeasurementsRepository,
         settingsRepository: SettingsRepository,
         analyticsRepository: AnalyticsRepository,
-        scheduleGoogleSyncIfConnected: @escaping @MainActor () -> Void = {}
+        scheduleGoogleSyncIfConnected: @escaping @MainActor () -> Void = {},
+        cancelPlannedNotification: @escaping @MainActor (GlucoseMeasurementType, Date) async -> Void = { _, _ in }
     ) {
         self.measurementsRepository = measurementsRepository
         self.settingsRepository = settingsRepository
         self.analyticsRepository = analyticsRepository
         self.scheduleGoogleSyncIfConnected = scheduleGoogleSyncIfConnected
+        self.cancelPlannedNotification = cancelPlannedNotification
     }
 
     /// Create and persist a new `GlucoseMeasurement` and log analytics.
@@ -32,7 +35,8 @@ public final class LogGlucoseMeasurementUseCase {
         value: Double,
         measurementType: GlucoseMeasurementType,
         mealSlot: MealSlot,
-        comment: String?
+        comment: String?,
+        plannedScheduledDate: Date? = nil
     ) async throws {
         // Read user settings to determine the preferred glucose unit.
         let settings = try await settingsRepository.getOrCreate()
@@ -57,6 +61,10 @@ public final class LogGlucoseMeasurementUseCase {
 
         // Start best-effort Google sync immediately when integration is connected.
         scheduleGoogleSyncIfConnected()
+
+        if let plannedScheduledDate {
+            await cancelPlannedNotification(measurementType, plannedScheduledDate)
+        }
 
         // Fire analytics in the background of this async context.
         await analyticsRepository.logMeasurementLogged(kind: .glucose)

@@ -227,6 +227,10 @@ private final class SpyNotificationsRepository: NotificationsRepository, @unchec
 
     func cancel(withIdentifier id: String) async {}
 
+    func cancelPlannedBloodPressureNotification(at scheduledDate: Date) async {}
+
+    func cancelPlannedGlucoseNotification(measurementType: GlucoseMeasurementType, at scheduledDate: Date) async {}
+
     func cancelAll() async {
         cancelAllCount += 1
     }
