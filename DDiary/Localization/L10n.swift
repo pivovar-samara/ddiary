@@ -185,6 +185,13 @@ enum L10n {
     static let settingsRowAfterMeal2h = tr("settings.row.after_meal_2h", "After meal (2h)")
     static let settingsRowBedtimeToggle = tr("settings.row.bedtime_toggle", "Bedtime")
     static let settingsRowDailyCycleMode = tr("settings.row.daily_cycle_mode", "Daily cycle mode (1 per day)")
+    static let settingsRowDailyCycleTodayIs = tr("settings.row.daily_cycle_today_is", "Today is")
+    static func settingsRowDailyCycleSwitchTo(_ value: String) -> String {
+        String(
+            format: tr("settings.row.daily_cycle_switch_to_format", "Switch to %@"),
+            value
+        )
+    }
     static let settingsRowBloodPressure = tr("settings.row.blood_pressure", "Blood Pressure")
     static let settingsRowGlucose = tr("settings.row.glucose", "Glucose")
     static let settingsRowSysMin = tr("settings.row.sys_min", "SYS min")

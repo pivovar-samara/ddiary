@@ -137,9 +137,6 @@
         }
       }
     },
-    "Daily cycle mode" : {
-      "comment" : "Today screen cycle mode status title"
-    },
     "export.header.comment" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2470,9 +2467,6 @@
           }
         }
       }
-    },
-    "Shift +1 day" : {
-      "comment" : "Action title to move today's daily cycle step to the next day"
     },
     "slot.status.completed" : {
       "extractionState" : "manual",

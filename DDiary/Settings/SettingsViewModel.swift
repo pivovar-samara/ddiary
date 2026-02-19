@@ -71,6 +71,18 @@ final class SettingsViewModel {
     var enableAfterMeal2h: Bool = true
     var enableBedtime: Bool = false
     var enableDailyCycleMode: Bool = false
+    private var currentCycleIndex: Int = 0
+    private var dailyCycleAnchorDate: Date? = nil
+
+    var dailyCycleCurrentSlotTitle: String {
+        guard let slot = dailyCycleCurrentSlot() else { return "—" }
+        return cycleSlotTitle(slot)
+    }
+
+    var dailyCycleSwitchTitle: String {
+        let next = dailyCycleNextSlot()
+        return L10n.settingsRowDailyCycleSwitchTo(cycleSlotTitle(next))
+    }
 
     // Thresholds
     var bpSystolicMin: Int = 90
@@ -155,6 +167,8 @@ final class SettingsViewModel {
             enableAfterMeal2h = settings.enableAfterMeal2h
             enableBedtime = settings.enableBedtime
             enableDailyCycleMode = settings.enableDailyCycleMode
+            currentCycleIndex = settings.currentCycleIndex
+            dailyCycleAnchorDate = settings.dailyCycleAnchorDate
 
             bpSystolicMin = settings.bpSystolicMin
             bpSystolicMax = settings.bpSystolicMax
@@ -195,11 +209,13 @@ final class SettingsViewModel {
             settings.enableBedtime = enableBedtime
             settings.enableDailyCycleMode = enableDailyCycleMode
             if enableDailyCycleMode {
-                if settings.dailyCycleAnchorDate == nil {
-                    settings.dailyCycleAnchorDate = GlucoseCyclePlanner.fallbackAnchorDate(
-                        currentCycleIndex: settings.currentCycleIndex
+                settings.currentCycleIndex = currentCycleIndex
+                if dailyCycleAnchorDate == nil {
+                    dailyCycleAnchorDate = GlucoseCyclePlanner.fallbackAnchorDate(
+                        currentCycleIndex: currentCycleIndex
                     )
                 }
+                settings.dailyCycleAnchorDate = dailyCycleAnchorDate
             } else {
                 settings.dailyCycleAnchorDate = nil
             }
@@ -228,6 +244,21 @@ final class SettingsViewModel {
         } catch {
             handleError(error, context: "saveSettings", policy: .showErrorDescription)
         }
+    }
+
+    func switchDailyCycleTargetForward(today: Date = Date()) {
+        guard enableDailyCycleMode else { return }
+        let calendar = Calendar.current
+        let referenceDay = calendar.startOfDay(for: today)
+        let anchorDate = dailyCycleAnchorDate
+            ?? GlucoseCyclePlanner.fallbackAnchorDate(
+                currentCycleIndex: currentCycleIndex,
+                referenceDate: today,
+                calendar: calendar
+            )
+        let shiftedAnchor = calendar.date(byAdding: .day, value: -1, to: anchorDate) ?? anchorDate
+        dailyCycleAnchorDate = shiftedAnchor
+        currentCycleIndex = GlucoseCyclePlanner.step(on: referenceDay, anchorDate: shiftedAnchor, calendar: calendar).rawValue
     }
 
     func connectGoogle() async -> Bool {
@@ -480,6 +511,53 @@ final class SettingsViewModel {
     private func hasNonEmpty(_ value: String?) -> Bool {
         guard let value else { return false }
         return !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    func dailyCycleCurrentSlot(today: Date = Date()) -> MealSlot? {
+        guard enableDailyCycleMode else { return nil }
+        let calendar = Calendar.current
+        let anchor = dailyCycleAnchorDate
+            ?? GlucoseCyclePlanner.fallbackAnchorDate(
+                currentCycleIndex: currentCycleIndex,
+                referenceDate: today,
+                calendar: calendar
+            )
+        let step = GlucoseCyclePlanner.step(on: today, anchorDate: anchor, calendar: calendar)
+        return cycleSlot(for: step)
+    }
+
+    func dailyCycleNextSlot(today: Date = Date()) -> MealSlot {
+        let order: [MealSlot] = [.breakfast, .lunch, .dinner, .none]
+        let current = dailyCycleCurrentSlot(today: today) ?? .breakfast
+        guard let currentIndex = order.firstIndex(of: current) else { return .lunch }
+        let nextIndex = (currentIndex + 1) % order.count
+        return order[nextIndex]
+    }
+
+    private func cycleSlot(for step: GlucoseCycleStep) -> MealSlot {
+        switch step {
+        case .breakfastDay:
+            return .breakfast
+        case .lunchDay:
+            return .lunch
+        case .dinnerDay:
+            return .dinner
+        case .bedtimeDay:
+            return .none
+        }
+    }
+
+    private func cycleSlotTitle(_ slot: MealSlot) -> String {
+        switch slot {
+        case .breakfast:
+            return L10n.settingsRowBreakfast
+        case .lunch:
+            return L10n.settingsRowLunch
+        case .dinner:
+            return L10n.settingsRowDinner
+        case .none:
+            return L10n.settingsRowBedtime
+        }
     }
 
     private func handleError(_ error: Error, context: String, policy: UserSurfacePolicy) {

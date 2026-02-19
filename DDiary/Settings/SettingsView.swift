@@ -173,6 +173,23 @@ struct SettingsView: View {
                             isOn: $bvm.enableDailyCycleMode,
                             toggleAccessibilityId: "settings.glucose.dailyCycle"
                         )
+                        SettingsDivider()
+                        SettingsRow(title: L10n.settingsRowDailyCycleTodayIs) {
+                            Text(bvm.dailyCycleCurrentSlotTitle)
+                                .foregroundStyle(.secondary)
+                                .accessibilityIdentifier("settings.glucose.dailyCycle.current")
+                        }
+                        .disabled(!bvm.enableDailyCycleMode)
+                        SettingsDivider()
+                        SettingsActionRow(
+                            icon: "arrow.triangle.2.circlepath",
+                            title: bvm.dailyCycleSwitchTitle,
+                            role: .none
+                        ) {
+                            bvm.switchDailyCycleTargetForward()
+                        }
+                        .disabled(!bvm.enableDailyCycleMode)
+                        .accessibilityIdentifier("settings.glucose.dailyCycle.switch")
                     }
                 }
 

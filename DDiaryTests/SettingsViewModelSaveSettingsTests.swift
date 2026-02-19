@@ -68,6 +68,61 @@ final class SettingsViewModelSaveSettingsTests: XCTestCase {
         XCTAssertEqual(settingsRepository.savedSettings?.enableAfterMeal2h, false)
     }
 
+    func test_switchDailyCycleTargetForward_rotatesCurrentAndNextSlots() async throws {
+        let settingsRepository = SpySettingsRepository()
+        let updater = SpySchedulesUpdater()
+        let measurementsRepository = MockMeasurementsRepository()
+        let sut = makeSUT(
+            settingsRepository: settingsRepository,
+            measurementsRepository: measurementsRepository,
+            schedulesUpdater: updater
+        )
+
+        await sut.loadSettings()
+        sut.enableDailyCycleMode = true
+        let fixedToday = Calendar.current.date(
+            from: DateComponents(year: 2026, month: 2, day: 16, hour: 9, minute: 0)
+        ) ?? Date()
+
+        XCTAssertEqual(sut.dailyCycleCurrentSlot(today: fixedToday), .breakfast)
+        XCTAssertEqual(sut.dailyCycleNextSlot(today: fixedToday), .lunch)
+
+        sut.switchDailyCycleTargetForward(today: fixedToday)
+
+        XCTAssertEqual(sut.dailyCycleCurrentSlot(today: fixedToday), .lunch)
+        XCTAssertEqual(sut.dailyCycleNextSlot(today: fixedToday), .dinner)
+    }
+
+    func test_switchDailyCycleTargetForward_persistsUpdatedCycleStateOnSave() async throws {
+        let settingsRepository = SpySettingsRepository()
+        let updater = SpySchedulesUpdater()
+        let measurementsRepository = MockMeasurementsRepository()
+        let sut = makeSUT(
+            settingsRepository: settingsRepository,
+            measurementsRepository: measurementsRepository,
+            schedulesUpdater: updater
+        )
+
+        await sut.loadSettings()
+        sut.enableDailyCycleMode = true
+        let fixedToday = Calendar.current.date(
+            from: DateComponents(year: 2026, month: 2, day: 16, hour: 9, minute: 0)
+        ) ?? Date()
+
+        sut.switchDailyCycleTargetForward(today: fixedToday)
+        await sut.saveSettings()
+
+        let saved = try XCTUnwrap(settingsRepository.savedSettings)
+        XCTAssertEqual(saved.currentCycleIndex, 1)
+        let savedAnchor = try XCTUnwrap(saved.dailyCycleAnchorDate)
+        let expectedAnchor = Calendar.current.date(
+            byAdding: .day,
+            value: -1,
+            to: Calendar.current.startOfDay(for: fixedToday)
+        )
+        XCTAssertEqual(savedAnchor, expectedAnchor)
+    }
+
     func test_refreshCloudBackedState_picksUpLaterCloudRestoredIntegration() async throws {
         let settingsRepository = SpySettingsRepository()
         let updater = SpySchedulesUpdater()
