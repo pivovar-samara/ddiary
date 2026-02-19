@@ -54,6 +54,15 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         XCTAssertEqual(trigger.dateComponents.minute, 0)
     }
 
+    func test_scheduleBloodPressure_ignoresInvalidWeekdayValues() async throws {
+        let center = FakeNotificationCenter()
+        let repository = UserNotificationsRepository(center: center)
+
+        try await repository.scheduleBloodPressure(times: [540], activeWeekdays: [0, 2, 8])
+
+        XCTAssertEqual(Set(center.pendingRequests.keys), ["ddiary.bp.w2.0900"])
+    }
+
     func test_scheduleGlucoseBeforeMeal_attachesQuickEntryMetadata() async throws {
         let center = FakeNotificationCenter()
         let repository = UserNotificationsRepository(center: center)

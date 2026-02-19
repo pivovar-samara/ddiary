@@ -186,7 +186,8 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
     }
 
     func scheduleBloodPressure(times: [Int], activeWeekdays: Set<Int>) async throws {
-        for weekday in activeWeekdays.sorted() {
+        let normalizedWeekdays = Set(activeWeekdays.filter { (1...7).contains($0) })
+        for weekday in normalizedWeekdays.sorted() {
             for minutes in times {
                 let hm = minutesToHourMinute(minutes)
                 var comps = DateComponents()

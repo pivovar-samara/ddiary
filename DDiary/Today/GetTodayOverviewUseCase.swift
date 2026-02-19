@@ -79,13 +79,19 @@ public final class GetTodayOverviewUseCase {
 
         let dayRange = Self.dayRange(for: today, calendar: calendar)
 
-        // Build BP scheduled dates from minutes since midnight
-        let bpDates: [Date] = settings.bpTimes.compactMap { minutes in
-            let hour = minutes / 60
-            let minute = minutes % 60
-            let comps = DateComponents(hour: hour, minute: minute)
-            return Self.date(on: today, using: comps, calendar: calendar)
-        }.sorted()
+        // Build BP scheduled dates from minutes since midnight only when reminders
+        // are active for today's weekday.
+        let bpDates: [Date]
+        if Self.isBloodPressureReminderActive(on: today, activeWeekdays: settings.bpActiveWeekdays, calendar: calendar) {
+            bpDates = settings.bpTimes.compactMap { minutes in
+                let hour = minutes / 60
+                let minute = minutes % 60
+                let comps = DateComponents(hour: hour, minute: minute)
+                return Self.date(on: today, using: comps, calendar: calendar)
+            }.sorted()
+        } else {
+            bpDates = []
+        }
 
         // Build Glucose planned slots from meal times and toggles
         var glucosePlanned: [(slot: GlucosePlannedSlot, baseDate: Date)] = []
@@ -253,6 +259,17 @@ public final class GetTodayOverviewUseCase {
         let start = calendar.startOfDay(for: date)
         let end = calendar.date(byAdding: DateComponents(day: 1, second: -1), to: start) ?? start
         return (start, end)
+    }
+
+    private static func isBloodPressureReminderActive(
+        on date: Date,
+        activeWeekdays: Set<Int>,
+        calendar: Calendar
+    ) -> Bool {
+        let normalizedActiveWeekdays = Set(activeWeekdays.filter { (1...7).contains($0) })
+        guard !normalizedActiveWeekdays.isEmpty else { return false }
+        let weekday = calendar.component(.weekday, from: date)
+        return normalizedActiveWeekdays.contains(weekday)
     }
 
     private static func adjustedAfterMealDatesByIndex(

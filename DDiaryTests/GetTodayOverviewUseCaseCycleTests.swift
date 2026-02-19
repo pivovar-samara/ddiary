@@ -63,6 +63,40 @@ final class GetTodayOverviewUseCaseCycleTests: XCTestCase {
         XCTAssertEqual(afterLunch.date, try date(year: 2025, month: 1, day: 1, hour: 15, minute: 0))
     }
 
+    func test_nonCycle_whenTodayWeekdayNotActive_returnsNoBPSlots() async throws {
+        let measurements = MockMeasurementsRepository()
+        let settings = MockSettingsRepository()
+        let sut = GetTodayOverviewUseCase(measurementsRepository: measurements, settingsRepository: settings)
+
+        let userSettings = try await settings.getOrCreate()
+        userSettings.bpTimes = [9 * 60, 21 * 60]
+
+        let fixedToday = try date(year: 2026, month: 2, day: 16, hour: 9, minute: 0)
+        let weekday = Calendar.current.component(.weekday, from: fixedToday)
+        userSettings.bpActiveWeekdays = Set((1...7).filter { $0 != weekday })
+
+        let overview = await sut.compute(today: fixedToday)
+
+        XCTAssertTrue(overview.bpSlots.isEmpty)
+    }
+
+    func test_nonCycle_whenTodayWeekdayActive_returnsBPSlots() async throws {
+        let measurements = MockMeasurementsRepository()
+        let settings = MockSettingsRepository()
+        let sut = GetTodayOverviewUseCase(measurementsRepository: measurements, settingsRepository: settings)
+
+        let userSettings = try await settings.getOrCreate()
+        userSettings.bpTimes = [9 * 60, 21 * 60]
+
+        let fixedToday = try date(year: 2026, month: 2, day: 16, hour: 9, minute: 0)
+        let weekday = Calendar.current.component(.weekday, from: fixedToday)
+        userSettings.bpActiveWeekdays = [weekday]
+
+        let overview = await sut.compute(today: fixedToday)
+
+        XCTAssertEqual(overview.bpSlots.count, 2)
+    }
+
     func test_cycleMode_breakfastDay_returnsBreakfastAndAfterBreakfastOnly() async throws {
         let measurements = MockMeasurementsRepository()
         let settings = MockSettingsRepository()
