@@ -124,6 +124,21 @@ public struct TodayView: View {
             .padding()
         }
         .accessibilityIdentifier("today.scroll")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button(L10n.settingsRowBloodPressure) {
+                        presentManualBPQuickEntry(vm: vm)
+                    }
+                    Button(L10n.settingsRowGlucose) {
+                        presentManualGlucoseQuickEntry(vm: vm)
+                    }
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .accessibilityIdentifier("today.addMeasurement")
+            }
+        }
         .sheet(isPresented: $bvm.presentBPQuickEntry) {
             bpQuickEntrySheet(vm: vm)
         }
@@ -246,6 +261,42 @@ public struct TodayView: View {
         editingGlucoseMeasurementId = slot.matchedMeasurementId
         selectedGlucoseScheduledDate = slot.scheduledDate
         vm.onGlucoseSlotTapped(slot)
+    }
+
+    private func presentManualBPQuickEntry(vm: TodayViewModel) {
+        editingBPMeasurementId = nil
+        editingGlucoseMeasurementId = nil
+        selectedBPScheduledDate = nil
+        selectedGlucoseScheduledDate = nil
+        vm.selectedGlucoseSlot = nil
+        vm.presentGlucoseQuickEntry = false
+        vm.presentBPQuickEntry = true
+    }
+
+    private func presentManualGlucoseQuickEntry(vm: TodayViewModel) {
+        editingBPMeasurementId = nil
+        editingGlucoseMeasurementId = nil
+        selectedBPScheduledDate = nil
+        selectedGlucoseScheduledDate = nil
+        vm.presentBPQuickEntry = false
+        vm.selectedGlucoseSlot = defaultManualGlucoseSlot(vm: vm)
+        vm.presentGlucoseQuickEntry = true
+    }
+
+    private func defaultManualGlucoseSlot(vm: TodayViewModel) -> GlucoseSlotViewModel {
+        if let closest = vm.glucoseSlots.min(by: {
+            abs($0.scheduledDate.timeIntervalSinceNow) < abs($1.scheduledDate.timeIntervalSinceNow)
+        }) {
+            return closest
+        }
+        return GlucoseSlotViewModel(
+            mealSlot: .none,
+            measurementType: .bedtime,
+            displayTime: "",
+            scheduledDate: Date(),
+            status: .due,
+            matchedMeasurementId: nil
+        )
     }
 
     private func stableId(for item: TodayViewModel.TodayItem) -> String {
