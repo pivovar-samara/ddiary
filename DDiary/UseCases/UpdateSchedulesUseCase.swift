@@ -51,11 +51,18 @@ public final class UpdateSchedulesUseCase: SchedulesUpdating {
     /// Reschedules both BP and Glucose notifications using the current settings from the repository.
     /// Call this after saving settings.
     public func scheduleFromCurrentSettings() async throws {
-        let settings = try await settingsRepository.getOrCreate()
-        try await ensureCycleAnchorIfNeeded(settings: settings)
-        try await notificationsRepository.scheduleAllNotifications(settings: settings)
-        await analyticsRepository.logScheduleUpdated(kind: .bloodPressure)
-        await analyticsRepository.logScheduleUpdated(kind: .glucose)
+        do {
+            let settings = try await settingsRepository.getOrCreate()
+            try await ensureCycleAnchorIfNeeded(settings: settings)
+            try await notificationsRepository.scheduleAllNotifications(settings: settings)
+            await analyticsRepository.logScheduleUpdated(kind: .bloodPressure)
+            await analyticsRepository.logScheduleUpdated(kind: .glucose)
+        } catch {
+            let reason = String(describing: error)
+            await analyticsRepository.logScheduleUpdateFailed(kind: .bloodPressure, reason: reason)
+            await analyticsRepository.logScheduleUpdateFailed(kind: .glucose, reason: reason)
+            throw error
+        }
     }
 
     private func ensureCycleAnchorIfNeeded(settings: UserSettings) async throws {

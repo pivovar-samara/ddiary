@@ -80,6 +80,9 @@ struct DDiaryApp: App {
             let coordinator = NotificationsCoordinator(container: appContainer)
             center.delegate = coordinator
             self.notificationsCoordinator = coordinator
+            Task { @MainActor in
+                await appContainer.analyticsRepository.logAppOpen()
+            }
         case .failed:
             self.notificationsCoordinator = nil
         }

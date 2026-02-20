@@ -113,6 +113,8 @@ final class SyncWithGoogleUseCase {
         defer { isSyncInProgress = false }
 
         var syncSnapshot: SyncStatusSnapshot?
+        var successCount = 0
+        var failureCount = 0
         publishLifecycle(.started, snapshot: nil)
         defer { publishLifecycle(.finished, snapshot: syncSnapshot) }
         log("Starting sync")
@@ -183,7 +185,7 @@ final class SyncWithGoogleUseCase {
                     }
                     publishLifecycle(.progress, snapshot: syncSnapshot)
                     log("BP synced id=\(m.id.uuidString)")
-                    await analyticsRepository.logGoogleSyncSuccess()
+                    successCount += 1
                 } catch {
                     m.googleSyncStatus = .failed
                     m.googleLastError = String(describing: error)
@@ -194,7 +196,7 @@ final class SyncWithGoogleUseCase {
                     }
                     publishLifecycle(.progress, snapshot: syncSnapshot)
                     log("BP sync failed id=\(m.id.uuidString) error=\(m.googleLastError ?? "unknown")")
-                    await analyticsRepository.logGoogleSyncFailure(reason: m.googleLastError)
+                    failureCount += 1
                 }
             }
 
@@ -221,7 +223,7 @@ final class SyncWithGoogleUseCase {
                     }
                     publishLifecycle(.progress, snapshot: syncSnapshot)
                     log("Glucose synced id=\(m.id.uuidString)")
-                    await analyticsRepository.logGoogleSyncSuccess()
+                    successCount += 1
                 } catch {
                     m.googleSyncStatus = .failed
                     m.googleLastError = String(describing: error)
@@ -232,8 +234,18 @@ final class SyncWithGoogleUseCase {
                     }
                     publishLifecycle(.progress, snapshot: syncSnapshot)
                     log("Glucose sync failed id=\(m.id.uuidString) error=\(m.googleLastError ?? "unknown")")
-                    await analyticsRepository.logGoogleSyncFailure(reason: m.googleLastError)
+                    failureCount += 1
                 }
+            }
+
+            if successCount > 0 {
+                await analyticsRepository.logGoogleSyncSuccess()
+            }
+            if failureCount > 0 {
+                await analyticsRepository.logGoogleSyncFailure(reason: "row_sync_failed")
+            }
+            if successCount > 0 || failureCount > 0 {
+                await analyticsRepository.logGoogleSyncFinished(successCount: successCount, failureCount: failureCount)
             }
         } catch {
             log("Sync failed: \(error)")

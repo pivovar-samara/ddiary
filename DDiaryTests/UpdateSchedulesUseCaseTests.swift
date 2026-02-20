@@ -119,6 +119,7 @@ final class UpdateSchedulesUseCaseTests: XCTestCase {
 
         XCTAssertEqual(notificationsRepository.cancelAllCount, 0)
         XCTAssertTrue(analyticsRepository.scheduleUpdated.isEmpty)
+        XCTAssertEqual(analyticsRepository.scheduleUpdateFailed.count, 2)
     }
 }
 

@@ -49,7 +49,15 @@ public final class LogBPMeasurementUseCase {
         )
 
         // Persist via the repository (MainActor-bound).
-        try await measurementsRepository.insertBP(measurement)
+        do {
+            try await measurementsRepository.insertBP(measurement)
+        } catch {
+            await analyticsRepository.logMeasurementSaveFailed(
+                kind: .bloodPressure,
+                reason: String(describing: error)
+            )
+            throw error
+        }
 
         // Start best-effort Google sync immediately when integration is connected.
         scheduleGoogleSyncIfConnected()

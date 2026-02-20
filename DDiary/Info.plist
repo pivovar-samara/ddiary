@@ -17,6 +17,8 @@
 	</array>
 	<key>GOOGLE_OAUTH_KEY</key>
 	<string>$(GOOGLE_OAUTH_KEY)</string>
+	<key>AMPLITUDE_API_KEY</key>
+	<string>$(AMPLITUDE_API_KEY)</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>

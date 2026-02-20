@@ -60,7 +60,15 @@ public final class LogGlucoseMeasurementUseCase {
         )
 
         // Persist via the repository (MainActor-bound).
-        try await measurementsRepository.insertGlucose(measurement)
+        do {
+            try await measurementsRepository.insertGlucose(measurement)
+        } catch {
+            await analyticsRepository.logMeasurementSaveFailed(
+                kind: .glucose,
+                reason: String(describing: error)
+            )
+            throw error
+        }
 
         // Start best-effort Google sync immediately when integration is connected.
         scheduleGoogleSyncIfConnected()

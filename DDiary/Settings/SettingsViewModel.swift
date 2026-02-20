@@ -32,6 +32,7 @@ final class SettingsViewModel {
     private let exportCSVUseCase: ExportCSVUseCase
     private let measurementsRepository: any MeasurementsRepository
     private let googleSheetsClient: any GoogleSheetsClient
+    private let analyticsRepository: any AnalyticsRepository
     private let schedulesUpdater: any SchedulesUpdating
     private let logger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "DDiary",
@@ -117,6 +118,7 @@ final class SettingsViewModel {
         exportCSVUseCase: ExportCSVUseCase,
         measurementsRepository: any MeasurementsRepository,
         googleSheetsClient: any GoogleSheetsClient,
+        analyticsRepository: any AnalyticsRepository,
         schedulesUpdater: any SchedulesUpdating
     ) {
         self.settingsRepository = settingsRepository
@@ -124,6 +126,7 @@ final class SettingsViewModel {
         self.exportCSVUseCase = exportCSVUseCase
         self.measurementsRepository = measurementsRepository
         self.googleSheetsClient = googleSheetsClient
+        self.analyticsRepository = analyticsRepository
         self.schedulesUpdater = schedulesUpdater
         observeGoogleSyncLifecycle()
         observeMeasurementsDidChange()
@@ -291,6 +294,7 @@ final class SettingsViewModel {
 
             try await googleIntegrationRepository.update(integration)
             await refreshSyncStatus()
+            await analyticsRepository.logGoogleEnabled()
             errorMessage = nil
             return true
         } catch {
@@ -322,6 +326,7 @@ final class SettingsViewModel {
             let integration = try await fetchLatestGoogleIntegrationModel()
             try await googleIntegrationRepository.clearTokens(integration)
             await refreshSyncStatus()
+            await analyticsRepository.logGoogleDisabled()
         } catch {
             handleError(error, context: "disconnectGoogle", policy: .showErrorDescription)
         }
@@ -336,6 +341,7 @@ final class SettingsViewModel {
         defer { isExporting = false }
         do {
             let url = try await exportCSVUseCase.exportCSV(from: from, to: to, includeBP: includeBP, includeGlucose: includeGlucose)
+            await analyticsRepository.logExportCSV()
             return url
         } catch {
             handleError(error, context: "exportCSV", policy: .showErrorDescription)

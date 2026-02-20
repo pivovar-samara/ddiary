@@ -63,6 +63,8 @@ final class LogBPMeasurementUseCaseTests: XCTestCase {
         XCTAssertTrue(all.isEmpty)
         // Analytics should not record success
         XCTAssertTrue(analytics.measurementLogged.isEmpty)
+        XCTAssertEqual(analytics.measurementSaveFailed.count, 1)
+        XCTAssertEqual(analytics.measurementSaveFailed.first?.kind, .bloodPressure)
         XCTAssertEqual(syncScheduleCount, 0)
     }
 

@@ -30,7 +30,15 @@ public final class UpdateGlucoseMeasurementUseCase {
         measurement.comment = comment
         measurement.googleSyncStatus = .pending
         measurement.googleLastError = nil
-        try await measurementsRepository.updateGlucose(measurement)
+        do {
+            try await measurementsRepository.updateGlucose(measurement)
+        } catch {
+            await analyticsRepository.logMeasurementSaveFailed(
+                kind: .glucose,
+                reason: String(describing: error)
+            )
+            throw error
+        }
         // Optional analytics: treat as a measurement interaction
         await analyticsRepository.logMeasurementLogged(kind: .glucose)
     }

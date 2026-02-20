@@ -327,8 +327,14 @@ public protocol AnalyticsRepository: Sendable {
     /// A measurement was logged by the user.
     func logMeasurementLogged(kind: AnalyticsMeasurementKind) async
 
+    /// A measurement save attempt failed.
+    func logMeasurementSaveFailed(kind: AnalyticsMeasurementKind, reason: String?) async
+
     /// Schedule settings were updated.
     func logScheduleUpdated(kind: AnalyticsScheduleKind) async
+
+    /// Schedule update failed.
+    func logScheduleUpdateFailed(kind: AnalyticsScheduleKind, reason: String?) async
 
     /// CSV export occurred.
     func logExportCSV() async
@@ -338,6 +344,9 @@ public protocol AnalyticsRepository: Sendable {
 
     /// Google Sheets sync failure with an optional reason.
     func logGoogleSyncFailure(reason: String?) async
+
+    /// Google Sheets sync finished summary.
+    func logGoogleSyncFinished(successCount: Int, failureCount: Int) async
 
     /// Google Sheets integration enabled.
     func logGoogleEnabled() async

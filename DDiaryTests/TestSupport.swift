@@ -15,19 +15,33 @@ enum TestError: Error { case forced }
 final class MockAnalyticsRepository: AnalyticsRepository, @unchecked Sendable {
     private(set) var appOpenCount = 0
     private(set) var measurementLogged: [AnalyticsMeasurementKind] = []
+    private(set) var measurementSaveFailed: [(kind: AnalyticsMeasurementKind, reason: String?)] = []
     private(set) var scheduleUpdated: [AnalyticsScheduleKind] = []
+    private(set) var scheduleUpdateFailed: [(kind: AnalyticsScheduleKind, reason: String?)] = []
     private(set) var exportCSVCount = 0
     private(set) var googleSyncSuccessCount = 0
     private(set) var googleSyncFailureReasons: [String?] = []
+    private(set) var googleSyncFinished: [(successCount: Int, failureCount: Int)] = []
+    private(set) var googleEnabledCount = 0
+    private(set) var googleDisabledCount = 0
 
     func logAppOpen() async { appOpenCount += 1 }
     func logMeasurementLogged(kind: AnalyticsMeasurementKind) async { measurementLogged.append(kind) }
+    func logMeasurementSaveFailed(kind: AnalyticsMeasurementKind, reason: String?) async {
+        measurementSaveFailed.append((kind: kind, reason: reason))
+    }
     func logScheduleUpdated(kind: AnalyticsScheduleKind) async { scheduleUpdated.append(kind) }
+    func logScheduleUpdateFailed(kind: AnalyticsScheduleKind, reason: String?) async {
+        scheduleUpdateFailed.append((kind: kind, reason: reason))
+    }
     func logExportCSV() async { exportCSVCount += 1 }
     func logGoogleSyncSuccess() async { googleSyncSuccessCount += 1 }
     func logGoogleSyncFailure(reason: String?) async { googleSyncFailureReasons.append(reason) }
-    func logGoogleEnabled() async {}
-    func logGoogleDisabled() async {}
+    func logGoogleSyncFinished(successCount: Int, failureCount: Int) async {
+        googleSyncFinished.append((successCount: successCount, failureCount: failureCount))
+    }
+    func logGoogleEnabled() async { googleEnabledCount += 1 }
+    func logGoogleDisabled() async { googleDisabledCount += 1 }
 }
 
 // GoogleSheets client test double

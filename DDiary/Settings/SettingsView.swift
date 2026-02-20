@@ -411,6 +411,7 @@ struct SettingsView: View {
                 exportCSVUseCase: container.exportCSVUseCase,
                 measurementsRepository: container.measurementsRepository,
                 googleSheetsClient: container.googleSheetsClient,
+                analyticsRepository: container.analyticsRepository,
                 schedulesUpdater: container.updateSchedulesUseCase
             )
             self.viewModel = vm

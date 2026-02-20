@@ -37,6 +37,9 @@ final class SyncWithGoogleUseCaseTests: XCTestCase {
         XCTAssertEqual(syncedBP?.googleSyncStatus, .success)
         XCTAssertEqual(syncedGl?.googleSyncStatus, .success)
         XCTAssertGreaterThan(analytics.googleSyncSuccessCount, 0)
+        XCTAssertEqual(analytics.googleSyncFinished.count, 1)
+        XCTAssertEqual(analytics.googleSyncFinished.first?.successCount, 2)
+        XCTAssertEqual(analytics.googleSyncFinished.first?.failureCount, 0)
     }
 
     func test_errorPath_integrationDisabled_noCrash_noChanges() async throws {
@@ -101,6 +104,9 @@ final class SyncWithGoogleUseCaseTests: XCTestCase {
         let updated = try await measurements.bpMeasurement(id: bp.id)
         XCTAssertEqual(updated?.googleSyncStatus, .failed)
         XCTAssertFalse(analytics.googleSyncFailureReasons.isEmpty)
+        XCTAssertEqual(analytics.googleSyncFinished.count, 1)
+        XCTAssertEqual(analytics.googleSyncFinished.first?.successCount, 0)
+        XCTAssertEqual(analytics.googleSyncFinished.first?.failureCount, 1)
     }
 
     func test_invalidGrant_disablesIntegrationAndKeepsPendingMeasurements() async throws {

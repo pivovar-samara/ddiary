@@ -28,7 +28,15 @@ public final class UpdateBPMeasurementUseCase {
         measurement.comment = comment
         measurement.googleSyncStatus = .pending
         measurement.googleLastError = nil
-        try await measurementsRepository.updateBP(measurement)
+        do {
+            try await measurementsRepository.updateBP(measurement)
+        } catch {
+            await analyticsRepository.logMeasurementSaveFailed(
+                kind: .bloodPressure,
+                reason: String(describing: error)
+            )
+            throw error
+        }
         // Optional analytics: treat as a measurement interaction
         await analyticsRepository.logMeasurementLogged(kind: .bloodPressure)
     }

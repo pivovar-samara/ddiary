@@ -297,6 +297,7 @@ final class SettingsViewModelSaveSettingsTests: XCTestCase {
             exportCSVUseCase: ExportCSVUseCase(measurementsRepository: measurementsRepository),
             measurementsRepository: measurementsRepository,
             googleSheetsClient: RecordingGoogleSheetsClient(),
+            analyticsRepository: MockAnalyticsRepository(),
             schedulesUpdater: schedulesUpdater
         )
     }
