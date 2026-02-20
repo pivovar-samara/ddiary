@@ -7,13 +7,17 @@ import UIKit
 
 public struct TodayView: View {
     @Environment(\.appContainer) private var container
+    @Environment(\.scenePhase) private var scenePhase
+    private let isActiveTab: Bool
     @State private var viewModel: TodayViewModel? = nil
     @State private var editingBPMeasurementId: UUID? = nil
     @State private var editingGlucoseMeasurementId: UUID? = nil
     @State private var selectedBPScheduledDate: Date? = nil
     @State private var selectedGlucoseScheduledDate: Date? = nil
 
-    public init() {}
+    public init(isActiveTab: Bool = true) {
+        self.isActiveTab = isActiveTab
+    }
 
     public var body: some View {
         Group {
@@ -23,6 +27,14 @@ public struct TodayView: View {
                 ProgressView(L10n.todayLoading)
                     .task { await initializeViewModelIfNeeded() }
             }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            guard newPhase == .active, isActiveTab, let vm = viewModel else { return }
+            Task { await vm.refreshIfNeeded(reason: .appBecameActive) }
+        }
+        .onChange(of: isActiveTab) { _, isNowActiveTab in
+            guard isNowActiveTab, scenePhase == .active, let vm = viewModel else { return }
+            Task { await vm.refreshIfNeeded(reason: .screenBecameVisible) }
         }
     }
 
@@ -148,17 +160,17 @@ public struct TodayView: View {
         .onChange(of: bvm.presentBPQuickEntry) { _, isPresented in
             if !isPresented {
                 selectedBPScheduledDate = nil
-                Task { await vm.refresh() }
+                Task { await vm.refreshIfNeeded(reason: .quickEntryDismissed) }
             }
         }
         .onChange(of: bvm.presentGlucoseQuickEntry) { _, isPresented in
             if !isPresented {
                 selectedGlucoseScheduledDate = nil
-                Task { await vm.refresh() }
+                Task { await vm.refreshIfNeeded(reason: .quickEntryDismissed) }
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .settingsDidSave)) { _ in
-            Task { await vm.refresh() }
+            Task { await vm.refreshIfNeeded(reason: .settingsSaved) }
         }
         .onReceive(NotificationCenter.default.publisher(for: .notificationQuickEntryRequested)) { _ in
             Task { @MainActor in
@@ -182,7 +194,6 @@ public struct TodayView: View {
                     vm.presentBPQuickEntry = false
                     editingBPMeasurementId = nil
                     selectedBPScheduledDate = nil
-                    Task { await vm.refresh() }
                 }
             )
             .navigationTitle(L10n.todayQuickEntryTitle)
@@ -206,7 +217,6 @@ public struct TodayView: View {
                     vm.presentGlucoseQuickEntry = false
                     editingGlucoseMeasurementId = nil
                     selectedGlucoseScheduledDate = nil
-                    Task { await vm.refresh() }
                 }
             )
             .navigationTitle(L10n.todayQuickEntryTitle)
@@ -224,7 +234,7 @@ public struct TodayView: View {
                 schedulesUpdater: container.updateSchedulesUseCase
             )
             self.viewModel = vm
-            await vm.refresh()
+            await vm.refreshIfNeeded(reason: .initialLoad)
             handleNotificationQuickEntryIfNeeded(vm: vm)
         }
     }

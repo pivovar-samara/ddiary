@@ -26,7 +26,8 @@ struct RootView: View {
             TabView(selection: $selectedTab) {
                 // Today
                 NavigationStack {
-                    TodayView().navigationTitle(L10n.screenTodayTitle)
+                    TodayView(isActiveTab: selectedTab == .today)
+                        .navigationTitle(L10n.screenTodayTitle)
                 }
                 .tag(RootTab.today)
                 .tabItem {

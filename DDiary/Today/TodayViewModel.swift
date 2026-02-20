@@ -69,6 +69,15 @@ public struct GlucoseSlotViewModel: Identifiable, Sendable, Equatable {
 @MainActor
 @Observable
 public final class TodayViewModel {
+    public enum RefreshReason: Sendable {
+        case initialLoad
+        case appBecameActive
+        case screenBecameVisible
+        case settingsSaved
+        case quickEntryDismissed
+        case manual
+    }
+
     // Dependencies
     private let getTodayOverviewUseCase: GetTodayOverviewUseCase
     private let logBPMeasurementUseCase: LogBPMeasurementUseCase
@@ -81,6 +90,8 @@ public final class TodayViewModel {
     public private(set) var isShiftingCycleDay: Bool = false
     public private(set) var isDailyCycleModeEnabled: Bool = false
     public private(set) var errorMessage: String? = nil
+    private var isRefreshInProgress: Bool = false
+    private var hasPendingRefresh: Bool = false
 
     public private(set) var bpSlots: [BPSlotViewModel] = []
     public private(set) var glucoseSlots: [GlucoseSlotViewModel] = []
@@ -227,6 +238,25 @@ public final class TodayViewModel {
     // MARK: - Intents
 
     public func refresh() async {
+        await refreshIfNeeded(reason: .manual)
+    }
+
+    public func refreshIfNeeded(reason _: RefreshReason) async {
+        if isRefreshInProgress {
+            hasPendingRefresh = true
+            return
+        }
+
+        repeat {
+            hasPendingRefresh = false
+            await performRefresh()
+        } while hasPendingRefresh
+    }
+
+    private func performRefresh() async {
+        isRefreshInProgress = true
+        defer { isRefreshInProgress = false }
+
         isLoading = true
         
         let overview = await getTodayOverviewUseCase.compute()
