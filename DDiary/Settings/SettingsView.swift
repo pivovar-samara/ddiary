@@ -1,5 +1,6 @@
 import SwiftUI
 import Observation
+import UIKit
 
 struct SettingsView: View {
     @Environment(\.appContainer) private var container
@@ -8,9 +9,8 @@ struct SettingsView: View {
 
     @State private var viewModel: SettingsViewModel? = nil
 
-    // Export sheet
-    @State private var exportedURL: URL? = nil
-    @State private var presentShareSheet: Bool = false
+    // Export share presentation
+    @State private var exportShareItem: ExportShareItem? = nil
 
     // Export controls
     @State private var exportStartDate: Date = Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? Date()
@@ -28,15 +28,8 @@ struct SettingsView: View {
             }
         }
         .navigationTitle(L10n.settingsTitle)
-        .sheet(isPresented: $presentShareSheet, onDismiss: { exportedURL = nil }) {
-            if let url = exportedURL {
-                ShareLink(item: url) {
-                    Label(L10n.settingsShareExportedCSV, systemImage: "square.and.arrow.up")
-                }
-                .presentationDetents([.medium, .large])
-            } else {
-                Text(L10n.settingsShareNoFile)
-            }
+        .sheet(item: $exportShareItem, onDismiss: { exportShareItem = nil }) { item in
+            ActivityShareSheet(activityItems: [item.url])
         }
     }
 
@@ -323,11 +316,27 @@ struct SettingsView: View {
                 SettingsSectionCard(title: L10n.settingsSectionExport) {
                     VStack(spacing: 0) {
                         SettingsRow(title: L10n.settingsRowFrom) {
-                            DateRowPicker(date: $exportStartDate)
+                            DatePicker(
+                                "",
+                                selection: $exportStartDate,
+                                in: Date.distantPast...exportEndDate,
+                                displayedComponents: [.date]
+                            )
+                            .labelsHidden()
+                            .datePickerStyle(.compact)
+                            .accessibilityIdentifier("settings.export.fromDate")
                         }
                         SettingsDivider()
                         SettingsRow(title: L10n.settingsRowTo) {
-                            DateRowPicker(date: $exportEndDate)
+                            DatePicker(
+                                "",
+                                selection: $exportEndDate,
+                                in: exportStartDate...Date.distantFuture,
+                                displayedComponents: [.date]
+                            )
+                            .labelsHidden()
+                            .datePickerStyle(.compact)
+                            .accessibilityIdentifier("settings.export.toDate")
                         }
                         SettingsDivider()
                         SettingsToggleRow(title: L10n.settingsRowIncludeBP, isOn: $exportIncludeBP)
@@ -337,8 +346,7 @@ struct SettingsView: View {
                         SettingsActionRow(icon: "square.and.arrow.up", title: L10n.settingsRowExportCSV, role: .none) {
                             Task {
                                 if let url = await vm.exportCSV(from: exportStartDate, to: exportEndDate, includeBP: exportIncludeBP, includeGlucose: exportIncludeGlucose) {
-                                    exportedURL = url
-                                    presentShareSheet = true
+                                    exportShareItem = ExportShareItem(url: url)
                                 }
                             }
                         }
@@ -698,31 +706,19 @@ private struct DoubleValueCapsuleEditor: View {
     }
 }
 
-private struct DateRowPicker: View {
-    @Binding var date: Date
+private struct ExportShareItem: Identifiable {
+    let id = UUID()
+    let url: URL
+}
 
-    var body: some View {
-        ZStack(alignment: .trailing) {
-            // Keep the system DatePicker to preserve native presentation behavior
-            DatePicker("", selection: $date, displayedComponents: [.date])
-                .labelsHidden()
-                .opacity(0.02) // nearly invisible but still hit-testable
+private struct ActivityShareSheet: UIViewControllerRepresentable {
+    let activityItems: [Any]
 
-            // Custom trailing display (non-interactive)
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(date, style: .date)
-                    .font(.body)
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                Image(systemName: "calendar")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            }
-            .allowsHitTesting(false)
-        }
-        .frame(height: 44)
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
     }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
 private struct TimeOfDayPicker: View {
