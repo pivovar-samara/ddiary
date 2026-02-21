@@ -11,14 +11,18 @@
 			<string>com.pivovar.ddiary</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>com.googleusercontent.apps.383781347842-eebk0q5ogjta4s85tel3dccfd8u2fj1o</string>
+				<string>$(GOOGLE_OAUTH_REDIRECT_SCHEME)</string>
 			</array>
 		</dict>
 	</array>
 	<key>GOOGLE_OAUTH_KEY</key>
 	<string>$(GOOGLE_OAUTH_KEY)</string>
+	<key>GOOGLE_OAUTH_REDIRECT_URI</key>
+	<string>$(GOOGLE_OAUTH_REDIRECT_URI)</string>
 	<key>AMPLITUDE_API_KEY</key>
 	<string>$(AMPLITUDE_API_KEY)</string>
+	<key>SUPPORT_EMAIL</key>
+	<string>$(SUPPORT_EMAIL)</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>

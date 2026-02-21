@@ -9,12 +9,33 @@ import Security
 /// Configure these values for your Google OAuth client.
 /// - Note: You must register your bundle's redirect URI scheme in your Info.plist (URL Types).
 public enum GoogleOAuthConfig {
+    private static var redirectURIOverride: String?
+
     /// Your OAuth 2.0 Client ID from Google Cloud Console (iOS type or Web type depending on flow).
     public static var clientID: String {
-        Bundle.main.object(forInfoDictionaryKey: "GOOGLE_OAUTH_KEY") as? String ?? ""
+        sanitizedInfoValue(forKey: "GOOGLE_OAUTH_KEY") ?? ""
     }
+
     /// The full redirect URI registered with Google, e.g., "ddiary:/goauth".
-    public static var redirectURI: String = "com.googleusercontent.apps.383781347842-eebk0q5ogjta4s85tel3dccfd8u2fj1o:/oauthredirect"
+    public static var redirectURI: String {
+        get {
+            if let override = redirectURIOverride?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !override.isEmpty {
+                return override
+            }
+            if let configured = sanitizedInfoValue(forKey: "GOOGLE_OAUTH_REDIRECT_URI") {
+                return configured
+            }
+            if let derived = derivedRedirectURI(fromClientID: clientID) {
+                return derived
+            }
+            return "ddiary:/oauthredirect"
+        }
+        set {
+            redirectURIOverride = newValue
+        }
+    }
+
     /// Optional override for callback scheme in ASWebAuthenticationSession.
     public static var callbackSchemeOverride: String?
     /// Callback scheme used by ASWebAuthenticationSession.
@@ -30,8 +51,36 @@ public enum GoogleOAuthConfig {
         }
         return "ddiary"
     }
-    /// Space-separated scopes. Include Sheets, and optionally OpenID/email for user id.
-    public static var scope: String = "openid email profile https://www.googleapis.com/auth/spreadsheets"
+    public static let sheetsScope = "https://www.googleapis.com/auth/spreadsheets"
+
+    /// Space-separated scopes requested in a single consent screen.
+    /// Installed-app OAuth does not support incremental authorization.
+    ///
+    /// Keep identity scopes optional; Sheets sync requires only `sheetsScope`.
+    public static var scope: String = sheetsScope
+
+    /// Scopes that must be granted for sync to function.
+    /// Optional identity scopes (openid/email/profile) must not block connection.
+    public static var requiredScopes: Set<String> { [sheetsScope] }
+
+    private static func sanitizedInfoValue(forKey key: String) -> String? {
+        guard let raw = Bundle.main.object(forInfoDictionaryKey: key) as? String else {
+            return nil
+        }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !trimmed.contains("$(") else { return nil }
+        return trimmed
+    }
+
+    private static func derivedRedirectURI(fromClientID clientID: String) -> String? {
+        let suffix = ".apps.googleusercontent.com"
+        guard clientID.hasSuffix(suffix), clientID.count > suffix.count else {
+            return nil
+        }
+        let rawID = String(clientID.dropLast(suffix.count))
+        guard !rawID.isEmpty else { return nil }
+        return "com.googleusercontent.apps.\(rawID):/oauthredirect"
+    }
 }
 
 // MARK: - Tokens
@@ -86,6 +135,7 @@ public enum GoogleOAuth {
         // 1) Build PKCE values
         let verifier = randomURLSafeString(length: 64)
         let challenge = codeChallenge(for: verifier)
+        let state = randomURLSafeString(length: 32)
 
         // 2) Build auth URL
         var comps = URLComponents()
@@ -99,6 +149,7 @@ public enum GoogleOAuth {
             URLQueryItem(name: "scope", value: GoogleOAuthConfig.scope),
             URLQueryItem(name: "code_challenge", value: challenge),
             URLQueryItem(name: "code_challenge_method", value: "S256"),
+            URLQueryItem(name: "state", value: state),
             URLQueryItem(name: "access_type", value: "offline"), // request refresh token
             URLQueryItem(name: "prompt", value: "consent") // ensure refresh token on subsequent logins
         ]
@@ -109,9 +160,7 @@ public enum GoogleOAuth {
         let callbackURL = try await startWebAuthSession(authURL: authURL, callbackScheme: callbackScheme)
 
         // 4) Extract code from callback URL
-        guard let code = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "code" })?.value else {
-            throw OAuthError.missingCode
-        }
+        let code = try parseAuthorizationCallback(callbackURL, expectedState: state)
 
         // 5) Exchange code for tokens
         let tokens = try await exchangeCodeForTokens(code: code, codeVerifier: verifier)
@@ -122,6 +171,8 @@ public enum GoogleOAuth {
     public enum OAuthError: Error {
         case invalidURL
         case missingCode
+        case invalidState
+        case authorizationFailed(code: String, description: String?)
         case tokenExchangeFailed(status: Int, body: String?)
         case sessionStartFailed
     }
@@ -200,13 +251,48 @@ public enum GoogleOAuth {
             let body = String(data: data, encoding: .utf8)
             throw OAuthError.tokenExchangeFailed(status: (response as? HTTPURLResponse)?.statusCode ?? -1, body: body)
         }
-        struct TokenResponse: Decodable { let access_token: String; let refresh_token: String?; let id_token: String?; let expires_in: Int? }
+        struct TokenResponse: Decodable {
+            let access_token: String
+            let refresh_token: String?
+            let id_token: String?
+            let expires_in: Int?
+            let scope: String?
+        }
         let decoded = try JSONDecoder().decode(TokenResponse.self, from: data)
         guard let refresh = decoded.refresh_token else {
             // Google may omit refresh_token on subsequent sign-ins without prompt=consent; treat as failure for our use.
             throw OAuthError.tokenExchangeFailed(status: 200, body: "Missing refresh_token")
         }
+        if let grantedScope = decoded.scope {
+            let granted = Set(grantedScope.split(whereSeparator: \.isWhitespace).map(String.init))
+            let missing = GoogleOAuthConfig.requiredScopes.subtracting(granted)
+            if !missing.isEmpty {
+                let sortedMissing = missing.sorted().joined(separator: ",")
+                throw OAuthError.tokenExchangeFailed(status: 200, body: "Missing granted scopes: \(sortedMissing)")
+            }
+        }
         return GoogleOAuthTokens(accessToken: decoded.access_token, refreshToken: refresh, idToken: decoded.id_token, expiresIn: decoded.expires_in)
+    }
+
+    static func parseAuthorizationCallback(_ callbackURL: URL, expectedState: String) throws -> String {
+        let queryItems = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        if let errorCode = queryItems.first(where: { $0.name == "error" })?.value {
+            let description = queryItems
+                .first(where: { $0.name == "error_description" })?
+                .value?
+                .replacingOccurrences(of: "+", with: " ")
+            throw OAuthError.authorizationFailed(code: errorCode, description: description)
+        }
+
+        let returnedState = queryItems.first(where: { $0.name == "state" })?.value
+        guard returnedState == expectedState else {
+            throw OAuthError.invalidState
+        }
+
+        guard let code = queryItems.first(where: { $0.name == "code" })?.value, !code.isEmpty else {
+            throw OAuthError.missingCode
+        }
+        return code
     }
 
     private static func randomURLSafeString(length: Int) -> String {
@@ -286,14 +372,23 @@ public enum GoogleOAuth {
             return fallbackPresentationAnchor
         }
 
-        // Prefer waiting briefly over terminating in transient lifecycle races.
-        while true {
+        // Wait briefly for foreground-scene recovery, then fail closed with an inert anchor.
+        let deadline = Date().addingTimeInterval(2)
+        while Date() < deadline {
             RunLoop.main.run(until: Date().addingTimeInterval(0.05))
             if let recoveredAnchor = resolvePresentationAnchor(from: UIApplication.shared.connectedScenes) {
                 fallbackPresentationAnchor = recoveredAnchor
                 return recoveredAnchor
             }
         }
+
+        guard let emergencyScene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first else {
+            preconditionFailure("No UIWindowScene available for ASWebAuthenticationSession presentation anchor.")
+        }
+
+        let emergencyAnchor = ASPresentationAnchor(windowScene: emergencyScene)
+        fallbackPresentationAnchor = emergencyAnchor
+        return emergencyAnchor
     }
 
     private static func resolvePresentationAnchor(from scenes: Set<UIScene>) -> ASPresentationAnchor? {
@@ -318,5 +413,24 @@ public enum GoogleOAuth {
             return ASPresentationAnchor(windowScene: fallbackScene)
         }
         return nil
+    }
+}
+
+extension GoogleOAuth.OAuthError: LocalizedError {
+    public var errorDescription: String? {
+        switch self {
+        case .invalidURL:
+            return "OAuth URL could not be created."
+        case .missingCode:
+            return "Google did not return an authorization code."
+        case .invalidState:
+            return "OAuth state validation failed. Please retry sign-in."
+        case .authorizationFailed(let code, let description):
+            return "Authorization failed (\(code)): \(description ?? "No details")"
+        case .tokenExchangeFailed(let status, let body):
+            return "Token exchange failed (\(status)): \(body ?? "No details")"
+        case .sessionStartFailed:
+            return "Could not start the Google sign-in session."
+        }
     }
 }

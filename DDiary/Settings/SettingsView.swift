@@ -361,11 +361,11 @@ struct SettingsView: View {
                 SettingsSectionCard(title: L10n.settingsSectionFeedbackAbout) {
                     VStack(alignment: .leading, spacing: DS.Spacing.small) {
                         SettingsActionRow(icon: "envelope", title: L10n.settingsRowSendFeedback) {
-                            let subject = L10n.settingsFeedbackEmailSubject.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-                            if let url = URL(string: "mailto:support@example.com?subject=\(subject)") {
+                            if let url = feedbackEmailURL() {
                                 openURL(url)
                             }
                         }
+                        .disabled(feedbackEmailURL() == nil)
                         Text(L10n.settingsDisclaimerMedical)
                             .font(.footnote)
                             .foregroundStyle(.secondary)
@@ -429,6 +429,18 @@ struct SettingsView: View {
 
     private func dateString(_ date: Date) -> String {
         return UIFormatters.dateMediumShortTime.string(from: date)
+    }
+
+    private func feedbackEmailURL() -> URL? {
+        guard
+            let rawEmail = Bundle.main.object(forInfoDictionaryKey: "SUPPORT_EMAIL") as? String
+        else {
+            return nil
+        }
+        let email = rawEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !email.isEmpty, !email.contains("$(") else { return nil }
+        let subject = L10n.settingsFeedbackEmailSubject.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        return URL(string: "mailto:\(email)?subject=\(subject)")
     }
 }
 

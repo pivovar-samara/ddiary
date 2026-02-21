@@ -4,6 +4,11 @@ import UIKit
 
 @MainActor
 final class GoogleOAuthConfigTests: XCTestCase {
+    func test_defaultScope_requestsSheetsOnly() {
+        XCTAssertEqual(GoogleOAuthConfig.scope, GoogleOAuthConfig.sheetsScope)
+        XCTAssertEqual(GoogleOAuthConfig.requiredScopes, [GoogleOAuthConfig.sheetsScope])
+    }
+
     func test_redirectScheme_defaultsToRedirectURIScheme() {
         let oldURI = GoogleOAuthConfig.redirectURI
         let oldOverride = GoogleOAuthConfig.callbackSchemeOverride
@@ -117,5 +122,35 @@ final class GoogleOAuthConfigTests: XCTestCase {
             encoded,
             "emoji=A%F0%9F%99%82&empty=&line=a%0Ab%09c&reserved=%25%2B+%7E*"
         )
+    }
+
+    func test_parseAuthorizationCallback_returnsCodeForValidState() throws {
+        let callbackURL = try XCTUnwrap(URL(string: "com.example.app:/oauthredirect?state=expected-state&code=auth-code"))
+        let code = try GoogleOAuth.parseAuthorizationCallback(callbackURL, expectedState: "expected-state")
+        XCTAssertEqual(code, "auth-code")
+    }
+
+    func test_parseAuthorizationCallback_throwsInvalidStateOnMismatch() throws {
+        let callbackURL = try XCTUnwrap(URL(string: "com.example.app:/oauthredirect?state=wrong&code=auth-code"))
+
+        XCTAssertThrowsError(try GoogleOAuth.parseAuthorizationCallback(callbackURL, expectedState: "expected-state")) { error in
+            guard case GoogleOAuth.OAuthError.invalidState = error else {
+                return XCTFail("Expected invalidState, got \(error)")
+            }
+        }
+    }
+
+    func test_parseAuthorizationCallback_throwsAuthorizationFailedWhenOAuthReturnsError() throws {
+        let callbackURL = try XCTUnwrap(
+            URL(string: "com.example.app:/oauthredirect?state=expected-state&error=invalid_request&error_description=Incremental+authorization+not+supported")
+        )
+
+        XCTAssertThrowsError(try GoogleOAuth.parseAuthorizationCallback(callbackURL, expectedState: "expected-state")) { error in
+            guard case let GoogleOAuth.OAuthError.authorizationFailed(code, description) = error else {
+                return XCTFail("Expected authorizationFailed, got \(error)")
+            }
+            XCTAssertEqual(code, "invalid_request")
+            XCTAssertEqual(description, "Incremental authorization not supported")
+        }
     }
 }
