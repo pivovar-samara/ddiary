@@ -9,7 +9,11 @@
     }
   ],
   "defaultOptions" : {
-
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:DDiary.xcodeproj",
+      "identifier" : "4849EBAE2ED4BF4F00E060BF",
+      "name" : "DDiary"
+    }
   },
   "testTargets" : [
     {
