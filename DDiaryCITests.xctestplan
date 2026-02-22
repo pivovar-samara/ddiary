@@ -1,0 +1,40 @@
+{
+  "configurations" : [
+    {
+      "id" : "2840BE8F-0A7F-40DF-9E8B-8F81F32B9246",
+      "name" : "Configuration 1",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:DDiary.xcodeproj",
+        "identifier" : "4849EBBF2ED4BF5000E060BF",
+        "name" : "DDiaryTests"
+      }
+    },
+    {
+      "skippedTests" : [
+        "DDiaryUITests",
+        "DDiaryUITests\/testBPOutOfRangeShowsAlert()",
+        "DDiaryUITests\/testBedtimeSlotToggleAffectsToday()",
+        "DDiaryUITests\/testDebugTabVisibilityMatchesBuildConfiguration()",
+        "DDiaryUITests\/testGlucoseOutOfRangeShowsAlertAndInlineMessage()",
+        "DDiaryUITests\/testLaunchPerformance()",
+        "DDiaryUITests\/testQuickEntryAndHistoryFlow()"
+      ],
+      "target" : {
+        "containerPath" : "container:DDiary.xcodeproj",
+        "identifier" : "4849EBC92ED4BF5000E060BF",
+        "name" : "DDiaryUITests"
+      }
+    }
+  ],
+  "version" : 1
+}
