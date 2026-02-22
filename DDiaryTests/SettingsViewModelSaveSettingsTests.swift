@@ -3,6 +3,107 @@ import XCTest
 
 @MainActor
 final class SettingsViewModelSaveSettingsTests: XCTestCase {
+    func test_connectGoogle_reusesExistingSpreadsheet_whenFoundByTitle() async throws {
+        let settingsRepository = SpySettingsRepository()
+        let updater = SpySchedulesUpdater()
+        let measurementsRepository = MockMeasurementsRepository()
+        let googleRepository = MockGoogleIntegrationRepository()
+        let sheetsClient = SpyGoogleSheetsClient()
+        sheetsClient.findSpreadsheetIdResult = "existing-sheet-id"
+
+        let sut = makeSUT(
+            settingsRepository: settingsRepository,
+            measurementsRepository: measurementsRepository,
+            schedulesUpdater: updater,
+            googleIntegrationRepository: googleRepository,
+            googleSheetsClient: sheetsClient,
+            googleSignIn: {
+                GoogleOAuthTokens(
+                    accessToken: "access",
+                    refreshToken: "refresh-token",
+                    idToken: nil,
+                    expiresIn: 3600
+                )
+            }
+        )
+
+        let connected = await sut.connectGoogle()
+        let integration = try await googleRepository.getOrCreate()
+
+        XCTAssertTrue(connected)
+        XCTAssertEqual(integration.spreadsheetId, "existing-sheet-id")
+        XCTAssertEqual(sheetsClient.findSpreadsheetIdCallCount, 1)
+        XCTAssertEqual(sheetsClient.createSpreadsheetCallCount, 0)
+    }
+
+    func test_connectGoogle_createsSpreadsheet_whenNoExistingFound() async throws {
+        let settingsRepository = SpySettingsRepository()
+        let updater = SpySchedulesUpdater()
+        let measurementsRepository = MockMeasurementsRepository()
+        let googleRepository = MockGoogleIntegrationRepository()
+        let sheetsClient = SpyGoogleSheetsClient()
+        sheetsClient.findSpreadsheetIdResult = nil
+        sheetsClient.createdSpreadsheetId = "created-sheet-id"
+
+        let sut = makeSUT(
+            settingsRepository: settingsRepository,
+            measurementsRepository: measurementsRepository,
+            schedulesUpdater: updater,
+            googleIntegrationRepository: googleRepository,
+            googleSheetsClient: sheetsClient,
+            googleSignIn: {
+                GoogleOAuthTokens(
+                    accessToken: "access",
+                    refreshToken: "refresh-token",
+                    idToken: nil,
+                    expiresIn: 3600
+                )
+            }
+        )
+
+        let connected = await sut.connectGoogle()
+        let integration = try await googleRepository.getOrCreate()
+
+        XCTAssertTrue(connected)
+        XCTAssertEqual(integration.spreadsheetId, "created-sheet-id")
+        XCTAssertEqual(sheetsClient.findSpreadsheetIdCallCount, expectedSpreadsheetLookupTitleCount())
+        XCTAssertEqual(sheetsClient.createSpreadsheetCallCount, 1)
+    }
+
+    func test_connectGoogle_reusesSpreadsheet_whenFoundByAlternateLocaleTitle() async throws {
+        let settingsRepository = SpySettingsRepository()
+        let updater = SpySchedulesUpdater()
+        let measurementsRepository = MockMeasurementsRepository()
+        let googleRepository = MockGoogleIntegrationRepository()
+        let sheetsClient = SpyGoogleSheetsClient()
+        sheetsClient.findSpreadsheetIdByTitleResults["Резервная копия DIA-ry"] = "existing-ru-sheet-id"
+
+        let sut = makeSUT(
+            settingsRepository: settingsRepository,
+            measurementsRepository: measurementsRepository,
+            schedulesUpdater: updater,
+            googleIntegrationRepository: googleRepository,
+            googleSheetsClient: sheetsClient,
+            googleSignIn: {
+                GoogleOAuthTokens(
+                    accessToken: "access",
+                    refreshToken: "refresh-token",
+                    idToken: nil,
+                    expiresIn: 3600
+                )
+            }
+        )
+
+        let connected = await sut.connectGoogle()
+        let integration = try await googleRepository.getOrCreate()
+
+        XCTAssertTrue(connected)
+        XCTAssertEqual(integration.spreadsheetId, "existing-ru-sheet-id")
+        XCTAssertEqual(sheetsClient.createSpreadsheetCallCount, 0)
+        XCTAssertEqual(sheetsClient.findSpreadsheetIdCallCount, 2)
+        XCTAssertEqual(Array(sheetsClient.queriedTitles.prefix(2)), ["DIA-ry backup", "Резервная копия DIA-ry"])
+    }
+
     func test_saveSettings_callsSchedulesUpdaterOnceAfterSave() async throws {
         let settingsRepository = SpySettingsRepository()
         let updater = SpySchedulesUpdater()
@@ -289,17 +390,57 @@ final class SettingsViewModelSaveSettingsTests: XCTestCase {
         settingsRepository: SpySettingsRepository,
         measurementsRepository: any MeasurementsRepository,
         schedulesUpdater: SpySchedulesUpdater,
-        googleIntegrationRepository: GoogleIntegrationRepository = MockGoogleIntegrationRepository()
+        googleIntegrationRepository: GoogleIntegrationRepository = MockGoogleIntegrationRepository(),
+        googleSheetsClient: any GoogleSheetsClient = RecordingGoogleSheetsClient(),
+        googleSignIn: @escaping @MainActor () async throws -> GoogleOAuthTokens = {
+            throw TestError.forced
+        }
     ) -> SettingsViewModel {
         SettingsViewModel(
             settingsRepository: settingsRepository,
             googleIntegrationRepository: googleIntegrationRepository,
             exportCSVUseCase: ExportCSVUseCase(measurementsRepository: measurementsRepository),
             measurementsRepository: measurementsRepository,
-            googleSheetsClient: RecordingGoogleSheetsClient(),
+            googleSheetsClient: googleSheetsClient,
             analyticsRepository: MockAnalyticsRepository(),
-            schedulesUpdater: schedulesUpdater
+            schedulesUpdater: schedulesUpdater,
+            googleSignIn: googleSignIn
         )
+    }
+
+    private func expectedSpreadsheetLookupTitleCount() -> Int {
+        var orderedTitles: [String] = []
+        for title in [L10n.settingsGoogleSpreadsheetTitle] + L10n.settingsGoogleSpreadsheetKnownTitles where !orderedTitles.contains(title) {
+            orderedTitles.append(title)
+        }
+        return orderedTitles.count
+    }
+}
+
+private final class SpyGoogleSheetsClient: GoogleSheetsClient, @unchecked Sendable {
+    var findSpreadsheetIdResult: String?
+    var findSpreadsheetIdByTitleResults: [String: String] = [:]
+    var createdSpreadsheetId: String = "new-sheet-id"
+    private(set) var queriedTitles: [String] = []
+    private(set) var findSpreadsheetIdCallCount: Int = 0
+    private(set) var createSpreadsheetCallCount: Int = 0
+
+    func appendBloodPressureRow(_ row: GoogleSheetsBPRow, credentials: GoogleSheetsCredentials) async throws {}
+
+    func appendGlucoseRow(_ row: GoogleSheetsGlucoseRow, credentials: GoogleSheetsCredentials) async throws {}
+
+    func findSpreadsheetIdByTitle(refreshToken: String, title: String) async throws -> String? {
+        findSpreadsheetIdCallCount += 1
+        queriedTitles.append(title)
+        if let mapped = findSpreadsheetIdByTitleResults[title] {
+            return mapped
+        }
+        return findSpreadsheetIdResult
+    }
+
+    func createSpreadsheetAndSetup(refreshToken: String, title: String) async throws -> String {
+        createSpreadsheetCallCount += 1
+        return createdSpreadsheetId
     }
 }
 

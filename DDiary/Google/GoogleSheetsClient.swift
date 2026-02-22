@@ -69,6 +69,27 @@ public enum LiveGoogleSheetsClientConfig {
 public struct LiveGoogleSheetsClient: GoogleSheetsClient, Sendable {
     public init() {}
 
+    public func findSpreadsheetIdByTitle(refreshToken: String, title: String) async throws -> String? {
+        let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedTitle.isEmpty else { return nil }
+        let bpSheetName = SheetNames.bloodPressure
+        let glucoseSheetName = SheetNames.glucose
+
+        return try await withAccessToken(refreshToken: refreshToken) { token in
+            let candidateIds = try await listSpreadsheetIdsByTitle(normalizedTitle, bearerToken: token)
+            guard !candidateIds.isEmpty else { return nil }
+
+            for spreadsheetId in candidateIds {
+                let titles = try await sheetTitles(spreadsheetId: spreadsheetId, bearerToken: token)
+                if titles.contains(bpSheetName), titles.contains(glucoseSheetName) {
+                    return spreadsheetId
+                }
+            }
+
+            return candidateIds.first
+        }
+    }
+
     /// Creates a spreadsheet with BP and Glucose sheets and header rows. Returns spreadsheetId.
     public func createSpreadsheetAndSetup(refreshToken: String, title: String) async throws -> String {
         let access = try await accessToken(using: refreshToken)
@@ -172,8 +193,8 @@ public struct LiveGoogleSheetsClient: GoogleSheetsClient, Sendable {
 // MARK: - Constants
 
 private enum SheetNames {
-    static let bloodPressure = "BP"        // Aligned with README
-    static let glucose = "Glucose"        // Aligned with README
+    static let bloodPressure = "Blood Pressure"
+    static let glucose = "Glucose"
 }
 
 // MARK: - Private helpers
@@ -420,6 +441,41 @@ private extension LiveGoogleSheetsClient {
         return String(Character(scalar))
     }
 
+    func listSpreadsheetIdsByTitle(_ title: String, bearerToken: String) async throws -> [String] {
+        let escapedTitle = driveQueryLiteral(title)
+        let query = "name = '\(escapedTitle)' and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false"
+
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = "www.googleapis.com"
+        components.path = "/drive/v3/files"
+        components.queryItems = [
+            URLQueryItem(name: "q", value: query),
+            URLQueryItem(name: "fields", value: "files(id,createdTime)"),
+            URLQueryItem(name: "orderBy", value: "createdTime desc"),
+            URLQueryItem(name: "pageSize", value: "10")
+        ]
+        guard let url = components.url else { throw GoogleSheetsClientError.invalidURL }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+        let data = try await fetchData(request)
+
+        struct FilesResponse: Decodable {
+            struct File: Decodable { let id: String }
+            let files: [File]?
+        }
+        let decoded = try JSONDecoder().decode(FilesResponse.self, from: data)
+        return (decoded.files ?? []).map(\.id)
+    }
+
+    func driveQueryLiteral(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "'", with: "\\'")
+    }
+
     // MARK: - Spreadsheet creation helpers
 
     func extractSpreadsheetId(from data: Data) throws -> String {
@@ -450,18 +506,7 @@ private extension LiveGoogleSheetsClient {
 
     func ensureSheetExists(spreadsheetId: String, bearerToken: String, title: String) async throws {
         // Get spreadsheet and check if sheet exists
-        let getURL = URL(string: "https://sheets.googleapis.com/v4/spreadsheets/\(spreadsheetId)?fields=sheets(properties(title))")!
-        var getReq = URLRequest(url: getURL)
-        getReq.httpMethod = "GET"
-        getReq.setValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
-        let (data, response) = try await URLSession.shared.data(for: getReq)
-        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-            let body = String(data: data, encoding: .utf8)
-            throw GoogleSheetsClientError.httpError(statusCode: (response as? HTTPURLResponse)?.statusCode ?? -1, body: body)
-        }
-        struct GetResp: Decodable { struct Sheet: Decodable { struct Props: Decodable { let title: String }; let properties: Props }; let sheets: [Sheet]? }
-        let decoded = try JSONDecoder().decode(GetResp.self, from: data)
-        let titles = (decoded.sheets ?? []).map { $0.properties.title }
+        let titles = try await sheetTitles(spreadsheetId: spreadsheetId, bearerToken: bearerToken)
         guard !titles.contains(title) else { return }
         // Add sheet via batchUpdate
         let batchURL = URL(string: "https://sheets.googleapis.com/v4/spreadsheets/\(spreadsheetId):batchUpdate")!
@@ -477,6 +522,24 @@ private extension LiveGoogleSheetsClient {
             let bodyStr = String(data: bdata, encoding: .utf8)
             throw GoogleSheetsClientError.httpError(statusCode: (bresp as? HTTPURLResponse)?.statusCode ?? -1, body: bodyStr)
         }
+    }
+
+    func sheetTitles(spreadsheetId: String, bearerToken: String) async throws -> [String] {
+        let getURL = URL(string: "https://sheets.googleapis.com/v4/spreadsheets/\(spreadsheetId)?fields=sheets(properties(title))")!
+        var getReq = URLRequest(url: getURL)
+        getReq.httpMethod = "GET"
+        getReq.setValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+        let data = try await fetchData(getReq)
+
+        struct GetResp: Decodable {
+            struct Sheet: Decodable {
+                struct Props: Decodable { let title: String }
+                let properties: Props
+            }
+            let sheets: [Sheet]?
+        }
+        let decoded = try JSONDecoder().decode(GetResp.self, from: data)
+        return (decoded.sheets ?? []).map(\.properties.title)
     }
 
     func ensureHeaderRow(

@@ -4,9 +4,15 @@ import UIKit
 
 @MainActor
 final class GoogleOAuthConfigTests: XCTestCase {
-    func test_defaultScope_requestsSheetsOnly() {
-        XCTAssertEqual(GoogleOAuthConfig.scope, GoogleOAuthConfig.sheetsScope)
-        XCTAssertEqual(GoogleOAuthConfig.requiredScopes, [GoogleOAuthConfig.sheetsScope])
+    func test_defaultScope_requestsSheetsAndDriveFile() {
+        XCTAssertEqual(
+            GoogleOAuthConfig.scope,
+            [GoogleOAuthConfig.sheetsScope, GoogleOAuthConfig.driveFileScope].joined(separator: " ")
+        )
+        XCTAssertEqual(
+            GoogleOAuthConfig.requiredScopes,
+            [GoogleOAuthConfig.sheetsScope, GoogleOAuthConfig.driveFileScope]
+        )
     }
 
     func test_redirectScheme_defaultsToRedirectURIScheme() {

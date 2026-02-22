@@ -52,16 +52,17 @@ public enum GoogleOAuthConfig {
         return "ddiary"
     }
     public static let sheetsScope = "https://www.googleapis.com/auth/spreadsheets"
+    public static let driveFileScope = "https://www.googleapis.com/auth/drive.file"
 
     /// Space-separated scopes requested in a single consent screen.
     /// Installed-app OAuth does not support incremental authorization.
     ///
-    /// Keep identity scopes optional; Sheets sync requires only `sheetsScope`.
-    public static var scope: String = sheetsScope
+    /// Keep identity scopes optional; backup requires Sheets and Drive file access.
+    public static var scope: String = [sheetsScope, driveFileScope].joined(separator: " ")
 
     /// Scopes that must be granted for sync to function.
     /// Optional identity scopes (openid/email/profile) must not block connection.
-    public static var requiredScopes: Set<String> { [sheetsScope] }
+    public static var requiredScopes: Set<String> { [sheetsScope, driveFileScope] }
 
     private static func sanitizedInfoValue(forKey key: String) -> String? {
         guard let raw = Bundle.main.object(forInfoDictionaryKey: key) as? String else {

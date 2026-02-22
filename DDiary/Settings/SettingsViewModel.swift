@@ -34,6 +34,7 @@ final class SettingsViewModel {
     private let googleSheetsClient: any GoogleSheetsClient
     private let analyticsRepository: any AnalyticsRepository
     private let schedulesUpdater: any SchedulesUpdating
+    private let googleSignIn: @MainActor () async throws -> GoogleOAuthTokens
     private let logger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "DDiary",
         category: "SettingsViewModel"
@@ -119,7 +120,8 @@ final class SettingsViewModel {
         measurementsRepository: any MeasurementsRepository,
         googleSheetsClient: any GoogleSheetsClient,
         analyticsRepository: any AnalyticsRepository,
-        schedulesUpdater: any SchedulesUpdating
+        schedulesUpdater: any SchedulesUpdating,
+        googleSignIn: @escaping @MainActor () async throws -> GoogleOAuthTokens = GoogleOAuth.signIn
     ) {
         self.settingsRepository = settingsRepository
         self.googleIntegrationRepository = googleIntegrationRepository
@@ -128,6 +130,7 @@ final class SettingsViewModel {
         self.googleSheetsClient = googleSheetsClient
         self.analyticsRepository = analyticsRepository
         self.schedulesUpdater = schedulesUpdater
+        self.googleSignIn = googleSignIn
         observeGoogleSyncLifecycle()
         observeMeasurementsDidChange()
     }
@@ -269,7 +272,7 @@ final class SettingsViewModel {
             let integration = try await fetchLatestGoogleIntegrationModel()
             googleSummary = L10n.settingsGoogleStartingSignIn
 
-            let tokens = try await GoogleOAuth.signIn()
+            let tokens = try await googleSignIn()
 
             integration.isEnabled = true
             integration.refreshToken = tokens.refreshToken
@@ -279,9 +282,12 @@ final class SettingsViewModel {
             if integration.spreadsheetId == nil {
                 let title = L10n.settingsGoogleSpreadsheetTitle
                 do {
-                    let id = try await googleSheetsClient.createSpreadsheetAndSetup(refreshToken: tokens.refreshToken, title: title)
+                    let id = try await resolveSpreadsheetId(
+                        refreshToken: tokens.refreshToken,
+                        title: title,
+                        knownTitles: L10n.settingsGoogleSpreadsheetKnownTitles
+                    )
                     integration.spreadsheetId = id
-                    logger.info("Created spreadsheet id=\(id, privacy: .public)")
                 } catch {
                     // Surface error but keep tokens saved; user can retry later
                     handleError(
@@ -355,6 +361,28 @@ final class SettingsViewModel {
         let s = try await settingsRepository.getOrCreate()
         settingsModel = s
         return s
+    }
+
+    private func resolveSpreadsheetId(refreshToken: String, title: String, knownTitles: [String]) async throws -> String {
+        var lookupTitles: [String] = [title]
+        for knownTitle in knownTitles where !lookupTitles.contains(knownTitle) {
+            lookupTitles.append(knownTitle)
+        }
+
+        for lookupTitle in lookupTitles {
+            guard let existingId = try await googleSheetsClient.findSpreadsheetIdByTitle(
+                refreshToken: refreshToken,
+                title: lookupTitle
+            ) else {
+                continue
+            }
+            logger.info("Reused spreadsheet id=\(existingId, privacy: .public)")
+            return existingId
+        }
+
+        let createdId = try await googleSheetsClient.createSpreadsheetAndSetup(refreshToken: refreshToken, title: title)
+        logger.info("Created spreadsheet id=\(createdId, privacy: .public)")
+        return createdId
     }
 
     private func fetchLatestGoogleIntegrationModel() async throws -> GoogleIntegration {

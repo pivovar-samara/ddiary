@@ -1607,13 +1607,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "DDiary Backup"
+            "value" : "DIA-ry backup"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Резервная копия DDiary"
+            "value" : "Резервная копия DIA-ry"
           }
         }
       }

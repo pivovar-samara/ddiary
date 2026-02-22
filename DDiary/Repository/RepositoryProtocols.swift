@@ -444,6 +444,10 @@ public protocol GoogleSheetsClient: Sendable {
     /// Ensures spreadsheet sheets and header rows exist.
     func ensureSheetsAndHeaders(credentials: GoogleSheetsCredentials) async throws
 
+    /// Returns an existing spreadsheet id for the provided title, or nil when none are found.
+    /// Implementations should use the provided refresh token to obtain an access token.
+    func findSpreadsheetIdByTitle(refreshToken: String, title: String) async throws -> String?
+
     /// Creates a new Google Spreadsheet with required sheets and header rows and returns its `spreadsheetId`.
     /// Implementations should use the provided refresh token to obtain an access token.
     func createSpreadsheetAndSetup(refreshToken: String, title: String) async throws -> String
@@ -462,6 +466,10 @@ public extension GoogleSheetsClient {
 
     func ensureSheetsAndHeaders(credentials: GoogleSheetsCredentials) async throws {
         // Default no-op for non-live implementations.
+    }
+
+    func findSpreadsheetIdByTitle(refreshToken: String, title: String) async throws -> String? {
+        nil
     }
 
     func createSpreadsheetAndSetup(refreshToken: String, title: String) async throws -> String {

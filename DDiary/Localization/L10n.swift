@@ -317,7 +317,13 @@ enum L10n {
             message
         )
     }
-    static let settingsGoogleSpreadsheetTitle = tr("settings.google.spreadsheet_title", "DDiary Backup")
+    static let settingsGoogleSpreadsheetTitle = tr("settings.google.spreadsheet_title", "DIA-ry backup")
+    static let settingsGoogleSpreadsheetKnownTitles: [String] = [
+        "DIA-ry backup",
+        "Резервная копия DIA-ry",
+        "DDiary Backup",
+        "Резервная копия DDiary"
+    ]
 
     // MARK: - Startup
     static let startupTitle = tr("app.startup.title", "Unable to start DDiary")
