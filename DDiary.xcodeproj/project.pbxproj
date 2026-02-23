@@ -38,8 +38,8 @@
 		484314DC2EDAE34000ECF66A /* DDiaryTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DDiaryTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		484314DD2EDAE34000ECF66A /* DDiaryUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DDiaryUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		4848C66A2F3CACAB004A0AC4 /* MANUAL_QA_CHECKLIST.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = MANUAL_QA_CHECKLIST.md; sourceTree = "<group>"; };
-		4885FF7E2F332B1300674DF9 /* DDiary.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = DDiary.xctestplan; sourceTree = "<group>"; };
-		48903E3D2F4B0F4D00FEFF98 /* DDiaryCITests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = file; path = DDiaryCITests.xctestplan; sourceTree = "<group>"; };
+		4885FF7E2F332B1300674DF9 /* DDiaryFull.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = DDiaryFull.xctestplan; sourceTree = "<group>"; };
+		48903E3D2F4B0F4D00FEFF98 /* DDiaryCITests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = DDiaryCITests.xctestplan; sourceTree = "<group>"; };
 		48EE3CB72F49F8BB000875D2 /* PUBLIC_RELEASE_PLAN.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = PUBLIC_RELEASE_PLAN.md; sourceTree = "<group>"; };
 		48F9A6952ED7763600C114DB /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -117,7 +117,7 @@
 			isa = PBXGroup;
 			children = (
 				48903E3D2F4B0F4D00FEFF98 /* DDiaryCITests.xctestplan */,
-				4885FF7E2F332B1300674DF9 /* DDiary.xctestplan */,
+				4885FF7E2F332B1300674DF9 /* DDiaryFull.xctestplan */,
 				4848C66A2F3CACAB004A0AC4 /* MANUAL_QA_CHECKLIST.md */,
 				48EE3CB72F49F8BB000875D2 /* PUBLIC_RELEASE_PLAN.md */,
 				48F9A6952ED7763600C114DB /* README.md */,

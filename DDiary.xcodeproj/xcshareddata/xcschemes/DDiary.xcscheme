@@ -40,7 +40,7 @@
       shouldUseLaunchSchemeArgsEnv = "YES">
       <TestPlans>
          <TestPlanReference
-            reference = "container:DDiary.xctestplan">
+            reference = "container:DDiaryFull.xctestplan">
          </TestPlanReference>
          <TestPlanReference
             reference = "container:DDiaryCITests.xctestplan"
