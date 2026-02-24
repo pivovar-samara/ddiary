@@ -24,14 +24,8 @@
       }
     },
     {
-      "skippedTests" : [
-        "DDiaryUITests",
-        "DDiaryUITests\/testBPOutOfRangeShowsAlert()",
-        "DDiaryUITests\/testBedtimeSlotToggleAffectsToday()",
-        "DDiaryUITests\/testDebugTabVisibilityMatchesBuildConfiguration()",
-        "DDiaryUITests\/testGlucoseOutOfRangeShowsAlertAndInlineMessage()",
-        "DDiaryUITests\/testLaunchPerformance()",
-        "DDiaryUITests\/testQuickEntryAndHistoryFlow()"
+      "selectedTests" : [
+        "DDiaryUITestsLaunchTests\/testLaunch()"
       ],
       "target" : {
         "containerPath" : "container:DDiary.xcodeproj",

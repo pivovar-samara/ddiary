@@ -83,6 +83,21 @@ public protocol GoogleIntegrationRepository {
 
 // MARK: - NotificationsRepository
 
+public struct ScheduledReminder: Sendable, Equatable {
+    public enum Kind: Sendable, Equatable {
+        case bloodPressure
+        case glucose(mealSlot: MealSlot, measurementType: GlucoseMeasurementType)
+    }
+
+    public let kind: Kind
+    public let date: Date
+
+    public init(kind: Kind, date: Date) {
+        self.kind = kind
+        self.date = date
+    }
+}
+
 /// Sendable infrastructure repository for scheduling and managing local notifications.
 /// Operates purely on value types/DTOs and does not depend on SwiftData models.
 public protocol NotificationsRepository: Sendable {
@@ -166,6 +181,10 @@ public protocol NotificationsRepository: Sendable {
     /// Mark a planned glucose slot as completed.
     /// Cancels one-off cycle reminders and dismisses delivered repeating reminders.
     func cancelPlannedGlucoseNotification(measurementType: GlucoseMeasurementType, at scheduledDate: Date) async
+
+    /// Returns reminders that are currently pending or delivered for the specified calendar day.
+    /// Used by Today screen computation to stay aligned with real notification state.
+    func scheduledReminders(on day: Date) async -> [ScheduledReminder]
 
     /// Cancel all scheduled notifications (BP and Glucose).
     func cancelAll() async

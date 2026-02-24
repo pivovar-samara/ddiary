@@ -231,7 +231,8 @@ public struct TodayView: View {
                 logBPMeasurementUseCase: container.logBPMeasurementUseCase,
                 logGlucoseMeasurementUseCase: container.logGlucoseMeasurementUseCase,
                 rescheduleGlucoseCycleUseCase: container.rescheduleGlucoseCycleUseCase,
-                schedulesUpdater: container.updateSchedulesUseCase
+                schedulesUpdater: container.updateSchedulesUseCase,
+                notificationsRepository: container.notificationsRepository
             )
             self.viewModel = vm
             await vm.refreshIfNeeded(reason: .initialLoad)

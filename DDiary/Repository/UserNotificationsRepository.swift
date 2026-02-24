@@ -1,6 +1,24 @@
 import Foundation
 import UserNotifications
 
+struct PendingNotificationRecord: Sendable {
+    let identifier: String
+    let nextTriggerDate: Date?
+    let categoryIdentifier: String
+    let title: String
+    let mealSlotRawValue: String?
+    let measurementTypeRawValue: String?
+}
+
+struct DeliveredNotificationRecord: Sendable {
+    let identifier: String
+    let deliveredDate: Date
+    let categoryIdentifier: String
+    let title: String
+    let mealSlotRawValue: String?
+    let measurementTypeRawValue: String?
+}
+
 protocol UserNotificationCentering: Sendable {
     func requestAuthorization(options: UNAuthorizationOptions) async throws -> Bool
     func setNotificationCategories(_ categories: Set<UNNotificationCategory>)
@@ -11,6 +29,8 @@ protocol UserNotificationCentering: Sendable {
     func removeAllDeliveredNotifications()
     func pendingRequestIdentifiers() async -> [String]
     func deliveredNotificationIdentifiers() async -> [String]
+    func pendingNotificationRecords() async -> [PendingNotificationRecord]
+    func deliveredNotificationRecords() async -> [DeliveredNotificationRecord]
 }
 
 struct LiveUserNotificationCenter: UserNotificationCentering, @unchecked Sendable {
@@ -73,6 +93,45 @@ struct LiveUserNotificationCenter: UserNotificationCentering, @unchecked Sendabl
         await withCheckedContinuation { continuation in
             center.getDeliveredNotifications { notifications in
                 continuation.resume(returning: notifications.map { $0.request.identifier })
+            }
+        }
+    }
+
+    func pendingNotificationRecords() async -> [PendingNotificationRecord] {
+        await withCheckedContinuation { continuation in
+            center.getPendingNotificationRequests { requests in
+                let records = requests.map { request in
+                    PendingNotificationRecord(
+                        identifier: request.identifier,
+                        nextTriggerDate: {
+                            guard let calendarTrigger = request.trigger as? UNCalendarNotificationTrigger else { return nil }
+                            return calendarTrigger.nextTriggerDate()
+                        }(),
+                        categoryIdentifier: request.content.categoryIdentifier,
+                        title: request.content.title,
+                        mealSlotRawValue: request.content.userInfo["mealSlot"] as? String,
+                        measurementTypeRawValue: request.content.userInfo["measurementType"] as? String
+                    )
+                }
+                continuation.resume(returning: records)
+            }
+        }
+    }
+
+    func deliveredNotificationRecords() async -> [DeliveredNotificationRecord] {
+        await withCheckedContinuation { continuation in
+            center.getDeliveredNotifications { notifications in
+                let records = notifications.map { notification in
+                    DeliveredNotificationRecord(
+                        identifier: notification.request.identifier,
+                        deliveredDate: notification.date,
+                        categoryIdentifier: notification.request.content.categoryIdentifier,
+                        title: notification.request.content.title,
+                        mealSlotRawValue: notification.request.content.userInfo["mealSlot"] as? String,
+                        measurementTypeRawValue: notification.request.content.userInfo["measurementType"] as? String
+                    )
+                }
+                continuation.resume(returning: records)
             }
         }
     }
@@ -406,6 +465,45 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         }
     }
 
+    public func scheduledReminders(on day: Date) async -> [ScheduledReminder] {
+        let calendar = Calendar.current
+        let dayStart = calendar.startOfDay(for: day)
+        let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart
+        var reminders: [ScheduledReminder] = []
+
+        let pending = await center.pendingNotificationRecords()
+        for record in pending {
+            guard let scheduledDate = record.nextTriggerDate else { continue }
+            guard scheduledDate >= dayStart, scheduledDate < dayEnd else { continue }
+            if let reminder = scheduledReminder(
+                categoryIdentifier: record.categoryIdentifier,
+                title: record.title,
+                mealSlotRawValue: record.mealSlotRawValue,
+                measurementTypeRawValue: record.measurementTypeRawValue,
+                at: scheduledDate
+            ) {
+                reminders.append(reminder)
+            }
+        }
+
+        let delivered = await center.deliveredNotificationRecords()
+        for record in delivered {
+            guard record.deliveredDate >= dayStart, record.deliveredDate < dayEnd else { continue }
+            if let reminder = scheduledReminder(
+                categoryIdentifier: record.categoryIdentifier,
+                title: record.title,
+                mealSlotRawValue: record.mealSlotRawValue,
+                measurementTypeRawValue: record.measurementTypeRawValue,
+                at: record.deliveredDate
+            ) {
+                reminders.append(reminder)
+            }
+        }
+
+        return deduplicate(reminders: reminders, calendar: calendar)
+            .sorted { $0.date < $1.date }
+    }
+
     // MARK: - Handling helpers for App/Scene delegate
 
     /// Parses the action from a UNNotificationResponse.
@@ -620,6 +718,94 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         case .bedtime:
             IDs.glucoseBedtimePrefix
         }
+    }
+
+    private func scheduledReminder(
+        categoryIdentifier: String,
+        title: String,
+        mealSlotRawValue: String?,
+        measurementTypeRawValue: String?,
+        at date: Date
+    ) -> ScheduledReminder? {
+        switch categoryIdentifier {
+        case IDs.bpCategory:
+            return ScheduledReminder(kind: .bloodPressure, date: date)
+        case IDs.glucoseBedtimeCategory:
+            return ScheduledReminder(kind: .glucose(mealSlot: .none, measurementType: .bedtime), date: date)
+        case IDs.glucoseBeforeCategory, IDs.glucoseAfterCategory:
+            let measurementType: GlucoseMeasurementType
+            if let raw = measurementTypeRawValue, let parsed = GlucoseMeasurementType(rawValue: raw) {
+                measurementType = parsed
+            } else {
+                measurementType = (categoryIdentifier == IDs.glucoseBeforeCategory) ? .beforeMeal : .afterMeal2h
+            }
+
+            guard let mealSlot = resolveMealSlot(rawValue: mealSlotRawValue, title: title) else { return nil }
+            return ScheduledReminder(
+                kind: .glucose(mealSlot: mealSlot, measurementType: measurementType),
+                date: date
+            )
+        default:
+            return nil
+        }
+    }
+
+    private func resolveMealSlot(rawValue: String?, title: String) -> MealSlot? {
+        if let rawValue, let slot = MealSlot(rawValue: rawValue) {
+            return slot
+        }
+
+        switch title {
+        case L10n.notificationGlucoseBeforeBreakfastTitle, L10n.notificationGlucoseAfterBreakfast2hTitle:
+            return .breakfast
+        case L10n.notificationGlucoseBeforeLunchTitle, L10n.notificationGlucoseAfterLunch2hTitle:
+            return .lunch
+        case L10n.notificationGlucoseBeforeDinnerTitle, L10n.notificationGlucoseAfterDinner2hTitle:
+            return .dinner
+        default:
+            return nil
+        }
+    }
+
+    private func deduplicate(reminders: [ScheduledReminder], calendar: Calendar) -> [ScheduledReminder] {
+        struct ReminderKey: Hashable {
+            let kind: String
+            let mealSlot: String
+            let measurementType: String
+            let year: Int
+            let month: Int
+            let day: Int
+            let hour: Int
+            let minute: Int
+        }
+
+        var unique: [ReminderKey: ScheduledReminder] = [:]
+        for reminder in reminders {
+            let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: reminder.date)
+            let (kind, mealSlot, measurementType): (String, String, String) = {
+                switch reminder.kind {
+                case .bloodPressure:
+                    return ("bp", "none", "none")
+                case .glucose(let mealSlot, let measurementType):
+                    return ("glucose", mealSlot.rawValue, measurementType.rawValue)
+                }
+            }()
+            let key = ReminderKey(
+                kind: kind,
+                mealSlot: mealSlot,
+                measurementType: measurementType,
+                year: components.year ?? 0,
+                month: components.month ?? 0,
+                day: components.day ?? 0,
+                hour: components.hour ?? 0,
+                minute: components.minute ?? 0
+            )
+            let existing = unique[key]
+            if existing == nil || reminder.date < (existing?.date ?? reminder.date) {
+                unique[key] = reminder
+            }
+        }
+        return Array(unique.values)
     }
 
     private func removeAll(withPrefixes prefixes: [String]) async {

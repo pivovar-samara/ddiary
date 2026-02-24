@@ -232,6 +232,8 @@ private final class SpyNotificationsRepository: NotificationsRepository, @unchec
 
     func cancelPlannedGlucoseNotification(measurementType: GlucoseMeasurementType, at scheduledDate: Date) async {}
 
+    func scheduledReminders(on day: Date) async -> [ScheduledReminder] { [] }
+
     func cancelAll() async {
         cancelAllCount += 1
     }

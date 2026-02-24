@@ -360,12 +360,109 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         )
     }
 
+    func test_scheduledReminders_returnsPendingAndDeliveredForCurrentDay() async {
+        let center = FakeNotificationCenter()
+        let repository = UserNotificationsRepository(center: center)
+        let calendar = Calendar.current
+        let pendingDate = Date().addingTimeInterval(120)
+        let today = pendingDate
+        let deliveredDate = pendingDate
+
+        center.pendingRequests["bp.pending"] = makeRequest(
+            id: "bp.pending",
+            date: pendingDate,
+            categoryIdentifier: UserNotificationsRepository.IDs.bpCategory,
+            title: L10n.notificationBPTitle
+        )
+        center.deliveredRecordsByID["gl.delivered"] = DeliveredNotificationRecord(
+            identifier: "gl.delivered",
+            deliveredDate: deliveredDate,
+            categoryIdentifier: UserNotificationsRepository.IDs.glucoseBeforeCategory,
+            title: L10n.notificationGlucoseBeforeLunchTitle,
+            mealSlotRawValue: MealSlot.lunch.rawValue,
+            measurementTypeRawValue: GlucoseMeasurementType.beforeMeal.rawValue
+        )
+        center.deliveredIdentifiers.insert("gl.delivered")
+
+        let reminders = await repository.scheduledReminders(on: today)
+
+        XCTAssertEqual(reminders.count, 2)
+        XCTAssertTrue(reminders.contains(where: { reminder in
+            guard case .bloodPressure = reminder.kind else { return false }
+            return calendar.isDate(reminder.date, equalTo: pendingDate, toGranularity: .minute)
+        }))
+        XCTAssertTrue(reminders.contains(where: { reminder in
+            guard case .glucose(let mealSlot, let measurementType) = reminder.kind else { return false }
+            return mealSlot == .lunch
+                && measurementType == .beforeMeal
+                && calendar.isDate(reminder.date, equalTo: deliveredDate, toGranularity: .minute)
+        }))
+    }
+
+    func test_scheduledReminders_ignoresEntriesOutsideRequestedDay() async {
+        let center = FakeNotificationCenter()
+        let repository = UserNotificationsRepository(center: center)
+        let calendar = Calendar.current
+        let today = Date()
+        let tomorrow = calendar.date(
+            byAdding: .day,
+            value: 1,
+            to: calendar.startOfDay(for: today)
+        ) ?? today.addingTimeInterval(24 * 60 * 60)
+
+        center.pendingRequests["bp.tomorrow"] = makeRequest(
+            id: "bp.tomorrow",
+            date: tomorrow,
+            categoryIdentifier: UserNotificationsRepository.IDs.bpCategory,
+            title: L10n.notificationBPTitle
+        )
+        center.deliveredRecordsByID["gl.tomorrow"] = DeliveredNotificationRecord(
+            identifier: "gl.tomorrow",
+            deliveredDate: tomorrow,
+            categoryIdentifier: UserNotificationsRepository.IDs.glucoseBedtimeCategory,
+            title: L10n.notificationGlucoseBedtimeTitle,
+            mealSlotRawValue: MealSlot.none.rawValue,
+            measurementTypeRawValue: GlucoseMeasurementType.bedtime.rawValue
+        )
+        center.deliveredIdentifiers.insert("gl.tomorrow")
+
+        let reminders = await repository.scheduledReminders(on: today)
+
+        XCTAssertTrue(reminders.isEmpty)
+    }
+
     private func makeRequest(id: String) -> UNNotificationRequest {
         UNNotificationRequest(
             identifier: id,
             content: UNMutableNotificationContent(),
             trigger: nil
         )
+    }
+
+    private func makeRequest(
+        id: String,
+        date: Date,
+        categoryIdentifier: String,
+        title: String,
+        mealSlot: MealSlot? = nil,
+        measurementType: GlucoseMeasurementType? = nil
+    ) -> UNNotificationRequest {
+        let content = UNMutableNotificationContent()
+        content.categoryIdentifier = categoryIdentifier
+        content.title = title
+        var userInfo: [AnyHashable: Any] = [:]
+        if let mealSlot {
+            userInfo[UserNotificationsRepository.PayloadKeys.mealSlot] = mealSlot.rawValue
+        }
+        if let measurementType {
+            userInfo[UserNotificationsRepository.PayloadKeys.measurementType] = measurementType.rawValue
+        }
+        if !userInfo.isEmpty {
+            content.userInfo = userInfo
+        }
+        let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+        return UNNotificationRequest(identifier: id, content: content, trigger: trigger)
     }
 
     private func cycleID(prefix: String, day: Date, hour: Int, minute: Int, calendar: Calendar) -> String {
@@ -391,7 +488,22 @@ private final class FakeNotificationCenter: UserNotificationCentering, @unchecke
     var authorizationResult: Result<Bool, Error> = .success(true)
     var categories: [UNNotificationCategory] = []
     var pendingRequests: [String: UNNotificationRequest] = [:]
-    var deliveredIdentifiers: Set<String> = []
+    var deliveredIdentifiers: Set<String> = [] {
+        didSet {
+            deliveredRecordsByID = deliveredRecordsByID.filter { deliveredIdentifiers.contains($0.key) }
+            for identifier in deliveredIdentifiers where deliveredRecordsByID[identifier] == nil {
+                deliveredRecordsByID[identifier] = DeliveredNotificationRecord(
+                    identifier: identifier,
+                    deliveredDate: Date(),
+                    categoryIdentifier: "",
+                    title: "",
+                    mealSlotRawValue: nil,
+                    measurementTypeRawValue: nil
+                )
+            }
+        }
+    }
+    var deliveredRecordsByID: [String: DeliveredNotificationRecord] = [:]
     var removedPendingIdentifiers: [[String]] = []
     var removedDeliveredIdentifiers: [[String]] = []
 
@@ -423,6 +535,7 @@ private final class FakeNotificationCenter: UserNotificationCentering, @unchecke
         removedDeliveredIdentifiers.append(ids)
         for id in ids {
             deliveredIdentifiers.remove(id)
+            deliveredRecordsByID.removeValue(forKey: id)
         }
     }
 
@@ -432,6 +545,7 @@ private final class FakeNotificationCenter: UserNotificationCentering, @unchecke
 
     func removeAllDeliveredNotifications() {
         deliveredIdentifiers.removeAll()
+        deliveredRecordsByID.removeAll()
     }
 
     func pendingRequestIdentifiers() async -> [String] {
@@ -440,5 +554,25 @@ private final class FakeNotificationCenter: UserNotificationCentering, @unchecke
 
     func deliveredNotificationIdentifiers() async -> [String] {
         deliveredIdentifiers.sorted()
+    }
+
+    func pendingNotificationRecords() async -> [PendingNotificationRecord] {
+        pendingRequests.values.map { request in
+            PendingNotificationRecord(
+                identifier: request.identifier,
+                nextTriggerDate: {
+                    guard let calendarTrigger = request.trigger as? UNCalendarNotificationTrigger else { return nil }
+                    return calendarTrigger.nextTriggerDate()
+                }(),
+                categoryIdentifier: request.content.categoryIdentifier,
+                title: request.content.title,
+                mealSlotRawValue: request.content.userInfo[UserNotificationsRepository.PayloadKeys.mealSlot] as? String,
+                measurementTypeRawValue: request.content.userInfo[UserNotificationsRepository.PayloadKeys.measurementType] as? String
+            )
+        }
+    }
+
+    func deliveredNotificationRecords() async -> [DeliveredNotificationRecord] {
+        Array(deliveredRecordsByID.values)
     }
 }
