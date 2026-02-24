@@ -84,6 +84,7 @@ public final class TodayViewModel {
     private let logGlucoseMeasurementUseCase: LogGlucoseMeasurementUseCase
     private let rescheduleGlucoseCycleUseCase: RescheduleGlucoseCycleUseCase
     private let schedulesUpdater: any SchedulesUpdating
+    private let notificationsRepository: any NotificationsRepository
 
     // State
     public private(set) var isLoading: Bool = false
@@ -226,13 +227,15 @@ public final class TodayViewModel {
         logBPMeasurementUseCase: LogBPMeasurementUseCase,
         logGlucoseMeasurementUseCase: LogGlucoseMeasurementUseCase,
         rescheduleGlucoseCycleUseCase: RescheduleGlucoseCycleUseCase,
-        schedulesUpdater: any SchedulesUpdating
+        schedulesUpdater: any SchedulesUpdating,
+        notificationsRepository: any NotificationsRepository
     ) {
         self.getTodayOverviewUseCase = getTodayOverviewUseCase
         self.logBPMeasurementUseCase = logBPMeasurementUseCase
         self.logGlucoseMeasurementUseCase = logGlucoseMeasurementUseCase
         self.rescheduleGlucoseCycleUseCase = rescheduleGlucoseCycleUseCase
         self.schedulesUpdater = schedulesUpdater
+        self.notificationsRepository = notificationsRepository
     }
 
     // MARK: - Intents
@@ -286,6 +289,8 @@ public final class TodayViewModel {
                 matchedMeasurementId: slot.matchedMeasurementId
             )
         }
+
+        await syncNotificationsFromTodayOverview(overview)
 
         isLoading = false
     }
@@ -364,5 +369,23 @@ public final class TodayViewModel {
         if now < scheduled { return .scheduled }
         if now <= scheduled.addingTimeInterval(2 * 60 * 60) { return .due }
         return .missed
+    }
+
+    private func syncNotificationsFromTodayOverview(_ overview: TodayOverview) async {
+        var processedBPDates: Set<Date> = []
+        for slot in overview.bpSlots where slot.completed {
+            guard processedBPDates.insert(slot.date).inserted else { continue }
+            await notificationsRepository.cancelPlannedBloodPressureNotification(at: slot.date)
+        }
+
+        var processedGlucoseSlots: Set<String> = []
+        for slot in overview.glucoseSlots where slot.completed {
+            let key = "\(slot.measurementType.rawValue)|\(Int(slot.date.timeIntervalSince1970))"
+            guard processedGlucoseSlots.insert(key).inserted else { continue }
+            await notificationsRepository.cancelPlannedGlucoseNotification(
+                measurementType: slot.measurementType,
+                at: slot.date
+            )
+        }
     }
 }
