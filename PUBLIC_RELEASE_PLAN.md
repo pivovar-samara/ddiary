@@ -1,4 +1,4 @@
-# DDiary Public Release Plan
+# DIA-ry Public Release Plan
 
 Status date: 2026-02-21  
 Scope: iOS/iPadOS public App Store release

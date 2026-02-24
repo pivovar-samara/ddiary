@@ -1,6 +1,44 @@
-## Summary
+# DIA-ry
 
-DDiary is a personal health tracking app for iOS and iPadOS that helps users log:
+DIA-ry is a local-first iOS and iPadOS app for tracking blood pressure and blood glucose with fast daily logging, reminders, and optional Google Sheets backup.
+
+## Getting Started
+
+### Requirements
+
+- Xcode 26+
+- iOS/iPadOS 26+ SDK
+
+### Local setup
+
+1. Open the project in Xcode:
+   - `DDiary.xcodeproj`
+2. Create your local secrets file:
+   - `cp Configs/Secrets.xcconfig.example Configs/Secrets.xcconfig`
+3. Fill `Configs/Secrets.xcconfig` with your own values:
+   - `GOOGLE_OAUTH_KEY_DEV`
+   - `GOOGLE_OAUTH_KEY_PROD`
+   - `GOOGLE_OAUTH_REDIRECT_SCHEME_DEV`
+   - `GOOGLE_OAUTH_REDIRECT_SCHEME_PROD`
+   - `AMPLITUDE_API_KEY_DEV`
+   - `AMPLITUDE_API_KEY_PROD`
+   - `SUPPORT_EMAIL_DEV`
+   - `SUPPORT_EMAIL_PROD`
+
+`Configs/Secrets.xcconfig` is intentionally gitignored and must never contain shared production credentials in commits.
+
+## Community
+
+- Contributing guide: [CONTRIBUTING.md](CONTRIBUTING.md)
+- Code of conduct: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+- Security policy: [SECURITY.md](SECURITY.md)
+- License: [LICENSE](LICENSE) (MIT)
+
+## Detailed Product Notes
+
+### Summary
+
+DIA-ry is a personal health tracking app for iOS and iPadOS that helps users log:
 
 - Blood pressure (systolic, diastolic) and pulse.
 - Blood glucose, with context relative to meals.
