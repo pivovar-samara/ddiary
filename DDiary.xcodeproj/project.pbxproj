@@ -41,7 +41,6 @@
 		4880858D2F4D89650058BA02 /* DDiaryMinimal.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = DDiaryMinimal.xctestplan; sourceTree = "<group>"; };
 		4885FF7E2F332B1300674DF9 /* DDiaryFull.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = DDiaryFull.xctestplan; sourceTree = "<group>"; };
 		48903E3D2F4B0F4D00FEFF98 /* DDiaryCITests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = DDiaryCITests.xctestplan; sourceTree = "<group>"; };
-		48EE3CB72F49F8BB000875D2 /* PUBLIC_RELEASE_PLAN.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = PUBLIC_RELEASE_PLAN.md; sourceTree = "<group>"; };
 		48F9A6952ED7763600C114DB /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -121,7 +120,6 @@
 				4880858D2F4D89650058BA02 /* DDiaryMinimal.xctestplan */,
 				4885FF7E2F332B1300674DF9 /* DDiaryFull.xctestplan */,
 				4848C66A2F3CACAB004A0AC4 /* MANUAL_QA_CHECKLIST.md */,
-				48EE3CB72F49F8BB000875D2 /* PUBLIC_RELEASE_PLAN.md */,
 				48F9A6952ED7763600C114DB /* README.md */,
 				483246C52EF4014900D33F53 /* Configs */,
 				4849EBB12ED4BF4F00E060BF /* DDiary */,
@@ -323,10 +321,10 @@
 		4849EBD42ED4BF5000E060BF /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				APS_ENVIRONMENT = development;
 				ASSETCATALOG_COMPILER_APPICON_NAME = Icon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
-				APS_ENVIRONMENT = development;
 				CODE_SIGN_ENTITLEMENTS = DDiary/DDiary.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -363,10 +361,10 @@
 		4849EBD52ED4BF5000E060BF /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				APS_ENVIRONMENT = production;
 				ASSETCATALOG_COMPILER_APPICON_NAME = Icon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
-				APS_ENVIRONMENT = production;
 				CODE_SIGN_ENTITLEMENTS = DDiary/DDiary.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
