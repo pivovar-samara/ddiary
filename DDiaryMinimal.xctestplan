@@ -1,0 +1,24 @@
+{
+  "configurations" : [
+    {
+      "id" : "B135775A-AC82-4549-BCFD-124FD3557D16",
+      "name" : "Configuration 1",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:DDiary.xcodeproj",
+        "identifier" : "4849EBBF2ED4BF5000E060BF",
+        "name" : "DDiaryTests"
+      }
+    }
+  ],
+  "version" : 1
+}
