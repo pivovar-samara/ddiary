@@ -28,13 +28,13 @@ This plan is ordered by dependency. Do not skip phases.
   - Placeholder values are sanitized.
   - Presentation anchor fallback no longer loops indefinitely.
 
-### 0.3 Remove unused push capability surface
+### 0.3 Align push capability surface with CloudKit sync
 - Owner: `Me`
 - Status: `Done`
 - Outcome:
-  - Removed `UIBackgroundModes=remote-notification` from Info.plist.
-  - Removed `aps-environment` entitlement.
-  - App now only declares capabilities it actually uses.
+  - Kept `UIBackgroundModes=remote-notification` in Info.plist for CloudKit push-driven sync.
+  - Added `aps-environment` entitlement wiring for Debug/Release builds.
+  - App capabilities now match the current SwiftData + CloudKit sync model.
 
 ### 0.4 Deterministic test execution
 - Owner: `Me`
