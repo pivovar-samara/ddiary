@@ -22,6 +22,20 @@ jobs:
         with:
           xcode-version: latest-stable
 
+      - name: Write Secrets.xcconfig
+        run: |
+          mkdir -p Configs
+          cat > Configs/Secrets.xcconfig <<'EOF'
+          AMPLITUDE_API_KEY_DEV = ${{ secrets.AMPLITUDE_API_KEY_DEV }}
+          AMPLITUDE_API_KEY_PROD = ${{ secrets.AMPLITUDE_API_KEY_PROD }}
+          SUPPORT_EMAIL_DEV = ${{ secrets.SUPPORT_EMAIL_DEV }}
+          SUPPORT_EMAIL_PROD = ${{ secrets.SUPPORT_EMAIL_PROD }}
+          GOOGLE_OAUTH_KEY_DEV = ${{ secrets.GOOGLE_OAUTH_KEY_DEV }}
+          GOOGLE_OAUTH_KEY_PROD = ${{ secrets.GOOGLE_OAUTH_KEY_PROD }}
+          GOOGLE_OAUTH_REDIRECT_SCHEME_DEV = ${{ secrets.GOOGLE_OAUTH_REDIRECT_SCHEME_DEV }}
+          GOOGLE_OAUTH_REDIRECT_SCHEME_PROD = ${{ secrets.GOOGLE_OAUTH_REDIRECT_SCHEME_PROD }}
+          EOF
+
       - name: Run DDiaryMinimal test plan
         run: |
           xcodebuild \
