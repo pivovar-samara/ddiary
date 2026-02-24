@@ -27,6 +27,8 @@ DIA-ry is a local-first iOS and iPadOS app for tracking blood pressure and blood
 
 `Configs/Secrets.xcconfig` is intentionally gitignored and must never contain shared production credentials in commits.
 
+Note: the user-facing app name is `DIA-ry`, while technical project identifiers (repository, Xcode target/scheme, bundle prefix) still use `DDiary`.
+
 ## Community
 
 - Contributing guide: [CONTRIBUTING.md](CONTRIBUTING.md)
