@@ -1,4 +1,4 @@
-# DDiary Manual QA Checklist (Pre-release)
+# DIA-ry Manual QA Checklist (Pre-release)
 
 Use this checklist for final iPhone/iPad smoke validation before tagging an RC.
 
