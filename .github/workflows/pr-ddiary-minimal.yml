@@ -20,7 +20,7 @@ jobs:
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: latest-stable
+          xcode-version: latest
 
       - name: Write Secrets.xcconfig
         run: |
@@ -38,9 +38,17 @@ jobs:
 
       - name: Run DDiaryMinimal test plan
         run: |
+          DESTINATION="${IOS_TEST_DESTINATION:-$(
+            ./ci_scripts/resolve_ios_destination.sh \
+              -project DDiary.xcodeproj \
+              -scheme DDiary \
+              -testPlan DDiaryMinimal
+          )}"
+          echo "Running DDiaryMinimal on destination: ${DESTINATION}"
+
           xcodebuild \
             test \
             -project DDiary.xcodeproj \
             -scheme DDiary \
             -testPlan DDiaryMinimal \
-            -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
+            -destination "${DESTINATION}"
