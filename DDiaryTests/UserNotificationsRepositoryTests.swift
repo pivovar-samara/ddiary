@@ -83,6 +83,27 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         XCTAssertEqual(Set(center.pendingRequests.keys), ["ddiary.bp.d20260216.0900"])
     }
 
+    func test_scheduleBloodPressure_capsWindowToStayWithinPendingLimit() async throws {
+        let center = FakeNotificationCenter()
+        let calendar = Calendar.current
+        let referenceNow = calendar.date(
+            from: DateComponents(year: 2026, month: 2, day: 16, hour: 0, minute: 30)
+        ) ?? Date()
+        let repository = UserNotificationsRepository(
+            center: center,
+            calendar: calendar,
+            now: { referenceNow },
+            schedulingWindowDays: 28
+        )
+
+        try await repository.scheduleBloodPressure(
+            times: [60, 180, 360, 540, 720, 900, 1080, 1260],
+            activeWeekdays: Set(1...7)
+        )
+
+        XCTAssertEqual(center.pendingRequests.count, 64)
+    }
+
     func test_scheduleGlucoseBeforeMeal_attachesQuickEntryMetadata() async throws {
         let center = FakeNotificationCenter()
         let calendar = Calendar.current
@@ -179,6 +200,49 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         XCTAssertTrue(removedDelivered.contains("ddiary.glucose.before.legacy"))
         XCTAssertTrue(removedDelivered.contains("ddiary.glucose.after.legacy"))
         XCTAssertTrue(removedDelivered.contains("ddiary.glucose.bedtime.legacy"))
+    }
+
+    func test_rescheduleGlucose_capsWindowUsingRemainingPendingCapacity() async throws {
+        let center = FakeNotificationCenter()
+        let calendar = Calendar.current
+        let referenceNow = calendar.date(
+            from: DateComponents(year: 2026, month: 2, day: 16, hour: 7, minute: 30)
+        ) ?? Date()
+        let repository = UserNotificationsRepository(
+            center: center,
+            calendar: calendar,
+            now: { referenceNow },
+            schedulingWindowDays: 28
+        )
+
+        for index in 0..<56 {
+            center.pendingRequests["ddiary.bp.preexisting.\(index)"] = makeRequest(id: "ddiary.bp.preexisting.\(index)")
+        }
+
+        try await repository.rescheduleGlucose(
+            breakfast: DateComponents(hour: 8, minute: 0),
+            lunch: DateComponents(hour: 13, minute: 0),
+            dinner: DateComponents(hour: 19, minute: 0),
+            enableBeforeMeal: true,
+            enableAfterMeal2h: true,
+            enableBedtime: true,
+            bedtimeTime: DateComponents(hour: 22, minute: 15)
+        )
+
+        let glucoseIDs = Set(center.pendingRequests.keys.filter { $0.hasPrefix("ddiary.glucose.") })
+        XCTAssertEqual(
+            glucoseIDs,
+            Set([
+                "ddiary.glucose.before.d20260216.0800",
+                "ddiary.glucose.before.d20260216.1300",
+                "ddiary.glucose.before.d20260216.1900",
+                "ddiary.glucose.after.d20260216.1000",
+                "ddiary.glucose.after.d20260216.1500",
+                "ddiary.glucose.after.d20260216.2100",
+                "ddiary.glucose.bedtime.d20260216.2215"
+            ])
+        )
+        XCTAssertEqual(center.pendingRequests.count, 63)
     }
 
     func test_cancelPlannedGlucoseNotification_cycleIdentifier_removesPendingAndDelivered() async {

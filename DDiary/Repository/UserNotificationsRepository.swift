@@ -162,6 +162,7 @@ Usage notes:
 */
 
 struct UserNotificationsRepository: NotificationsRepository, Sendable {
+    private static let maxPendingNotificationRequests = 64
     private let center: any UserNotificationCentering
     private let calendar: Calendar
     private let now: @Sendable () -> Date
@@ -257,13 +258,19 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
 
     func scheduleBloodPressure(times: [Int], activeWeekdays: Set<Int>) async throws {
         let normalizedWeekdays = Set(activeWeekdays.filter { (1...7).contains($0) })
-        guard !normalizedWeekdays.isEmpty else { return }
+        let normalizedTimes = Array(Set(times))
+        guard !normalizedWeekdays.isEmpty, !normalizedTimes.isEmpty else { return }
+        let windowDays = await effectiveWindowDays(
+            remindersPerDay: normalizedTimes.count,
+            requestedWindowDays: nil
+        )
+        guard windowDays > 0 else { return }
 
         let baseNow = now()
-        for day in upcomingSchedulingDays(from: baseNow) {
+        for day in upcomingSchedulingDays(from: baseNow, windowDays: windowDays) {
             let weekday = calendar.component(.weekday, from: day)
             guard normalizedWeekdays.contains(weekday) else { continue }
-            for minutes in times {
+            for minutes in normalizedTimes {
                 let hm = minutesToHourMinute(minutes)
                 let fireDate = scheduleDate(on: day, hour: hm.hour, minute: hm.minute)
                 guard let fireDate, fireDate > baseNow else { continue }
@@ -292,117 +299,31 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
     }
 
     func scheduleGlucoseBeforeMeal(breakfast: DateComponents, lunch: DateComponents, dinner: DateComponents, isEnabled: Bool) async throws {
-        guard isEnabled else { return }
-        let items: [(String, String, Int, Int, MealSlot)] = [
-            (
-                L10n.notificationGlucoseBeforeBreakfastTitle,
-                L10n.notificationGlucoseBeforeBreakfastBody,
-                breakfast.hour ?? 0,
-                breakfast.minute ?? 0,
-                .breakfast
-            ),
-            (
-                L10n.notificationGlucoseBeforeLunchTitle,
-                L10n.notificationGlucoseBeforeLunchBody,
-                lunch.hour ?? 0,
-                lunch.minute ?? 0,
-                .lunch
-            ),
-            (
-                L10n.notificationGlucoseBeforeDinnerTitle,
-                L10n.notificationGlucoseBeforeDinnerBody,
-                dinner.hour ?? 0,
-                dinner.minute ?? 0,
-                .dinner
-            )
-        ]
-
-        let baseNow = now()
-        for day in upcomingSchedulingDays(from: baseNow) {
-            for (title, body, hour, minute, mealSlot) in items {
-                guard let fireDate = scheduleDate(on: day, hour: hour, minute: minute), fireDate > baseNow else { continue }
-                let dc = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate)
-                let trigger = UNCalendarNotificationTrigger(dateMatching: dc, repeats: false)
-                let id = cycleIdentifier(prefix: IDs.glucoseBeforePrefix, at: fireDate, calendar: calendar)
-                let content = makeContent(
-                    title: title,
-                    body: body,
-                    categoryIdentifier: IDs.glucoseBeforeCategory,
-                    userInfo: quickEntryUserInfo(mealSlot: mealSlot, measurementType: .beforeMeal)
-                )
-                let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
-                await center.addOrReplace(request: request)
-            }
-        }
+        try await scheduleGlucoseBeforeMeal(
+            breakfast: breakfast,
+            lunch: lunch,
+            dinner: dinner,
+            isEnabled: isEnabled,
+            windowDaysOverride: nil
+        )
     }
 
     func scheduleGlucoseAfterMeal2h(breakfast: DateComponents, lunch: DateComponents, dinner: DateComponents, isEnabled: Bool) async throws {
-        guard isEnabled else { return }
-        let items: [(String, String, Int, Int, MealSlot)] = [
-            (
-                L10n.notificationGlucoseAfterBreakfast2hTitle,
-                L10n.notificationGlucoseAfterBreakfast2hBody,
-                breakfast.hour ?? 0,
-                breakfast.minute ?? 0,
-                .breakfast
-            ),
-            (
-                L10n.notificationGlucoseAfterLunch2hTitle,
-                L10n.notificationGlucoseAfterLunch2hBody,
-                lunch.hour ?? 0,
-                lunch.minute ?? 0,
-                .lunch
-            ),
-            (
-                L10n.notificationGlucoseAfterDinner2hTitle,
-                L10n.notificationGlucoseAfterDinner2hBody,
-                dinner.hour ?? 0,
-                dinner.minute ?? 0,
-                .dinner
-            )
-        ]
-
-        let baseNow = now()
-        for day in upcomingSchedulingDays(from: baseNow) {
-            for (title, body, baseHour, baseMinute, mealSlot) in items {
-                guard let mealDate = scheduleDate(on: day, hour: baseHour, minute: baseMinute) else { continue }
-                guard let fireDate = calendar.date(byAdding: .hour, value: 2, to: mealDate), fireDate > baseNow else { continue }
-
-                let dc = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate)
-                let trigger = UNCalendarNotificationTrigger(dateMatching: dc, repeats: false)
-                let id = cycleIdentifier(prefix: IDs.glucoseAfterPrefix, at: fireDate, calendar: calendar)
-                let content = makeContent(
-                    title: title,
-                    body: body,
-                    categoryIdentifier: IDs.glucoseAfterCategory,
-                    userInfo: quickEntryUserInfo(mealSlot: mealSlot, measurementType: .afterMeal2h)
-                )
-                let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
-                await center.addOrReplace(request: request)
-            }
-        }
+        try await scheduleGlucoseAfterMeal2h(
+            breakfast: breakfast,
+            lunch: lunch,
+            dinner: dinner,
+            isEnabled: isEnabled,
+            windowDaysOverride: nil
+        )
     }
 
     func scheduleGlucoseBedtime(isEnabled: Bool, time: DateComponents?) async throws {
-        guard isEnabled, let time else { return }
-        let baseNow = now()
-        for day in upcomingSchedulingDays(from: baseNow) {
-            guard
-                let fireDate = scheduleDate(on: day, hour: time.hour ?? 0, minute: time.minute ?? 0),
-                fireDate > baseNow
-            else { continue }
-            let dc = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate)
-            let trigger = UNCalendarNotificationTrigger(dateMatching: dc, repeats: false)
-            let id = cycleIdentifier(prefix: IDs.glucoseBedtimePrefix, at: fireDate, calendar: calendar)
-            let content = makeContent(
-                title: L10n.notificationGlucoseBedtimeTitle,
-                body: L10n.notificationGlucoseBedtimeBody,
-                categoryIdentifier: IDs.glucoseBedtimeCategory,
-                userInfo: quickEntryUserInfo(mealSlot: .none, measurementType: .bedtime)
-            )
-            let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
-            await center.addOrReplace(request: request)
-        }
+        try await scheduleGlucoseBedtime(
+            isEnabled: isEnabled,
+            time: time,
+            windowDaysOverride: nil
+        )
     }
 
     func cancelGlucose() async {
@@ -419,9 +340,35 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         bedtimeTime: DateComponents?
     ) async throws {
         await cancelGlucose()
-        try await scheduleGlucoseBeforeMeal(breakfast: breakfast, lunch: lunch, dinner: dinner, isEnabled: enableBeforeMeal)
-        try await scheduleGlucoseAfterMeal2h(breakfast: breakfast, lunch: lunch, dinner: dinner, isEnabled: enableAfterMeal2h)
-        try await scheduleGlucoseBedtime(isEnabled: enableBedtime, time: bedtimeTime)
+        let bedtimeEnabled = enableBedtime && bedtimeTime != nil
+        let remindersPerDay =
+            (enableBeforeMeal ? 3 : 0)
+            + (enableAfterMeal2h ? 3 : 0)
+            + (bedtimeEnabled ? 1 : 0)
+        let windowDays = await effectiveWindowDays(
+            remindersPerDay: remindersPerDay,
+            requestedWindowDays: nil
+        )
+        guard windowDays > 0 else { return }
+        try await scheduleGlucoseBeforeMeal(
+            breakfast: breakfast,
+            lunch: lunch,
+            dinner: dinner,
+            isEnabled: enableBeforeMeal,
+            windowDaysOverride: windowDays
+        )
+        try await scheduleGlucoseAfterMeal2h(
+            breakfast: breakfast,
+            lunch: lunch,
+            dinner: dinner,
+            isEnabled: enableAfterMeal2h,
+            windowDaysOverride: windowDays
+        )
+        try await scheduleGlucoseBedtime(
+            isEnabled: bedtimeEnabled,
+            time: bedtimeTime,
+            windowDaysOverride: windowDays
+        )
     }
 
     func rescheduleGlucoseCycle(
@@ -612,11 +559,15 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         startDate: Date,
         numberOfDays: Int
     ) async throws {
-        guard numberOfDays > 0 else { return }
+        let cappedDays = await effectiveWindowDays(
+            remindersPerDay: 2,
+            requestedWindowDays: numberOfDays
+        )
+        guard cappedDays > 0 else { return }
         let calendar = Calendar.current
         let startOfWindow = calendar.startOfDay(for: startDate)
 
-        for dayOffset in 0..<numberOfDays {
+        for dayOffset in 0..<cappedDays {
             guard let day = calendar.date(byAdding: .day, value: dayOffset, to: startOfWindow) else { continue }
             let reminders = GlucoseCyclePlanner.reminders(on: day, configuration: configuration, calendar: calendar)
                 .filter { $0.date >= startDate }
@@ -640,6 +591,154 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
                 )
                 await center.addOrReplace(request: request)
             }
+        }
+    }
+
+    private func scheduleGlucoseBeforeMeal(
+        breakfast: DateComponents,
+        lunch: DateComponents,
+        dinner: DateComponents,
+        isEnabled: Bool,
+        windowDaysOverride: Int?
+    ) async throws {
+        guard isEnabled else { return }
+        let items: [(String, String, Int, Int, MealSlot)] = [
+            (
+                L10n.notificationGlucoseBeforeBreakfastTitle,
+                L10n.notificationGlucoseBeforeBreakfastBody,
+                breakfast.hour ?? 0,
+                breakfast.minute ?? 0,
+                .breakfast
+            ),
+            (
+                L10n.notificationGlucoseBeforeLunchTitle,
+                L10n.notificationGlucoseBeforeLunchBody,
+                lunch.hour ?? 0,
+                lunch.minute ?? 0,
+                .lunch
+            ),
+            (
+                L10n.notificationGlucoseBeforeDinnerTitle,
+                L10n.notificationGlucoseBeforeDinnerBody,
+                dinner.hour ?? 0,
+                dinner.minute ?? 0,
+                .dinner
+            )
+        ]
+
+        let windowDays = await effectiveWindowDays(
+            remindersPerDay: items.count,
+            requestedWindowDays: windowDaysOverride
+        )
+        guard windowDays > 0 else { return }
+
+        let baseNow = now()
+        for day in upcomingSchedulingDays(from: baseNow, windowDays: windowDays) {
+            for (title, body, hour, minute, mealSlot) in items {
+                guard let fireDate = scheduleDate(on: day, hour: hour, minute: minute), fireDate > baseNow else { continue }
+                let dc = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate)
+                let trigger = UNCalendarNotificationTrigger(dateMatching: dc, repeats: false)
+                let id = cycleIdentifier(prefix: IDs.glucoseBeforePrefix, at: fireDate, calendar: calendar)
+                let content = makeContent(
+                    title: title,
+                    body: body,
+                    categoryIdentifier: IDs.glucoseBeforeCategory,
+                    userInfo: quickEntryUserInfo(mealSlot: mealSlot, measurementType: .beforeMeal)
+                )
+                let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
+                await center.addOrReplace(request: request)
+            }
+        }
+    }
+
+    private func scheduleGlucoseAfterMeal2h(
+        breakfast: DateComponents,
+        lunch: DateComponents,
+        dinner: DateComponents,
+        isEnabled: Bool,
+        windowDaysOverride: Int?
+    ) async throws {
+        guard isEnabled else { return }
+        let items: [(String, String, Int, Int, MealSlot)] = [
+            (
+                L10n.notificationGlucoseAfterBreakfast2hTitle,
+                L10n.notificationGlucoseAfterBreakfast2hBody,
+                breakfast.hour ?? 0,
+                breakfast.minute ?? 0,
+                .breakfast
+            ),
+            (
+                L10n.notificationGlucoseAfterLunch2hTitle,
+                L10n.notificationGlucoseAfterLunch2hBody,
+                lunch.hour ?? 0,
+                lunch.minute ?? 0,
+                .lunch
+            ),
+            (
+                L10n.notificationGlucoseAfterDinner2hTitle,
+                L10n.notificationGlucoseAfterDinner2hBody,
+                dinner.hour ?? 0,
+                dinner.minute ?? 0,
+                .dinner
+            )
+        ]
+
+        let windowDays = await effectiveWindowDays(
+            remindersPerDay: items.count,
+            requestedWindowDays: windowDaysOverride
+        )
+        guard windowDays > 0 else { return }
+
+        let baseNow = now()
+        for day in upcomingSchedulingDays(from: baseNow, windowDays: windowDays) {
+            for (title, body, baseHour, baseMinute, mealSlot) in items {
+                guard let mealDate = scheduleDate(on: day, hour: baseHour, minute: baseMinute) else { continue }
+                guard let fireDate = calendar.date(byAdding: .hour, value: 2, to: mealDate), fireDate > baseNow else { continue }
+
+                let dc = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate)
+                let trigger = UNCalendarNotificationTrigger(dateMatching: dc, repeats: false)
+                let id = cycleIdentifier(prefix: IDs.glucoseAfterPrefix, at: fireDate, calendar: calendar)
+                let content = makeContent(
+                    title: title,
+                    body: body,
+                    categoryIdentifier: IDs.glucoseAfterCategory,
+                    userInfo: quickEntryUserInfo(mealSlot: mealSlot, measurementType: .afterMeal2h)
+                )
+                let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
+                await center.addOrReplace(request: request)
+            }
+        }
+    }
+
+    private func scheduleGlucoseBedtime(
+        isEnabled: Bool,
+        time: DateComponents?,
+        windowDaysOverride: Int?
+    ) async throws {
+        guard isEnabled, let time else { return }
+        let windowDays = await effectiveWindowDays(
+            remindersPerDay: 1,
+            requestedWindowDays: windowDaysOverride
+        )
+        guard windowDays > 0 else { return }
+
+        let baseNow = now()
+        for day in upcomingSchedulingDays(from: baseNow, windowDays: windowDays) {
+            guard
+                let fireDate = scheduleDate(on: day, hour: time.hour ?? 0, minute: time.minute ?? 0),
+                fireDate > baseNow
+            else { continue }
+            let dc = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate)
+            let trigger = UNCalendarNotificationTrigger(dateMatching: dc, repeats: false)
+            let id = cycleIdentifier(prefix: IDs.glucoseBedtimePrefix, at: fireDate, calendar: calendar)
+            let content = makeContent(
+                title: L10n.notificationGlucoseBedtimeTitle,
+                body: L10n.notificationGlucoseBedtimeBody,
+                categoryIdentifier: IDs.glucoseBedtimeCategory,
+                userInfo: quickEntryUserInfo(mealSlot: .none, measurementType: .bedtime)
+            )
+            let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
+            await center.addOrReplace(request: request)
         }
     }
 
@@ -743,14 +842,35 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         let hour = (minutes / 60) % 24
         let minute = minutes % 60
         return (hour, minute)
-        
     }
 
-    private func upcomingSchedulingDays(from referenceDate: Date) -> [Date] {
+    private func upcomingSchedulingDays(from referenceDate: Date, windowDays: Int) -> [Date] {
+        guard windowDays > 0 else { return [] }
         let startDay = calendar.startOfDay(for: referenceDate)
-        return (0..<schedulingWindowDays).compactMap { dayOffset in
+        return (0..<windowDays).compactMap { dayOffset in
             calendar.date(byAdding: .day, value: dayOffset, to: startDay)
         }
+    }
+
+    private func effectiveWindowDays(
+        remindersPerDay: Int,
+        requestedWindowDays: Int?
+    ) async -> Int {
+        guard remindersPerDay > 0 else { return 0 }
+        let requestedDays = max(0, min(schedulingWindowDays, requestedWindowDays ?? schedulingWindowDays))
+        guard requestedDays > 0 else { return 0 }
+
+        let capacity = await remainingPendingRequestCapacity()
+        guard capacity > 0 else { return 0 }
+
+        let cappedByCapacity = capacity / remindersPerDay
+        guard cappedByCapacity > 0 else { return 0 }
+        return min(requestedDays, cappedByCapacity)
+    }
+
+    private func remainingPendingRequestCapacity() async -> Int {
+        let currentPending = await center.pendingRequestIdentifiers().count
+        return max(0, Self.maxPendingNotificationRequests - currentPending)
     }
 
     private func scheduleDate(on day: Date, hour: Int, minute: Int) -> Date? {
