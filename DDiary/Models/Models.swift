@@ -64,6 +64,8 @@ public final class BPMeasurement {
     var diastolic: Int = 0
     var pulse: Int = 0
     var comment: String?
+    /// `true` when created from a planned Today slot, `false` when manually added, `nil` for legacy records.
+    var isLinkedToSchedule: Bool?
     var googleSyncStatus: GoogleSyncStatus = GoogleSyncStatus.pending
     var googleLastError: String?
     var googleLastSyncAt: Date?
@@ -75,6 +77,7 @@ public final class BPMeasurement {
         diastolic: Int,
         pulse: Int,
         comment: String? = nil,
+        isLinkedToSchedule: Bool? = nil,
         googleSyncStatus: GoogleSyncStatus = .pending,
         googleLastError: String? = nil,
         googleLastSyncAt: Date? = nil
@@ -85,6 +88,7 @@ public final class BPMeasurement {
         self.diastolic = diastolic
         self.pulse = pulse
         self.comment = comment
+        self.isLinkedToSchedule = isLinkedToSchedule
         self.googleSyncStatus = googleSyncStatus
         self.googleLastError = googleLastError
         self.googleLastSyncAt = googleLastSyncAt
@@ -100,6 +104,8 @@ public final class GlucoseMeasurement {
     var measurementType: GlucoseMeasurementType = GlucoseMeasurementType.beforeMeal
     var mealSlot: MealSlot = MealSlot.none
     var comment: String?
+    /// `true` when created from a planned Today slot, `false` when manually added, `nil` for legacy records.
+    var isLinkedToSchedule: Bool?
     var googleSyncStatus: GoogleSyncStatus = GoogleSyncStatus.pending
     var googleLastError: String?
     var googleLastSyncAt: Date?
@@ -112,6 +118,7 @@ public final class GlucoseMeasurement {
         measurementType: GlucoseMeasurementType,
         mealSlot: MealSlot,
         comment: String? = nil,
+        isLinkedToSchedule: Bool? = nil,
         googleSyncStatus: GoogleSyncStatus = .pending,
         googleLastError: String? = nil,
         googleLastSyncAt: Date? = nil
@@ -123,6 +130,7 @@ public final class GlucoseMeasurement {
         self.measurementType = measurementType
         self.mealSlot = mealSlot
         self.comment = comment
+        self.isLinkedToSchedule = isLinkedToSchedule
         self.googleSyncStatus = googleSyncStatus
         self.googleLastError = googleLastError
         self.googleLastSyncAt = googleLastSyncAt

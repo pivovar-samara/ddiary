@@ -43,6 +43,7 @@ public final class LogBPMeasurementUseCase {
             diastolic: diastolic,
             pulse: pulse,
             comment: comment,
+            isLinkedToSchedule: plannedScheduledDate != nil,
             googleSyncStatus: .pending,
             googleLastError: nil,
             googleLastSyncAt: nil

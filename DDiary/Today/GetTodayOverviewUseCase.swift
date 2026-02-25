@@ -174,9 +174,12 @@ public final class GetTodayOverviewUseCase {
             )
         }
 
+        let bpMeasurementsForSchedule = Self.scheduleLinkedBPMeasurements(from: bpMeasurements)
+        let glucoseMeasurementsForSchedule = Self.scheduleLinkedGlucoseMeasurements(from: glucoseMeasurements)
+
         let adjustedAfterDatesByIndex = Self.adjustedAfterMealDatesByIndex(
             plannedSlots: glucosePlanned,
-            glucoseMeasurements: glucoseMeasurements,
+            glucoseMeasurements: glucoseMeasurementsForSchedule,
             calendar: calendar
         )
         if !adjustedAfterDatesByIndex.isEmpty {
@@ -196,10 +199,10 @@ public final class GetTodayOverviewUseCase {
             glucosePlanned.sort { $0.baseDate < $1.baseDate }
         }
 
-        // Mark BP completion by assigning each measurement to the nearest scheduled slot (no time tolerance)
+        // Mark BP completion by assigning each schedule-linked measurement to the nearest planned slot.
         var unassignedIndices = Array(bpDates.indices)
         var assignment: [Int: UUID] = [:]
-        let measurementsSorted = bpMeasurements.sorted { $0.timestamp < $1.timestamp }
+        let measurementsSorted = bpMeasurementsForSchedule.sorted { $0.timestamp < $1.timestamp }
         for m in measurementsSorted {
             guard let nearest = unassignedIndices.min(by: { lhs, rhs in
                 let dl = abs(bpDates[lhs].timeIntervalSince(m.timestamp))
@@ -222,8 +225,8 @@ public final class GetTodayOverviewUseCase {
             return BPScheduledSlot(date: date, completed: id != nil, matchedMeasurementId: id)
         }
 
-        // Mark Glucose completion by slot kind, picking the nearest measurement per slot
-        var unmatchedGlucose = glucoseMeasurements.sorted { $0.timestamp < $1.timestamp }
+        // Mark Glucose completion by slot kind, picking the nearest schedule-linked measurement per slot.
+        var unmatchedGlucose = glucoseMeasurementsForSchedule.sorted { $0.timestamp < $1.timestamp }
         let glSlots: [GlucosePlannedSlot] = glucosePlanned.map { (slot, baseDate) in
             let candidates = unmatchedGlucose.enumerated().filter { _, m in
                 m.measurementType == slot.measurementType && m.mealSlot == slot.mealSlot
@@ -270,6 +273,16 @@ public final class GetTodayOverviewUseCase {
         guard !normalizedActiveWeekdays.isEmpty else { return false }
         let weekday = calendar.component(.weekday, from: date)
         return normalizedActiveWeekdays.contains(weekday)
+    }
+
+    private static func scheduleLinkedBPMeasurements(from measurements: [BPMeasurement]) -> [BPMeasurement] {
+        // Keep legacy records (`nil`) eligible for matching, but exclude explicitly manual entries.
+        measurements.filter { $0.isLinkedToSchedule != false }
+    }
+
+    private static func scheduleLinkedGlucoseMeasurements(from measurements: [GlucoseMeasurement]) -> [GlucoseMeasurement] {
+        // Keep legacy records (`nil`) eligible for matching, but exclude explicitly manual entries.
+        measurements.filter { $0.isLinkedToSchedule != false }
     }
 
     private static func adjustedAfterMealDatesByIndex(
