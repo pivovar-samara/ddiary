@@ -152,11 +152,17 @@ struct AppContainer {
         )
         self.updateBPMeasurementUseCase = UpdateBPMeasurementUseCase(
             measurementsRepository: measurementsRepository,
-            analyticsRepository: analyticsRepository
+            analyticsRepository: analyticsRepository,
+            scheduleGoogleSyncIfConnected: { [syncWithGoogleUseCase] in
+                syncWithGoogleUseCase.scheduleSyncIfConnected()
+            }
         )
         self.updateGlucoseMeasurementUseCase = UpdateGlucoseMeasurementUseCase(
             measurementsRepository: measurementsRepository,
-            analyticsRepository: analyticsRepository
+            analyticsRepository: analyticsRepository,
+            scheduleGoogleSyncIfConnected: { [syncWithGoogleUseCase] in
+                syncWithGoogleUseCase.scheduleSyncIfConnected()
+            }
         )
         self.exportCSVUseCase = ExportCSVUseCase(
             measurementsRepository: measurementsRepository

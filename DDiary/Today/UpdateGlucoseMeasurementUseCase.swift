@@ -6,13 +6,16 @@ import Foundation
 public final class UpdateGlucoseMeasurementUseCase {
     private let measurementsRepository: any MeasurementsRepository
     private let analyticsRepository: any AnalyticsRepository
+    private let scheduleGoogleSyncIfConnected: @MainActor () -> Void
 
     public init(
         measurementsRepository: any MeasurementsRepository,
-        analyticsRepository: any AnalyticsRepository
+        analyticsRepository: any AnalyticsRepository,
+        scheduleGoogleSyncIfConnected: @escaping @MainActor () -> Void = {}
     ) {
         self.measurementsRepository = measurementsRepository
         self.analyticsRepository = analyticsRepository
+        self.scheduleGoogleSyncIfConnected = scheduleGoogleSyncIfConnected
     }
 
     public func execute(
@@ -39,6 +42,7 @@ public final class UpdateGlucoseMeasurementUseCase {
             )
             throw error
         }
+        scheduleGoogleSyncIfConnected()
         // Optional analytics: treat as a measurement interaction
         await analyticsRepository.logMeasurementLogged(kind: .glucose)
     }
