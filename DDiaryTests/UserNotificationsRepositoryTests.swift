@@ -427,7 +427,7 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         )
 
         XCTAssertNil(center.pendingRequests[originalCycleID])
-        let shiftedID = shiftedAfterID(day: shiftedAfterDate, calendar: calendar)
+        let shiftedID = shiftedAfterID(mealSlot: .lunch, day: shiftedAfterDate, calendar: calendar)
         let shiftedRequest = try? XCTUnwrap(center.pendingRequests[shiftedID])
         XCTAssertNotNil(shiftedRequest)
         XCTAssertEqual(shiftedRequest?.content.categoryIdentifier, UserNotificationsRepository.IDs.glucoseAfterCategory)
@@ -593,14 +593,14 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         return "\(prefix)d\(String(format: "%04d", y))\(String(format: "%02d", mo))\(String(format: "%02d", d)).\(String(format: "%02d", hour))\(String(format: "%02d", minute))"
     }
 
-    private func shiftedAfterID(day: Date, calendar: Calendar) -> String {
+    private func shiftedAfterID(mealSlot: MealSlot, day: Date, calendar: Calendar) -> String {
         let parts = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: day)
         let y = parts.year ?? 0
         let mo = parts.month ?? 0
         let d = parts.day ?? 0
         let h = parts.hour ?? 0
         let m = parts.minute ?? 0
-        return "\(UserNotificationsRepository.IDs.glucoseAfterPrefix)d\(String(format: "%04d", y))\(String(format: "%02d", mo))\(String(format: "%02d", d)).\(String(format: "%02d", h))\(String(format: "%02d", m))"
+        return "\(UserNotificationsRepository.IDs.glucoseAfterPrefix)shifted.\(mealSlot.rawValue).d\(String(format: "%04d", y))\(String(format: "%02d", mo))\(String(format: "%02d", d)).\(String(format: "%02d", h))\(String(format: "%02d", m))"
     }
 }
 

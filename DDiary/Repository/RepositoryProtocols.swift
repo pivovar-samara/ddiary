@@ -272,7 +272,7 @@ public extension NotificationsRepository {
         }
 
         let calendar = Calendar.current
-        let identifier = shiftedAfterMealIdentifier(date: shiftedAfterDate, calendar: calendar)
+        let identifier = shiftedAfterMealIdentifier(mealSlot: mealSlot, date: shiftedAfterDate, calendar: calendar)
         await cancel(withIdentifier: identifier)
         await scheduleOneOff(
             at: shiftedAfterDate,
@@ -326,14 +326,14 @@ public extension NotificationsRepository {
         )
     }
 
-    private func shiftedAfterMealIdentifier(date: Date, calendar: Calendar) -> String {
+    private func shiftedAfterMealIdentifier(mealSlot: MealSlot, date: Date, calendar: Calendar) -> String {
         let parts = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
         let year = parts.year ?? 0
         let month = parts.month ?? 0
         let day = parts.day ?? 0
         let hour = parts.hour ?? 0
         let minute = parts.minute ?? 0
-        return "\(UserNotificationsRepository.IDs.glucoseAfterPrefix)d\(String(format: "%04d", year))\(String(format: "%02d", month))\(String(format: "%02d", day)).\(String(format: "%02d", hour))\(String(format: "%02d", minute))"
+        return "\(UserNotificationsRepository.IDs.glucoseAfterPrefix)shifted.\(mealSlot.rawValue).d\(String(format: "%04d", year))\(String(format: "%02d", month))\(String(format: "%02d", day)).\(String(format: "%02d", hour))\(String(format: "%02d", minute))"
     }
 }
 
