@@ -31,41 +31,70 @@ final class UserNotificationsRepositoryTests: XCTestCase {
 
     func test_scheduleBloodPressure_createsRequestsForEachWeekdayAndTime() async throws {
         let center = FakeNotificationCenter()
-        let repository = UserNotificationsRepository(center: center)
+        let calendar = Calendar.current
+        let referenceNow = calendar.date(
+            from: DateComponents(year: 2026, month: 2, day: 16, hour: 7, minute: 30)
+        ) ?? Date()
+        let repository = UserNotificationsRepository(
+            center: center,
+            calendar: calendar,
+            now: { referenceNow },
+            schedulingWindowDays: 4
+        )
 
         try await repository.scheduleBloodPressure(times: [540, 1260], activeWeekdays: [2, 4])
 
         let ids = Set(center.pendingRequests.keys)
         XCTAssertEqual(ids, Set([
-            "ddiary.bp.w2.0900",
-            "ddiary.bp.w2.2100",
-            "ddiary.bp.w4.0900",
-            "ddiary.bp.w4.2100"
+            "ddiary.bp.d20260216.0900",
+            "ddiary.bp.d20260216.2100",
+            "ddiary.bp.d20260218.0900",
+            "ddiary.bp.d20260218.2100"
         ]))
         XCTAssertEqual(center.pendingRequests.count, 4)
 
-        let request = try XCTUnwrap(center.pendingRequests["ddiary.bp.w2.0900"])
+        let request = try XCTUnwrap(center.pendingRequests["ddiary.bp.d20260216.0900"])
         XCTAssertEqual(request.content.categoryIdentifier, UserNotificationsRepository.IDs.bpCategory)
         XCTAssertEqual(request.content.title, L10n.notificationBPTitle)
         let trigger = try XCTUnwrap(request.trigger as? UNCalendarNotificationTrigger)
-        XCTAssertTrue(trigger.repeats)
-        XCTAssertEqual(trigger.dateComponents.weekday, 2)
+        XCTAssertFalse(trigger.repeats)
+        XCTAssertEqual(trigger.dateComponents.year, 2026)
+        XCTAssertEqual(trigger.dateComponents.month, 2)
+        XCTAssertEqual(trigger.dateComponents.day, 16)
         XCTAssertEqual(trigger.dateComponents.hour, 9)
         XCTAssertEqual(trigger.dateComponents.minute, 0)
     }
 
     func test_scheduleBloodPressure_ignoresInvalidWeekdayValues() async throws {
         let center = FakeNotificationCenter()
-        let repository = UserNotificationsRepository(center: center)
+        let calendar = Calendar.current
+        let referenceNow = calendar.date(
+            from: DateComponents(year: 2026, month: 2, day: 16, hour: 7, minute: 30)
+        ) ?? Date()
+        let repository = UserNotificationsRepository(
+            center: center,
+            calendar: calendar,
+            now: { referenceNow },
+            schedulingWindowDays: 2
+        )
 
         try await repository.scheduleBloodPressure(times: [540], activeWeekdays: [0, 2, 8])
 
-        XCTAssertEqual(Set(center.pendingRequests.keys), ["ddiary.bp.w2.0900"])
+        XCTAssertEqual(Set(center.pendingRequests.keys), ["ddiary.bp.d20260216.0900"])
     }
 
     func test_scheduleGlucoseBeforeMeal_attachesQuickEntryMetadata() async throws {
         let center = FakeNotificationCenter()
-        let repository = UserNotificationsRepository(center: center)
+        let calendar = Calendar.current
+        let referenceNow = calendar.date(
+            from: DateComponents(year: 2026, month: 2, day: 16, hour: 7, minute: 30)
+        ) ?? Date()
+        let repository = UserNotificationsRepository(
+            center: center,
+            calendar: calendar,
+            now: { referenceNow },
+            schedulingWindowDays: 1
+        )
 
         try await repository.scheduleGlucoseBeforeMeal(
             breakfast: DateComponents(hour: 8, minute: 0),
@@ -74,7 +103,11 @@ final class UserNotificationsRepositoryTests: XCTestCase {
             isEnabled: true
         )
 
-        let request = try XCTUnwrap(center.pendingRequests["ddiary.glucose.before.1300"])
+        let request = try XCTUnwrap(
+            center.pendingRequests.values.first {
+                $0.content.title == L10n.notificationGlucoseBeforeLunchTitle
+            }
+        )
         XCTAssertEqual(
             request.content.userInfo[UserNotificationsRepository.PayloadKeys.mealSlot] as? String,
             MealSlot.lunch.rawValue
@@ -87,17 +120,26 @@ final class UserNotificationsRepositoryTests: XCTestCase {
 
     func test_rescheduleGlucose_removesExistingPrefixedRequestsAndSchedulesEnabledKindsOnly() async throws {
         let center = FakeNotificationCenter()
-        let repository = UserNotificationsRepository(center: center)
+        let calendar = Calendar.current
+        let referenceNow = calendar.date(
+            from: DateComponents(year: 2026, month: 2, day: 16, hour: 7, minute: 30)
+        ) ?? Date()
+        let repository = UserNotificationsRepository(
+            center: center,
+            calendar: calendar,
+            now: { referenceNow },
+            schedulingWindowDays: 1
+        )
 
-        center.pendingRequests["ddiary.glucose.before.0800"] = makeRequest(id: "ddiary.glucose.before.0800")
-        center.pendingRequests["ddiary.glucose.after.1000"] = makeRequest(id: "ddiary.glucose.after.1000")
-        center.pendingRequests["ddiary.glucose.bedtime.2200"] = makeRequest(id: "ddiary.glucose.bedtime.2200")
-        center.pendingRequests["ddiary.bp.w2.0900"] = makeRequest(id: "ddiary.bp.w2.0900")
+        center.pendingRequests["ddiary.glucose.before.legacy"] = makeRequest(id: "ddiary.glucose.before.legacy")
+        center.pendingRequests["ddiary.glucose.after.legacy"] = makeRequest(id: "ddiary.glucose.after.legacy")
+        center.pendingRequests["ddiary.glucose.bedtime.legacy"] = makeRequest(id: "ddiary.glucose.bedtime.legacy")
+        center.pendingRequests["ddiary.bp.legacy"] = makeRequest(id: "ddiary.bp.legacy")
         center.deliveredIdentifiers = [
-            "ddiary.glucose.before.0800",
-            "ddiary.glucose.after.1000",
-            "ddiary.glucose.bedtime.2200",
-            "ddiary.bp.w2.0900"
+            "ddiary.glucose.before.legacy",
+            "ddiary.glucose.after.legacy",
+            "ddiary.glucose.bedtime.legacy",
+            "ddiary.bp.legacy"
         ]
 
         try await repository.rescheduleGlucose(
@@ -110,24 +152,33 @@ final class UserNotificationsRepositoryTests: XCTestCase {
             bedtimeTime: DateComponents(hour: 22, minute: 15)
         )
 
-        XCTAssertNotNil(center.pendingRequests["ddiary.bp.w2.0900"])
-        XCTAssertNotNil(center.pendingRequests["ddiary.glucose.before.0800"])
-        XCTAssertNotNil(center.pendingRequests["ddiary.glucose.before.1300"])
-        XCTAssertNotNil(center.pendingRequests["ddiary.glucose.before.1900"])
-        XCTAssertNotNil(center.pendingRequests["ddiary.glucose.bedtime.2215"])
-        XCTAssertNil(center.pendingRequests["ddiary.glucose.after.1000"])
-        XCTAssertNil(center.pendingRequests["ddiary.glucose.after.1500"])
-        XCTAssertNil(center.pendingRequests["ddiary.glucose.after.2100"])
+        XCTAssertNotNil(center.pendingRequests["ddiary.bp.legacy"])
+        XCTAssertFalse(center.pendingRequests.keys.contains("ddiary.glucose.before.legacy"))
+        XCTAssertFalse(center.pendingRequests.keys.contains("ddiary.glucose.after.legacy"))
+        XCTAssertFalse(center.pendingRequests.keys.contains("ddiary.glucose.bedtime.legacy"))
+
+        let beforeCount = center.pendingRequests.values.filter {
+            $0.content.categoryIdentifier == UserNotificationsRepository.IDs.glucoseBeforeCategory
+        }.count
+        let afterCount = center.pendingRequests.values.filter {
+            $0.content.categoryIdentifier == UserNotificationsRepository.IDs.glucoseAfterCategory
+        }.count
+        let bedtimeCount = center.pendingRequests.values.filter {
+            $0.content.categoryIdentifier == UserNotificationsRepository.IDs.glucoseBedtimeCategory
+        }.count
+        XCTAssertEqual(beforeCount, 3)
+        XCTAssertEqual(afterCount, 0)
+        XCTAssertEqual(bedtimeCount, 1)
 
         let removedPending = Set(center.removedPendingIdentifiers.flatMap { $0 })
-        XCTAssertTrue(removedPending.contains("ddiary.glucose.before.0800"))
-        XCTAssertTrue(removedPending.contains("ddiary.glucose.after.1000"))
-        XCTAssertTrue(removedPending.contains("ddiary.glucose.bedtime.2200"))
+        XCTAssertTrue(removedPending.contains("ddiary.glucose.before.legacy"))
+        XCTAssertTrue(removedPending.contains("ddiary.glucose.after.legacy"))
+        XCTAssertTrue(removedPending.contains("ddiary.glucose.bedtime.legacy"))
 
         let removedDelivered = Set(center.removedDeliveredIdentifiers.flatMap { $0 })
-        XCTAssertTrue(removedDelivered.contains("ddiary.glucose.before.0800"))
-        XCTAssertTrue(removedDelivered.contains("ddiary.glucose.after.1000"))
-        XCTAssertTrue(removedDelivered.contains("ddiary.glucose.bedtime.2200"))
+        XCTAssertTrue(removedDelivered.contains("ddiary.glucose.before.legacy"))
+        XCTAssertTrue(removedDelivered.contains("ddiary.glucose.after.legacy"))
+        XCTAssertTrue(removedDelivered.contains("ddiary.glucose.bedtime.legacy"))
     }
 
     func test_cancelPlannedGlucoseNotification_cycleIdentifier_removesPendingAndDelivered() async {
@@ -157,7 +208,7 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         XCTAssertTrue(Set(center.removedDeliveredIdentifiers.flatMap { $0 }).contains(cycleID))
     }
 
-    func test_cancelPlannedGlucoseNotification_repeatingIdentifier_keepsPendingButClearsDelivered() async {
+    func test_cancelPlannedGlucoseNotification_repeatingIdentifier_removesPendingAndDelivered() async {
         let center = FakeNotificationCenter()
         let repository = UserNotificationsRepository(center: center)
         let calendar = Calendar.current
@@ -173,27 +224,27 @@ final class UserNotificationsRepositoryTests: XCTestCase {
             at: scheduledDate
         )
 
-        XCTAssertNotNil(center.pendingRequests[repeatingID])
-        XCTAssertFalse(Set(center.removedPendingIdentifiers.flatMap { $0 }).contains(repeatingID))
+        XCTAssertNil(center.pendingRequests[repeatingID])
+        XCTAssertTrue(Set(center.removedPendingIdentifiers.flatMap { $0 }).contains(repeatingID))
         XCTAssertTrue(Set(center.removedDeliveredIdentifiers.flatMap { $0 }).contains(repeatingID))
     }
 
-    func test_cancelPlannedBloodPressureNotification_keepsPendingButClearsDelivered() async {
+    func test_cancelPlannedBloodPressureNotification_removesPendingAndDelivered() async {
         let center = FakeNotificationCenter()
         let repository = UserNotificationsRepository(center: center)
         let calendar = Calendar.current
         let scheduledDate = calendar.date(
             from: DateComponents(year: 2026, month: 2, day: 16, hour: 9, minute: 0)
         ) ?? Date()
-        let repeatingID = "ddiary.bp.w2.0900"
-        center.pendingRequests[repeatingID] = makeRequest(id: repeatingID)
-        center.deliveredIdentifiers = [repeatingID]
+        let dayID = "ddiary.bp.d20260216.0900"
+        center.pendingRequests[dayID] = makeRequest(id: dayID)
+        center.deliveredIdentifiers = [dayID]
 
         await repository.cancelPlannedBloodPressureNotification(at: scheduledDate)
 
-        XCTAssertNotNil(center.pendingRequests[repeatingID])
-        XCTAssertFalse(Set(center.removedPendingIdentifiers.flatMap { $0 }).contains(repeatingID))
-        XCTAssertTrue(Set(center.removedDeliveredIdentifiers.flatMap { $0 }).contains(repeatingID))
+        XCTAssertNil(center.pendingRequests[dayID])
+        XCTAssertTrue(Set(center.removedPendingIdentifiers.flatMap { $0 }).contains(dayID))
+        XCTAssertTrue(Set(center.removedDeliveredIdentifiers.flatMap { $0 }).contains(dayID))
     }
 
     func test_requestAuthorization_passthroughError() async {
@@ -300,8 +351,10 @@ final class UserNotificationsRepositoryTests: XCTestCase {
             minute: 0,
             calendar: calendar
         )
+        let repeatingID = "ddiary.glucose.after.1500"
         center.pendingRequests[originalCycleID] = makeRequest(id: originalCycleID)
-        center.deliveredIdentifiers = [originalCycleID, "ddiary.glucose.after.1500"]
+        center.pendingRequests[repeatingID] = makeRequest(id: repeatingID)
+        center.deliveredIdentifiers = [originalCycleID, repeatingID]
 
         await repository.rescheduleShiftedAfterMeal2hNotification(
             mealSlot: .lunch,
@@ -310,7 +363,7 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         )
 
         XCTAssertNil(center.pendingRequests[originalCycleID])
-        let shiftedID = shiftedAfterID(mealSlot: .lunch, day: shiftedAfterDate, calendar: calendar)
+        let shiftedID = shiftedAfterID(day: shiftedAfterDate, calendar: calendar)
         let shiftedRequest = try? XCTUnwrap(center.pendingRequests[shiftedID])
         XCTAssertNotNil(shiftedRequest)
         XCTAssertEqual(shiftedRequest?.content.categoryIdentifier, UserNotificationsRepository.IDs.glucoseAfterCategory)
@@ -325,9 +378,10 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         )
         let removedPending = Set(center.removedPendingIdentifiers.flatMap { $0 })
         XCTAssertTrue(removedPending.contains(originalCycleID))
+        XCTAssertTrue(removedPending.contains(repeatingID))
         let removedDelivered = Set(center.removedDeliveredIdentifiers.flatMap { $0 })
         XCTAssertTrue(removedDelivered.contains(originalCycleID))
-        XCTAssertTrue(removedDelivered.contains("ddiary.glucose.after.1500"))
+        XCTAssertTrue(removedDelivered.contains(repeatingID))
     }
 
     func test_scheduleDebugNotifications_useProductionCategoriesAndPayload() async {
@@ -475,12 +529,14 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         return "\(prefix)d\(String(format: "%04d", y))\(String(format: "%02d", mo))\(String(format: "%02d", d)).\(String(format: "%02d", hour))\(String(format: "%02d", minute))"
     }
 
-    private func shiftedAfterID(mealSlot: MealSlot, day: Date, calendar: Calendar) -> String {
-        let parts = calendar.dateComponents([.year, .month, .day], from: day)
+    private func shiftedAfterID(day: Date, calendar: Calendar) -> String {
+        let parts = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: day)
         let y = parts.year ?? 0
         let mo = parts.month ?? 0
         let d = parts.day ?? 0
-        return "\(UserNotificationsRepository.IDs.glucoseAfterPrefix)shifted.\(mealSlot.rawValue).\(String(format: "%04d", y))\(String(format: "%02d", mo))\(String(format: "%02d", d))"
+        let h = parts.hour ?? 0
+        let m = parts.minute ?? 0
+        return "\(UserNotificationsRepository.IDs.glucoseAfterPrefix)d\(String(format: "%04d", y))\(String(format: "%02d", mo))\(String(format: "%02d", d)).\(String(format: "%02d", h))\(String(format: "%02d", m))"
     }
 }
 

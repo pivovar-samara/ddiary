@@ -163,9 +163,20 @@ Usage notes:
 
 struct UserNotificationsRepository: NotificationsRepository, Sendable {
     private let center: any UserNotificationCentering
+    private let calendar: Calendar
+    private let now: @Sendable () -> Date
+    private let schedulingWindowDays: Int
 
-    init(center: any UserNotificationCentering = LiveUserNotificationCenter()) {
+    init(
+        center: any UserNotificationCentering = LiveUserNotificationCenter(),
+        calendar: Calendar = .current,
+        now: @escaping @Sendable () -> Date = Date.init,
+        schedulingWindowDays: Int = 28
+    ) {
         self.center = center
+        self.calendar = calendar
+        self.now = now
+        self.schedulingWindowDays = max(1, schedulingWindowDays)
     }
 
     // MARK: - Identifiers
@@ -246,16 +257,20 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
 
     func scheduleBloodPressure(times: [Int], activeWeekdays: Set<Int>) async throws {
         let normalizedWeekdays = Set(activeWeekdays.filter { (1...7).contains($0) })
-        for weekday in normalizedWeekdays.sorted() {
+        guard !normalizedWeekdays.isEmpty else { return }
+
+        let baseNow = now()
+        for day in upcomingSchedulingDays(from: baseNow) {
+            let weekday = calendar.component(.weekday, from: day)
+            guard normalizedWeekdays.contains(weekday) else { continue }
             for minutes in times {
                 let hm = minutesToHourMinute(minutes)
-                var comps = DateComponents()
-                comps.weekday = weekday
-                comps.hour = hm.hour
-                comps.minute = hm.minute
+                let fireDate = scheduleDate(on: day, hour: hm.hour, minute: hm.minute)
+                guard let fireDate, fireDate > baseNow else { continue }
 
-                let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: true)
-                let id = identifier(prefix: IDs.bpPrefix, components: comps, weekday: weekday)
+                let comps = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate)
+                let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
+                let id = cycleIdentifier(prefix: IDs.bpPrefix, at: fireDate, calendar: calendar)
                 let content = makeContent(
                     title: L10n.notificationBPTitle,
                     body: L10n.notificationBPBody,
@@ -278,67 +293,116 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
 
     func scheduleGlucoseBeforeMeal(breakfast: DateComponents, lunch: DateComponents, dinner: DateComponents, isEnabled: Bool) async throws {
         guard isEnabled else { return }
-        let items: [(String, String, DateComponents, MealSlot)] = [
-            (L10n.notificationGlucoseBeforeBreakfastTitle, L10n.notificationGlucoseBeforeBreakfastBody, breakfast, .breakfast),
-            (L10n.notificationGlucoseBeforeLunchTitle, L10n.notificationGlucoseBeforeLunchBody, lunch, .lunch),
-            (L10n.notificationGlucoseBeforeDinnerTitle, L10n.notificationGlucoseBeforeDinnerBody, dinner, .dinner)
-        ]
-        for (title, body, comps, mealSlot) in items {
-            var dc = DateComponents()
-            dc.hour = comps.hour
-            dc.minute = comps.minute
-            let trigger = UNCalendarNotificationTrigger(dateMatching: dc, repeats: true)
-            let id = identifier(prefix: IDs.glucoseBeforePrefix, components: dc)
-            let content = makeContent(
-                title: title,
-                body: body,
-                categoryIdentifier: IDs.glucoseBeforeCategory,
-                userInfo: quickEntryUserInfo(mealSlot: mealSlot, measurementType: .beforeMeal)
+        let items: [(String, String, Int, Int, MealSlot)] = [
+            (
+                L10n.notificationGlucoseBeforeBreakfastTitle,
+                L10n.notificationGlucoseBeforeBreakfastBody,
+                breakfast.hour ?? 0,
+                breakfast.minute ?? 0,
+                .breakfast
+            ),
+            (
+                L10n.notificationGlucoseBeforeLunchTitle,
+                L10n.notificationGlucoseBeforeLunchBody,
+                lunch.hour ?? 0,
+                lunch.minute ?? 0,
+                .lunch
+            ),
+            (
+                L10n.notificationGlucoseBeforeDinnerTitle,
+                L10n.notificationGlucoseBeforeDinnerBody,
+                dinner.hour ?? 0,
+                dinner.minute ?? 0,
+                .dinner
             )
-            let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
-            await center.addOrReplace(request: request)
+        ]
+
+        let baseNow = now()
+        for day in upcomingSchedulingDays(from: baseNow) {
+            for (title, body, hour, minute, mealSlot) in items {
+                guard let fireDate = scheduleDate(on: day, hour: hour, minute: minute), fireDate > baseNow else { continue }
+                let dc = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate)
+                let trigger = UNCalendarNotificationTrigger(dateMatching: dc, repeats: false)
+                let id = cycleIdentifier(prefix: IDs.glucoseBeforePrefix, at: fireDate, calendar: calendar)
+                let content = makeContent(
+                    title: title,
+                    body: body,
+                    categoryIdentifier: IDs.glucoseBeforeCategory,
+                    userInfo: quickEntryUserInfo(mealSlot: mealSlot, measurementType: .beforeMeal)
+                )
+                let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
+                await center.addOrReplace(request: request)
+            }
         }
     }
 
     func scheduleGlucoseAfterMeal2h(breakfast: DateComponents, lunch: DateComponents, dinner: DateComponents, isEnabled: Bool) async throws {
         guard isEnabled else { return }
-        let items: [(String, String, DateComponents, MealSlot)] = [
-            (L10n.notificationGlucoseAfterBreakfast2hTitle, L10n.notificationGlucoseAfterBreakfast2hBody, addingHours(breakfast, hours: 2), .breakfast),
-            (L10n.notificationGlucoseAfterLunch2hTitle, L10n.notificationGlucoseAfterLunch2hBody, addingHours(lunch, hours: 2), .lunch),
-            (L10n.notificationGlucoseAfterDinner2hTitle, L10n.notificationGlucoseAfterDinner2hBody, addingHours(dinner, hours: 2), .dinner)
-        ]
-        for (title, body, comps, mealSlot) in items {
-            var dc = DateComponents()
-            dc.hour = comps.hour
-            dc.minute = comps.minute
-            let trigger = UNCalendarNotificationTrigger(dateMatching: dc, repeats: true)
-            let id = identifier(prefix: IDs.glucoseAfterPrefix, components: dc)
-            let content = makeContent(
-                title: title,
-                body: body,
-                categoryIdentifier: IDs.glucoseAfterCategory,
-                userInfo: quickEntryUserInfo(mealSlot: mealSlot, measurementType: .afterMeal2h)
+        let items: [(String, String, Int, Int, MealSlot)] = [
+            (
+                L10n.notificationGlucoseAfterBreakfast2hTitle,
+                L10n.notificationGlucoseAfterBreakfast2hBody,
+                breakfast.hour ?? 0,
+                breakfast.minute ?? 0,
+                .breakfast
+            ),
+            (
+                L10n.notificationGlucoseAfterLunch2hTitle,
+                L10n.notificationGlucoseAfterLunch2hBody,
+                lunch.hour ?? 0,
+                lunch.minute ?? 0,
+                .lunch
+            ),
+            (
+                L10n.notificationGlucoseAfterDinner2hTitle,
+                L10n.notificationGlucoseAfterDinner2hBody,
+                dinner.hour ?? 0,
+                dinner.minute ?? 0,
+                .dinner
             )
-            let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
-            await center.addOrReplace(request: request)
+        ]
+
+        let baseNow = now()
+        for day in upcomingSchedulingDays(from: baseNow) {
+            for (title, body, baseHour, baseMinute, mealSlot) in items {
+                guard let mealDate = scheduleDate(on: day, hour: baseHour, minute: baseMinute) else { continue }
+                guard let fireDate = calendar.date(byAdding: .hour, value: 2, to: mealDate), fireDate > baseNow else { continue }
+
+                let dc = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate)
+                let trigger = UNCalendarNotificationTrigger(dateMatching: dc, repeats: false)
+                let id = cycleIdentifier(prefix: IDs.glucoseAfterPrefix, at: fireDate, calendar: calendar)
+                let content = makeContent(
+                    title: title,
+                    body: body,
+                    categoryIdentifier: IDs.glucoseAfterCategory,
+                    userInfo: quickEntryUserInfo(mealSlot: mealSlot, measurementType: .afterMeal2h)
+                )
+                let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
+                await center.addOrReplace(request: request)
+            }
         }
     }
 
     func scheduleGlucoseBedtime(isEnabled: Bool, time: DateComponents?) async throws {
         guard isEnabled, let time else { return }
-        var dc = DateComponents()
-        dc.hour = time.hour
-        dc.minute = time.minute
-        let trigger = UNCalendarNotificationTrigger(dateMatching: dc, repeats: true)
-        let id = identifier(prefix: IDs.glucoseBedtimePrefix, components: dc)
-        let content = makeContent(
-            title: L10n.notificationGlucoseBedtimeTitle,
-            body: L10n.notificationGlucoseBedtimeBody,
-            categoryIdentifier: IDs.glucoseBedtimeCategory,
-            userInfo: quickEntryUserInfo(mealSlot: .none, measurementType: .bedtime)
-        )
-        let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
-        await center.addOrReplace(request: request)
+        let baseNow = now()
+        for day in upcomingSchedulingDays(from: baseNow) {
+            guard
+                let fireDate = scheduleDate(on: day, hour: time.hour ?? 0, minute: time.minute ?? 0),
+                fireDate > baseNow
+            else { continue }
+            let dc = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate)
+            let trigger = UNCalendarNotificationTrigger(dateMatching: dc, repeats: false)
+            let id = cycleIdentifier(prefix: IDs.glucoseBedtimePrefix, at: fireDate, calendar: calendar)
+            let content = makeContent(
+                title: L10n.notificationGlucoseBedtimeTitle,
+                body: L10n.notificationGlucoseBedtimeBody,
+                categoryIdentifier: IDs.glucoseBedtimeCategory,
+                userInfo: quickEntryUserInfo(mealSlot: .none, measurementType: .bedtime)
+            )
+            let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
+            await center.addOrReplace(request: request)
+        }
     }
 
     func cancelGlucose() async {
@@ -389,7 +453,7 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         categoryIdentifier: String,
         userInfo: [AnyHashable: Any]
     ) async {
-        let comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
+        let comps = calendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
         let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
         let content = makeContent(
             title: title,
@@ -402,7 +466,7 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
     }
 
     /// Convenience for snoozing: schedules a one-off notification after N minutes.
-    /// Does not cancel the original repeating reminder; it simply adds a one-time reminder.
+    /// Does not cancel the original planned reminder; it simply adds a one-time reminder.
     public func snooze(
         originalIdentifier: String,
         minutes: Int,
@@ -429,18 +493,21 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
     }
 
     public func cancelPlannedBloodPressureNotification(at scheduledDate: Date) async {
-        let calendar = Calendar.current
+        let calendar = self.calendar
         let weekday = calendar.component(.weekday, from: scheduledDate)
         let components = calendar.dateComponents([.hour, .minute], from: scheduledDate)
         let repeatingID = identifier(prefix: IDs.bpPrefix, components: components, weekday: weekday)
-        center.removeDeliveredNotifications(withIdentifiers: [repeatingID])
+        let dayID = cycleIdentifier(prefix: IDs.bpPrefix, at: scheduledDate, calendar: calendar)
+        let ids = [repeatingID, dayID]
+        center.removePendingNotificationRequests(withIdentifiers: ids)
+        center.removeDeliveredNotifications(withIdentifiers: ids)
     }
 
     public func cancelPlannedGlucoseNotification(
         measurementType: GlucoseMeasurementType,
         at scheduledDate: Date
     ) async {
-        let calendar = Calendar.current
+        let calendar = self.calendar
         let prefix = glucosePrefix(for: measurementType)
         let components = calendar.dateComponents([.hour, .minute], from: scheduledDate)
         let repeatingID = identifier(prefix: prefix, components: components)
@@ -449,17 +516,13 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         let pendingIDs = Set(await center.pendingRequestIdentifiers())
         let deliveredIDs = Set(await center.deliveredNotificationIdentifiers())
 
-        if pendingIDs.contains(cycleID) {
-            center.removePendingNotificationRequests(withIdentifiers: [cycleID])
+        let candidateIDs = Set([cycleID, repeatingID])
+        let pendingToRemove = pendingIDs.intersection(candidateIDs)
+        if !pendingToRemove.isEmpty {
+            center.removePendingNotificationRequests(withIdentifiers: Array(pendingToRemove))
         }
 
-        var deliveredToRemove: Set<String> = []
-        if deliveredIDs.contains(cycleID) {
-            deliveredToRemove.insert(cycleID)
-        }
-        if deliveredIDs.contains(repeatingID) {
-            deliveredToRemove.insert(repeatingID)
-        }
+        let deliveredToRemove = deliveredIDs.intersection(candidateIDs)
         if !deliveredToRemove.isEmpty {
             center.removeDeliveredNotifications(withIdentifiers: Array(deliveredToRemove))
         }
@@ -683,6 +746,21 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         
     }
 
+    private func upcomingSchedulingDays(from referenceDate: Date) -> [Date] {
+        let startDay = calendar.startOfDay(for: referenceDate)
+        return (0..<schedulingWindowDays).compactMap { dayOffset in
+            calendar.date(byAdding: .day, value: dayOffset, to: startDay)
+        }
+    }
+
+    private func scheduleDate(on day: Date, hour: Int, minute: Int) -> Date? {
+        var comps = calendar.dateComponents([.year, .month, .day], from: day)
+        comps.hour = hour
+        comps.minute = minute
+        comps.second = 0
+        return calendar.date(from: comps)
+    }
+
     private func identifier(prefix: String, components: DateComponents, weekday: Int? = nil) -> String {
         let h = components.hour ?? 0
         let m = components.minute ?? 0
@@ -698,15 +776,6 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         let h = parts.hour ?? 0
         let m = parts.minute ?? 0
         return "\(prefix)d\(String(format: "%04d", y))\(String(format: "%02d", mo))\(String(format: "%02d", d)).\(String(format: "%02d", h))\(String(format: "%02d", m))"
-    }
-
-    private func addingHours(_ components: DateComponents, hours: Int) -> DateComponents {
-        var dc = DateComponents()
-        let baseHour = components.hour ?? 0
-        let newHour = (baseHour + hours) % 24
-        dc.hour = newHour >= 0 ? newHour : (newHour + 24)
-        dc.minute = components.minute ?? 0
-        return dc
     }
 
     private func glucosePrefix(for measurementType: GlucoseMeasurementType) -> String {
