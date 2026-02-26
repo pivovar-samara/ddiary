@@ -8,6 +8,7 @@ fi
 
 showdestinations_output="$(xcodebuild -showdestinations "$@" 2>&1 || true)"
 normalized_output="$(printf '%s\n' "${showdestinations_output}" | tr -d '\r')"
+require_ios_simulator="${REQUIRE_IOS_SIMULATOR:-0}"
 
 if printf '%s\n' "${normalized_output}" | grep -qi "Xcode doesn"; then
   echo "Xcode/runner mismatch detected while resolving destinations." >&2
@@ -23,13 +24,19 @@ destination_line="$(
 )"
 
 if [ -z "${destination_line}" ]; then
-  destination_line="$(
-    printf '%s\n' "${normalized_output}" \
-      | awk '/platform:macOS/ && /id:/ && /Designed for \[iPad, ?iPhone\]/ { print; exit }'
-  )"
+  if [ "${require_ios_simulator}" = "1" ]; then
+    echo "No concrete iOS Simulator destination found." >&2
+    printf '%s\n' "${normalized_output}" >&2
+    exit 1
+  else
+    destination_line="$(
+      printf '%s\n' "${normalized_output}" \
+        | awk '/platform:macOS/ && /id:/ && /Designed for \[iPad, ?iPhone\]/ { print; exit }'
+    )"
 
-  if [ -n "${destination_line}" ]; then
-    echo "No concrete iOS Simulator destination found; falling back to macOS \"Designed for iPad/iPhone\" destination." >&2
+    if [ -n "${destination_line}" ]; then
+      echo "No concrete iOS Simulator destination found; falling back to macOS \"Designed for iPad/iPhone\" destination." >&2
+    fi
   fi
 fi
 

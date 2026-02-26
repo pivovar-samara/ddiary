@@ -17,4 +17,12 @@ else
 fi
 
 echo "Running unit tests on destination: ${DESTINATION}"
-xcodebuild test -project DDiary.xcodeproj -scheme DDiaryTests -destination "${DESTINATION}"
+xcodebuild test \
+  -project DDiary.xcodeproj \
+  -scheme DDiaryTests \
+  -destination "${DESTINATION}" \
+  CODE_SIGNING_ALLOWED=NO \
+  CODE_SIGNING_REQUIRED=NO \
+  CODE_SIGN_IDENTITY="" \
+  DEVELOPMENT_TEAM="" \
+  PROVISIONING_PROFILE_SPECIFIER=""
