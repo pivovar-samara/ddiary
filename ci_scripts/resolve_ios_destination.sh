@@ -8,6 +8,14 @@ fi
 
 showdestinations_output="$(xcodebuild -showdestinations "$@" 2>&1 || true)"
 
+if printf '%s\n' "${showdestinations_output}" | grep -qi "Xcode doesn"; then
+  echo "Xcode/runner mismatch detected while resolving destinations." >&2
+  echo "The selected Xcode does not support the runner macOS version." >&2
+  echo "Use a newer macOS runner label (for example, macos-26) or a compatible Xcode." >&2
+  printf '%s\n' "${showdestinations_output}" >&2
+  exit 1
+fi
+
 destination_line="$(
   printf '%s\n' "${showdestinations_output}" \
     | tr -d '\r' \
