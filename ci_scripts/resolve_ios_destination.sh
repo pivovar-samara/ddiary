@@ -20,8 +20,15 @@ fi
 
 destination_line="$(
   printf '%s\n' "${normalized_output}" \
-    | awk '/platform:iOS Simulator/ && /id:/ && $0 !~ /placeholder/ { print; exit }'
+    | awk '/platform:iOS Simulator/ && /id:/ && /name:iPhone/ && $0 !~ /placeholder/ { print; exit }'
 )"
+
+if [ -z "${destination_line}" ]; then
+  destination_line="$(
+    printf '%s\n' "${normalized_output}" \
+      | awk '/platform:iOS Simulator/ && /id:/ && $0 !~ /placeholder/ { print; exit }'
+  )"
+fi
 
 if [ -z "${destination_line}" ]; then
   if [ "${require_ios_simulator}" = "1" ]; then

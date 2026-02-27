@@ -52,7 +52,10 @@ jobs:
               -project DDiary.xcodeproj \
               -scheme DDiary
           )}"
+          SIMULATOR_ID="${DESTINATION#id=}"
           echo "Running DDiaryCITests on destination: ${DESTINATION}"
+          xcrun simctl boot "${SIMULATOR_ID}" || true
+          xcrun simctl bootstatus "${SIMULATOR_ID}" -b
 
           xcodebuild \
             test \
@@ -60,4 +63,6 @@ jobs:
             -scheme DDiary \
             -testPlan DDiaryCITests \
             -destination "${DESTINATION}" \
-            -destination-timeout 180
+            -destination-timeout 180 \
+            -parallel-testing-enabled NO \
+            -maximum-concurrent-test-simulator-destinations 1

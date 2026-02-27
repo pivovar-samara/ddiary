@@ -10,7 +10,10 @@ import XCTest
 final class DDiaryUITestsLaunchTests: XCTestCase {
 
     override class var runsForEachTargetApplicationUIConfiguration: Bool {
-        true
+        if ProcessInfo.processInfo.environment["DDIARY_UI_ALL_CONFIGS"] == "1" {
+            return true
+        }
+        return ProcessInfo.processInfo.environment["CI"] == nil
     }
 
     override func setUpWithError() throws {
