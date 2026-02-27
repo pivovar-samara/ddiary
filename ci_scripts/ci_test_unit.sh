@@ -6,23 +6,13 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 cd "${PROJECT_ROOT}"
 
-if [ -n "${IOS_TEST_DESTINATION:-}" ]; then
-  DESTINATION="${IOS_TEST_DESTINATION}"
-else
-  DESTINATION="$(
-    "${PROJECT_ROOT}/ci_scripts/resolve_ios_destination.sh" \
-      -project DDiary.xcodeproj \
-      -scheme DDiaryTests
-  )"
-fi
+DESTINATION="${IOS_TEST_DESTINATION:-platform=iOS Simulator,OS=26.0.1,name=iPhone 16e}"
 
 echo "Running unit tests on destination: ${DESTINATION}"
 xcodebuild test \
   -project DDiary.xcodeproj \
   -scheme DDiaryTests \
   -destination "${DESTINATION}" \
-  CODE_SIGNING_ALLOWED=NO \
-  CODE_SIGNING_REQUIRED=NO \
-  CODE_SIGN_IDENTITY="" \
-  DEVELOPMENT_TEAM="" \
-  PROVISIONING_PROFILE_SPECIFIER=""
+  -destination-timeout 180 \
+  -parallel-testing-enabled NO \
+  -maximum-concurrent-test-simulator-destinations 1

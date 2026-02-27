@@ -1,4 +1,4 @@
-name: PR - DDiaryCITests Test Plan
+name: PR - DDiaryMinimal Test Plan
 
 on:
   pull_request:
@@ -9,7 +9,7 @@ concurrency:
 
 jobs:
   test-minimal:
-    name: Run DDiaryCITests
+    name: Run DDiaryMinimal
     runs-on: macos-26
     timeout-minutes: 45
 
@@ -36,36 +36,14 @@ jobs:
           GOOGLE_OAUTH_REDIRECT_SCHEME_PROD = ${{ secrets.GOOGLE_OAUTH_REDIRECT_SCHEME_PROD }}
           EOF
 
-      - name: Ensure iOS Simulator runtime
+      - name: Run DDiaryMinimal test plan
         run: |
-          if REQUIRE_IOS_SIMULATOR=1 ./ci_scripts/resolve_ios_destination.sh -project DDiary.xcodeproj -scheme DDiary >/dev/null 2>&1; then
-            echo "Concrete iOS Simulator destination is already available."
-          else
-            echo "No concrete iOS Simulator destination found. Downloading iOS runtime..."
-            xcodebuild -downloadPlatform iOS
-          fi
-
-      - name: Run DDiaryCITests test plan
-        run: |
-          DESTINATION="${IOS_TEST_DESTINATION:-$(
-            REQUIRE_IOS_SIMULATOR=1 ./ci_scripts/resolve_ios_destination.sh \
-              -project DDiary.xcodeproj \
-              -scheme DDiary
-          )}"
-          SIMULATOR_ID="${DESTINATION#id=}"
-          echo "Running DDiaryCITests on destination: ${DESTINATION}"
-          xcrun simctl shutdown all || true
-          xcrun simctl shutdown "${SIMULATOR_ID}" || true
-          xcrun simctl erase "${SIMULATOR_ID}" || true
-          xcrun simctl boot "${SIMULATOR_ID}" || true
-          xcrun simctl bootstatus "${SIMULATOR_ID}" -b
-
-          DDIARY_UI_ALL_CONFIGS=0 xcodebuild \
+          xcodebuild \
             test \
             -project DDiary.xcodeproj \
             -scheme DDiary \
-            -testPlan DDiaryCITests \
-            -destination "${DESTINATION}" \
+            -testPlan DDiaryMinimal \
+            -destination "platform=iOS Simulator,OS=26.0.1,name=iPhone 16e" \
             -destination-timeout 180 \
             -parallel-testing-enabled NO \
             -maximum-concurrent-test-simulator-destinations 1
