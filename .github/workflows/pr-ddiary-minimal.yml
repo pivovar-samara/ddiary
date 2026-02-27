@@ -54,10 +54,13 @@ jobs:
           )}"
           SIMULATOR_ID="${DESTINATION#id=}"
           echo "Running DDiaryCITests on destination: ${DESTINATION}"
+          xcrun simctl shutdown all || true
+          xcrun simctl shutdown "${SIMULATOR_ID}" || true
+          xcrun simctl erase "${SIMULATOR_ID}" || true
           xcrun simctl boot "${SIMULATOR_ID}" || true
           xcrun simctl bootstatus "${SIMULATOR_ID}" -b
 
-          xcodebuild \
+          DDIARY_UI_ALL_CONFIGS=0 xcodebuild \
             test \
             -project DDiary.xcodeproj \
             -scheme DDiary \
