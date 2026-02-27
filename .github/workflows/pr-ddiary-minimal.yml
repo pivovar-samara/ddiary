@@ -1,4 +1,4 @@
-name: PR - DDiaryMinimal Test Plan
+name: PR - DDiaryCITests Test Plan
 
 on:
   pull_request:
@@ -9,7 +9,7 @@ concurrency:
 
 jobs:
   test-minimal:
-    name: Run DDiaryMinimal
+    name: Run DDiaryCITests
     runs-on: macos-26
     timeout-minutes: 45
 
@@ -36,13 +36,13 @@ jobs:
           GOOGLE_OAUTH_REDIRECT_SCHEME_PROD = ${{ secrets.GOOGLE_OAUTH_REDIRECT_SCHEME_PROD }}
           EOF
 
-      - name: Run DDiaryMinimal test plan
+      - name: Run DDiaryCITests test plan
         run: |
           xcodebuild \
             test \
             -project DDiary.xcodeproj \
             -scheme DDiary \
-            -testPlan DDiaryMinimal \
+            -testPlan DDiaryCITests \
             -destination "platform=iOS Simulator,OS=26.0.1,name=iPhone 16e" \
             -destination-timeout 180 \
             -parallel-testing-enabled NO \
