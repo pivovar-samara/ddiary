@@ -174,12 +174,11 @@ public protocol NotificationsRepository: Sendable {
     /// Cancel a specific notification by identifier (pending and delivered).
     func cancel(withIdentifier id: String) async
 
-    /// Mark a planned BP slot as completed by dismissing its delivered notification.
-    /// Keeps repeating schedules intact for future days.
+    /// Mark a planned BP slot as completed by removing matching pending and delivered notifications.
     func cancelPlannedBloodPressureNotification(at scheduledDate: Date) async
 
     /// Mark a planned glucose slot as completed.
-    /// Cancels one-off cycle reminders and dismisses delivered repeating reminders.
+    /// Removes matching one-off/repeating pending and delivered reminders.
     func cancelPlannedGlucoseNotification(measurementType: GlucoseMeasurementType, at scheduledDate: Date) async
 
     /// Returns reminders that are currently pending or delivered for the specified calendar day.
@@ -328,11 +327,13 @@ public extension NotificationsRepository {
     }
 
     private func shiftedAfterMealIdentifier(mealSlot: MealSlot, date: Date, calendar: Calendar) -> String {
-        let parts = calendar.dateComponents([.year, .month, .day], from: date)
+        let parts = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
         let year = parts.year ?? 0
         let month = parts.month ?? 0
         let day = parts.day ?? 0
-        return "\(UserNotificationsRepository.IDs.glucoseAfterPrefix)shifted.\(mealSlot.rawValue).\(String(format: "%04d", year))\(String(format: "%02d", month))\(String(format: "%02d", day))"
+        let hour = parts.hour ?? 0
+        let minute = parts.minute ?? 0
+        return "\(UserNotificationsRepository.IDs.glucoseAfterPrefix)shifted.\(mealSlot.rawValue).d\(String(format: "%04d", year))\(String(format: "%02d", month))\(String(format: "%02d", day)).\(String(format: "%02d", hour))\(String(format: "%02d", minute))"
     }
 }
 

@@ -54,6 +54,7 @@ public final class LogGlucoseMeasurementUseCase {
             measurementType: measurementType,
             mealSlot: mealSlot,
             comment: comment,
+            isLinkedToSchedule: plannedScheduledDate != nil,
             googleSyncStatus: .pending,
             googleLastError: nil,
             googleLastSyncAt: nil

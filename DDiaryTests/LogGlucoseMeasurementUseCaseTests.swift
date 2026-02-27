@@ -29,6 +29,7 @@ final class LogGlucoseMeasurementUseCaseTests: XCTestCase {
         let settingsUnit = try await settings.getOrCreate().glucoseUnit
         XCTAssertEqual(all.first?.unit, settingsUnit)
         XCTAssertEqual(all.first?.googleSyncStatus, .pending)
+        XCTAssertEqual(all.first?.isLinkedToSchedule, false)
         XCTAssertEqual(analytics.measurementLogged, [.glucose])
         XCTAssertEqual(syncScheduleCount, 1)
     }
@@ -113,6 +114,9 @@ final class LogGlucoseMeasurementUseCaseTests: XCTestCase {
             plannedScheduledDate: expectedDate
         )
 
+        let all = try await measurements.glucoseMeasurements(from: Date.distantPast, to: Date.distantFuture)
+        XCTAssertEqual(all.count, 1)
+        XCTAssertEqual(all.first?.isLinkedToSchedule, true)
         XCTAssertEqual(canceled.count, 1)
         XCTAssertEqual(canceled.first?.0, .beforeMeal)
         XCTAssertEqual(canceled.first?.1, expectedDate)

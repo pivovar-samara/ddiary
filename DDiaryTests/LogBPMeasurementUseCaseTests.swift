@@ -26,6 +26,7 @@ final class LogBPMeasurementUseCaseTests: XCTestCase {
         let all = try await repo.bpMeasurements(from: Date.distantPast, to: Date.distantFuture)
         XCTAssertEqual(all.count, 1)
         XCTAssertEqual(all.first?.googleSyncStatus, .pending)
+        XCTAssertEqual(all.first?.isLinkedToSchedule, false)
         // Analytics called
         XCTAssertEqual(analytics.measurementLogged, [.bloodPressure])
         XCTAssertEqual(syncScheduleCount, 1)
@@ -100,6 +101,9 @@ final class LogBPMeasurementUseCaseTests: XCTestCase {
             plannedScheduledDate: expectedDate
         )
 
+        let all = try await repo.bpMeasurements(from: Date.distantPast, to: Date.distantFuture)
+        XCTAssertEqual(all.count, 1)
+        XCTAssertEqual(all.first?.isLinkedToSchedule, true)
         XCTAssertEqual(canceledDates, [expectedDate])
     }
 }
