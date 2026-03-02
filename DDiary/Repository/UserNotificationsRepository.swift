@@ -22,7 +22,7 @@ struct DeliveredNotificationRecord: Sendable {
 protocol UserNotificationCentering: Sendable {
     func requestAuthorization(options: UNAuthorizationOptions) async throws -> Bool
     func setNotificationCategories(_ categories: Set<UNNotificationCategory>)
-    func addOrReplace(request: UNNotificationRequest) async
+    func addOrReplace(request: UNNotificationRequest) async -> Bool
     func removePendingNotificationRequests(withIdentifiers ids: [String])
     func removeDeliveredNotifications(withIdentifiers ids: [String])
     func removeAllPendingNotificationRequests()
@@ -56,11 +56,11 @@ struct LiveUserNotificationCenter: UserNotificationCentering, @unchecked Sendabl
         center.setNotificationCategories(categories)
     }
 
-    func addOrReplace(request: UNNotificationRequest) async {
+    func addOrReplace(request: UNNotificationRequest) async -> Bool {
         center.removePendingNotificationRequests(withIdentifiers: [request.identifier])
-        await withCheckedContinuation { continuation in
-            center.add(request) { _ in
-                continuation.resume()
+        return await withCheckedContinuation { continuation in
+            center.add(request) { error in
+                continuation.resume(returning: error == nil)
             }
         }
     }
@@ -284,7 +284,7 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
                     categoryIdentifier: IDs.bpCategory
                 )
                 let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
-                await center.addOrReplace(request: request)
+                _ = await center.addOrReplace(request: request)
             }
         }
     }
@@ -400,6 +400,7 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         categoryIdentifier: String,
         userInfo: [AnyHashable: Any]
     ) async {
+        await reservePendingCapacityForOneOff(excluding: identifier)
         let comps = calendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
         let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
         let content = makeContent(
@@ -409,7 +410,12 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
             userInfo: userInfo
         )
         let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
-        await center.addOrReplace(request: request)
+        let scheduled = await center.addOrReplace(request: request)
+        guard !scheduled else { return }
+
+        // Recover from transient add failures (typically 64-pending cap races) by freeing one slot and retrying once.
+        await reservePendingCapacityForOneOff(excluding: identifier)
+        _ = await center.addOrReplace(request: request)
     }
 
     /// Convenience for snoozing: schedules a one-off notification after N minutes.
@@ -589,7 +595,7 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
                     ),
                     trigger: trigger
                 )
-                await center.addOrReplace(request: request)
+                _ = await center.addOrReplace(request: request)
             }
         }
     }
@@ -646,7 +652,7 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
                     userInfo: quickEntryUserInfo(mealSlot: mealSlot, measurementType: .beforeMeal)
                 )
                 let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
-                await center.addOrReplace(request: request)
+                _ = await center.addOrReplace(request: request)
             }
         }
     }
@@ -705,7 +711,7 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
                     userInfo: quickEntryUserInfo(mealSlot: mealSlot, measurementType: .afterMeal2h)
                 )
                 let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
-                await center.addOrReplace(request: request)
+                _ = await center.addOrReplace(request: request)
             }
         }
     }
@@ -738,7 +744,7 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
                 userInfo: quickEntryUserInfo(mealSlot: .none, measurementType: .bedtime)
             )
             let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
-            await center.addOrReplace(request: request)
+            _ = await center.addOrReplace(request: request)
         }
     }
 
@@ -871,6 +877,20 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
     private func remainingPendingRequestCapacity() async -> Int {
         let currentPending = await center.pendingRequestIdentifiers().count
         return max(0, Self.maxPendingNotificationRequests - currentPending)
+    }
+
+    private func reservePendingCapacityForOneOff(excluding identifier: String) async {
+        let pending = await center.pendingNotificationRecords()
+        guard pending.count >= Self.maxPendingNotificationRequests else { return }
+
+        let evictionCandidate = pending
+            .filter { $0.identifier != identifier }
+            .max { lhs, rhs in
+                (lhs.nextTriggerDate ?? .distantFuture) < (rhs.nextTriggerDate ?? .distantFuture)
+            }
+
+        guard let evictionCandidate else { return }
+        center.removePendingNotificationRequests(withIdentifiers: [evictionCandidate.identifier])
     }
 
     private func scheduleDate(on day: Date, hour: Int, minute: Int) -> Date? {

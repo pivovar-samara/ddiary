@@ -397,6 +397,42 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         XCTAssertEqual(trigger?.dateComponents.second, 42)
     }
 
+    func test_scheduleOneOff_whenPendingCapacityIsFull_evictsFarthestAndSchedulesNewRequest() async {
+        let center = FakeNotificationCenter()
+        center.maxPendingRequests = 64
+        let calendar = Calendar.current
+        let baseDate = calendar.date(
+            from: DateComponents(year: 2099, month: 2, day: 17, hour: 8, minute: 0)
+        ) ?? Date()
+
+        for index in 0..<64 {
+            let id = "ddiary.prefill.\(index)"
+            let date = calendar.date(byAdding: .minute, value: index, to: baseDate) ?? baseDate
+            center.pendingRequests[id] = makeRequest(
+                id: id,
+                date: date,
+                categoryIdentifier: UserNotificationsRepository.IDs.bpCategory,
+                title: L10n.notificationBPTitle
+            )
+        }
+
+        let repository = UserNotificationsRepository(center: center)
+        let oneOffDate = calendar.date(byAdding: .minute, value: 15, to: baseDate) ?? baseDate
+        await repository.scheduleOneOff(
+            at: oneOffDate,
+            identifier: "ddiary.oneoff.capacity-test",
+            title: "title",
+            body: "body",
+            categoryIdentifier: UserNotificationsRepository.IDs.glucoseBeforeCategory,
+            userInfo: [:]
+        )
+
+        XCTAssertEqual(center.pendingRequests.count, 64)
+        XCTAssertNotNil(center.pendingRequests["ddiary.oneoff.capacity-test"])
+        let removedPrefillCount = (0..<64).filter { center.pendingRequests["ddiary.prefill.\($0)"] == nil }.count
+        XCTAssertEqual(removedPrefillCount, 1)
+    }
+
     func test_rescheduleShiftedAfterMeal2hNotification_cancelsOriginalAndSchedulesShiftedOneOff() async {
         let center = FakeNotificationCenter()
         let repository = UserNotificationsRepository(center: center)
@@ -608,6 +644,8 @@ private final class FakeNotificationCenter: UserNotificationCentering, @unchecke
     var authorizationResult: Result<Bool, Error> = .success(true)
     var categories: [UNNotificationCategory] = []
     var pendingRequests: [String: UNNotificationRequest] = [:]
+    var maxPendingRequests: Int?
+    var forcedAddFailures = 0
     var deliveredIdentifiers: Set<String> = [] {
         didSet {
             deliveredRecordsByID = deliveredRecordsByID.filter { deliveredIdentifiers.contains($0.key) }
@@ -640,8 +678,16 @@ private final class FakeNotificationCenter: UserNotificationCentering, @unchecke
         self.categories = Array(categories)
     }
 
-    func addOrReplace(request: UNNotificationRequest) async {
+    func addOrReplace(request: UNNotificationRequest) async -> Bool {
+        if forcedAddFailures > 0 {
+            forcedAddFailures -= 1
+            return false
+        }
+        if let maxPendingRequests, pendingRequests[request.identifier] == nil, pendingRequests.count >= maxPendingRequests {
+            return false
+        }
         pendingRequests[request.identifier] = request
+        return true
     }
 
     func removePendingNotificationRequests(withIdentifiers ids: [String]) {
