@@ -22,6 +22,7 @@ enum NotificationQuickEntryTarget: Sendable, Equatable {
 struct NotificationQuickEntryRequest: Sendable, Equatable {
     let identifier: String
     let target: NotificationQuickEntryTarget
+    let scheduledDate: Date?
 }
 
 @MainActor
@@ -51,7 +52,12 @@ final class NotificationQuickEntryRouter: NotificationQuickEntryRouting {
 
     func routeToQuickEntry(context: NotificationActionContext) {
         guard let target = Self.decodeTarget(from: context) else { return }
-        pendingRequest = NotificationQuickEntryRequest(identifier: context.identifier, target: target)
+        let scheduledDate = context.deliveredDate ?? Self.decodeScheduledDate(from: context.identifier)
+        pendingRequest = NotificationQuickEntryRequest(
+            identifier: context.identifier,
+            target: target,
+            scheduledDate: scheduledDate
+        )
         notificationCenter.post(name: .notificationQuickEntryRequested, object: nil)
     }
 
@@ -88,6 +94,36 @@ final class NotificationQuickEntryRouter: NotificationQuickEntryRouting {
             return nil
         }
     }
+
+    private static func decodeScheduledDate(from identifier: String) -> Date? {
+        guard let range = identifier.range(of: #"d\d{8}\.\d{4}"#, options: .regularExpression) else {
+            return nil
+        }
+
+        let token = identifier[range].dropFirst()
+        let compact = String(token).replacingOccurrences(of: ".", with: "")
+        guard compact.count == 12, compact.allSatisfy(\.isNumber) else { return nil }
+
+        guard
+            let year = Int(compact.prefix(4)),
+            let month = Int(compact.dropFirst(4).prefix(2)),
+            let day = Int(compact.dropFirst(6).prefix(2)),
+            let hour = Int(compact.dropFirst(8).prefix(2)),
+            let minute = Int(compact.dropFirst(10).prefix(2))
+        else {
+            return nil
+        }
+
+        var components = DateComponents()
+        components.timeZone = Calendar.current.timeZone
+        components.year = year
+        components.month = month
+        components.day = day
+        components.hour = hour
+        components.minute = minute
+        components.second = 0
+        return Calendar.current.date(from: components)
+    }
 }
 
 struct NotificationActionContext: Sendable {
@@ -97,6 +133,7 @@ struct NotificationActionContext: Sendable {
     let body: String
     let mealSlotRawValue: String?
     let measurementTypeRawValue: String?
+    let deliveredDate: Date?
 }
 
 /// Central notifications delegate that routes actions into MainActor use cases.
@@ -141,7 +178,8 @@ final class NotificationsCoordinator: NSObject, UNUserNotificationCenterDelegate
             title: content.title,
             body: content.body,
             mealSlotRawValue: content.userInfo[UserNotificationsRepository.PayloadKeys.mealSlot] as? String,
-            measurementTypeRawValue: content.userInfo[UserNotificationsRepository.PayloadKeys.measurementType] as? String
+            measurementTypeRawValue: content.userInfo[UserNotificationsRepository.PayloadKeys.measurementType] as? String,
+            deliveredDate: response.notification.date
         )
         handleAction(action, context: context, completionHandler: completionHandler)
     }

@@ -92,6 +92,84 @@ final class TodayViewModelNotificationSyncTests: XCTestCase {
         XCTAssertTrue(notifications.canceledGlucose.isEmpty)
     }
 
+    func test_presentQuickEntryFromNotification_bloodPressureFallsBackToNearestSlotDate() async throws {
+        let measurements = MockMeasurementsRepository()
+        let settings = MockSettingsRepository()
+        let notifications = SpyNotificationsRepository()
+        let calendar = Calendar.current
+        let now = Date()
+        let components = calendar.dateComponents([.hour, .minute], from: now)
+        let minuteOfDay = (components.hour ?? 0) * 60 + (components.minute ?? 0)
+        let weekday = calendar.component(.weekday, from: now)
+
+        let userSettings = try await settings.getOrCreate()
+        userSettings.enableDailyCycleMode = false
+        userSettings.bpTimes = [minuteOfDay, (minuteOfDay + 120) % (24 * 60)]
+        userSettings.bpActiveWeekdays = [weekday]
+        userSettings.enableBeforeMeal = false
+        userSettings.enableAfterMeal2h = false
+        userSettings.bedtimeSlotEnabled = false
+
+        let viewModel = makeViewModel(
+            measurements: measurements,
+            settings: settings,
+            notifications: notifications
+        )
+        await viewModel.refresh()
+
+        let expected = viewModel.bpSlots.min { lhs, rhs in
+            abs(lhs.scheduledDate.timeIntervalSince(now)) < abs(rhs.scheduledDate.timeIntervalSince(now))
+        }?.scheduledDate
+
+        let resolvedDate = viewModel.presentQuickEntryFromNotification(
+            target: .bloodPressure,
+            scheduledDate: nil
+        )
+
+        XCTAssertEqual(resolvedDate, expected)
+        XCTAssertTrue(viewModel.presentBPQuickEntry)
+    }
+
+    func test_presentQuickEntryFromNotification_prefersProvidedScheduledDateForBloodPressure() async {
+        let measurements = MockMeasurementsRepository()
+        let settings = MockSettingsRepository()
+        let notifications = SpyNotificationsRepository()
+        let viewModel = makeViewModel(
+            measurements: measurements,
+            settings: settings,
+            notifications: notifications
+        )
+        let providedDate = Date(timeIntervalSince1970: 1_770_700_800)
+
+        let resolvedDate = viewModel.presentQuickEntryFromNotification(
+            target: .bloodPressure,
+            scheduledDate: providedDate
+        )
+
+        XCTAssertEqual(resolvedDate, providedDate)
+        XCTAssertTrue(viewModel.presentBPQuickEntry)
+    }
+
+    func test_presentQuickEntryFromNotification_prefersProvidedScheduledDateForGlucose() async {
+        let measurements = MockMeasurementsRepository()
+        let settings = MockSettingsRepository()
+        let notifications = SpyNotificationsRepository()
+        let viewModel = makeViewModel(
+            measurements: measurements,
+            settings: settings,
+            notifications: notifications
+        )
+        let providedDate = Date(timeIntervalSince1970: 1_770_700_860)
+
+        let resolvedDate = viewModel.presentQuickEntryFromNotification(
+            target: .glucose(mealSlot: .lunch, measurementType: .beforeMeal),
+            scheduledDate: providedDate
+        )
+
+        XCTAssertEqual(resolvedDate, providedDate)
+        XCTAssertTrue(viewModel.presentGlucoseQuickEntry)
+    }
+
     private func makeViewModel(
         measurements: MockMeasurementsRepository,
         settings: MockSettingsRepository,
