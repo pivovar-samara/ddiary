@@ -96,16 +96,11 @@ final class TodayViewModelNotificationSyncTests: XCTestCase {
         let measurements = MockMeasurementsRepository()
         let settings = MockSettingsRepository()
         let notifications = SpyNotificationsRepository()
-        let calendar = Calendar.current
-        let now = Date()
-        let components = calendar.dateComponents([.hour, .minute], from: now)
-        let minuteOfDay = (components.hour ?? 0) * 60 + (components.minute ?? 0)
-        let weekday = calendar.component(.weekday, from: now)
 
         let userSettings = try await settings.getOrCreate()
         userSettings.enableDailyCycleMode = false
-        userSettings.bpTimes = [minuteOfDay, (minuteOfDay + 120) % (24 * 60)]
-        userSettings.bpActiveWeekdays = [weekday]
+        userSettings.bpTimes = [9 * 60]
+        userSettings.bpActiveWeekdays = [1, 2, 3, 4, 5, 6, 7]
         userSettings.enableBeforeMeal = false
         userSettings.enableAfterMeal2h = false
         userSettings.bedtimeSlotEnabled = false
@@ -117,9 +112,7 @@ final class TodayViewModelNotificationSyncTests: XCTestCase {
         )
         await viewModel.refresh()
 
-        let expected = viewModel.bpSlots.min { lhs, rhs in
-            abs(lhs.scheduledDate.timeIntervalSince(now)) < abs(rhs.scheduledDate.timeIntervalSince(now))
-        }?.scheduledDate
+        let expected = try XCTUnwrap(viewModel.bpSlots.first?.scheduledDate)
 
         let resolvedDate = viewModel.presentQuickEntryFromNotification(
             target: .bloodPressure,

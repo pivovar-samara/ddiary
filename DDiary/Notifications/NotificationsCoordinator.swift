@@ -113,6 +113,14 @@ final class NotificationQuickEntryRouter: NotificationQuickEntryRouting {
         else {
             return nil
         }
+        guard
+            (1...12).contains(month),
+            (1...31).contains(day),
+            (0...23).contains(hour),
+            (0...59).contains(minute)
+        else {
+            return nil
+        }
 
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = .current
@@ -125,7 +133,22 @@ final class NotificationQuickEntryRouter: NotificationQuickEntryRouting {
         components.hour = hour
         components.minute = minute
         components.second = 0
-        return calendar.date(from: components)
+        guard let scheduledDate = calendar.date(from: components) else {
+            return nil
+        }
+
+        let resolved = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: scheduledDate)
+        guard
+            resolved.year == year,
+            resolved.month == month,
+            resolved.day == day,
+            resolved.hour == hour,
+            resolved.minute == minute
+        else {
+            return nil
+        }
+
+        return scheduledDate
     }
 }
 

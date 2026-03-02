@@ -221,6 +221,26 @@ final class NotificationsCoordinatorTests: XCTestCase {
         XCTAssertEqual(request.target, .bloodPressure)
         XCTAssertEqual(request.scheduledDate, expected)
     }
+
+    func test_routeToQuickEntry_rejectsMalformedIdentifierDateToken() async throws {
+        let router = NotificationQuickEntryRouter(notificationCenter: NotificationCenter())
+
+        router.routeToQuickEntry(
+            context: NotificationActionContext(
+                identifier: "ddiary.bp.d20260229.2561",
+                categoryIdentifier: UserNotificationsRepository.IDs.bpCategory,
+                title: L10n.notificationBPTitle,
+                body: L10n.notificationBPBody,
+                mealSlotRawValue: nil,
+                measurementTypeRawValue: nil,
+                deliveredDate: nil
+            )
+        )
+
+        let request = try XCTUnwrap(router.consumePendingRequest())
+        XCTAssertEqual(request.target, .bloodPressure)
+        XCTAssertNil(request.scheduledDate)
+    }
 }
 
 private actor AsyncGate {
