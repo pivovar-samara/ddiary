@@ -203,10 +203,12 @@ final class NotificationsCoordinatorTests: XCTestCase {
         )
 
         let request = try XCTUnwrap(router.consumePendingRequest())
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = Calendar.current.timeZone
         let expected = try XCTUnwrap(
-            Calendar.current.date(
+            calendar.date(
                 from: DateComponents(
-                    timeZone: Calendar.current.timeZone,
+                    timeZone: calendar.timeZone,
                     year: 2026,
                     month: 2,
                     day: 14,

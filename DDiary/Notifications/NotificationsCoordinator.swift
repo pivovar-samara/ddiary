@@ -114,15 +114,18 @@ final class NotificationQuickEntryRouter: NotificationQuickEntryRouting {
             return nil
         }
 
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .current
+
         var components = DateComponents()
-        components.timeZone = Calendar.current.timeZone
+        components.timeZone = calendar.timeZone
         components.year = year
         components.month = month
         components.day = day
         components.hour = hour
         components.minute = minute
         components.second = 0
-        return Calendar.current.date(from: components)
+        return calendar.date(from: components)
     }
 }
 
