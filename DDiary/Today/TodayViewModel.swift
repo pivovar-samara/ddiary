@@ -327,12 +327,17 @@ public final class TodayViewModel {
         // Existing measurement reference will be handled in the view layer
     }
 
-    func presentQuickEntryFromNotification(target: NotificationQuickEntryTarget) {
+    @discardableResult
+    func presentQuickEntryFromNotification(
+        target: NotificationQuickEntryTarget,
+        scheduledDate: Date? = nil
+    ) -> Date? {
         switch target {
         case .bloodPressure:
             selectedGlucoseSlot = nil
             presentGlucoseQuickEntry = false
             presentBPQuickEntry = true
+            return scheduledDate ?? matchingBPSlot()?.scheduledDate
         case .glucose(let mealSlot, let measurementType):
             presentBPQuickEntry = false
             selectedGlucoseSlot = matchingGlucoseSlot(
@@ -347,6 +352,7 @@ public final class TodayViewModel {
                 matchedMeasurementId: nil
             )
             presentGlucoseQuickEntry = true
+            return scheduledDate ?? selectedGlucoseSlot?.scheduledDate
         }
     }
 
@@ -361,6 +367,14 @@ public final class TodayViewModel {
             .filter { $0.mealSlot == mealSlot && $0.measurementType == measurementType }
             .min { left, right in
                 abs(left.scheduledDate.timeIntervalSince(now)) < abs(right.scheduledDate.timeIntervalSince(now))
+            }
+    }
+
+    private func matchingBPSlot(referenceDate: Date = Date()) -> BPSlotViewModel? {
+        bpSlots
+            .filter { $0.status != .completed }
+            .min { left, right in
+                abs(left.scheduledDate.timeIntervalSince(referenceDate)) < abs(right.scheduledDate.timeIntervalSince(referenceDate))
             }
     }
 

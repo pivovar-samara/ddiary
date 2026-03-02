@@ -247,8 +247,16 @@ public struct TodayView: View {
         editingGlucoseMeasurementId = nil
         selectedBPScheduledDate = nil
         selectedGlucoseScheduledDate = nil
-        vm.presentQuickEntryFromNotification(target: request.target)
-        selectedGlucoseScheduledDate = vm.selectedGlucoseSlot?.scheduledDate
+        let resolvedScheduledDate = vm.presentQuickEntryFromNotification(
+            target: request.target,
+            scheduledDate: request.scheduledDate
+        )
+        switch request.target {
+        case .bloodPressure:
+            selectedBPScheduledDate = resolvedScheduledDate
+        case .glucose:
+            selectedGlucoseScheduledDate = resolvedScheduledDate
+        }
     }
     
     private func handleTap(_ item: TodayViewModel.TodayItem, vm: TodayViewModel) {

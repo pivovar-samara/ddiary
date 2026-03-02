@@ -25,7 +25,8 @@ final class NotificationsCoordinatorTests: XCTestCase {
                 title: L10n.notificationGlucoseBeforeBreakfastTitle,
                 body: "Before breakfast",
                 mealSlotRawValue: MealSlot.breakfast.rawValue,
-                measurementTypeRawValue: GlucoseMeasurementType.beforeMeal.rawValue
+                measurementTypeRawValue: GlucoseMeasurementType.beforeMeal.rawValue,
+                deliveredDate: nil
             ),
             completionHandler: {
                 completionCalled.fulfill()
@@ -58,7 +59,8 @@ final class NotificationsCoordinatorTests: XCTestCase {
                 title: "Glucose reminder",
                 body: "Before breakfast",
                 mealSlotRawValue: nil,
-                measurementTypeRawValue: nil
+                measurementTypeRawValue: nil,
+                deliveredDate: nil
             ),
             completionHandler: {
                 didCallCompletion = true
@@ -94,7 +96,8 @@ final class NotificationsCoordinatorTests: XCTestCase {
             title: "Glucose reminder",
             body: "Before breakfast",
             mealSlotRawValue: nil,
-            measurementTypeRawValue: nil
+            measurementTypeRawValue: nil,
+            deliveredDate: nil
         )
 
         var didCallCompletion = false
@@ -143,7 +146,8 @@ final class NotificationsCoordinatorTests: XCTestCase {
                 title: "Glucose reminder",
                 body: "Before breakfast",
                 mealSlotRawValue: nil,
-                measurementTypeRawValue: nil
+                measurementTypeRawValue: nil,
+                deliveredDate: nil
             ),
             completionHandler: {
                 didCallCompletion = true
@@ -160,6 +164,82 @@ final class NotificationsCoordinatorTests: XCTestCase {
 
         await fulfillment(of: [completionCalled], timeout: 1.0)
         XCTAssertTrue(actionHandler.didFinishMove)
+    }
+
+    func test_routeToQuickEntry_usesDeliveredDateAsScheduledDate() async {
+        let router = NotificationQuickEntryRouter(notificationCenter: NotificationCenter())
+        let deliveredDate = Date(timeIntervalSince1970: 1_770_700_800)
+
+        router.routeToQuickEntry(
+            context: NotificationActionContext(
+                identifier: "ddiary.bp.d20260214.0900",
+                categoryIdentifier: UserNotificationsRepository.IDs.bpCategory,
+                title: L10n.notificationBPTitle,
+                body: L10n.notificationBPBody,
+                mealSlotRawValue: nil,
+                measurementTypeRawValue: nil,
+                deliveredDate: deliveredDate
+            )
+        )
+
+        let request = router.consumePendingRequest()
+        XCTAssertEqual(request?.target, .bloodPressure)
+        XCTAssertEqual(request?.scheduledDate, deliveredDate)
+    }
+
+    func test_routeToQuickEntry_parsesDateFromIdentifierWhenDeliveredDateMissing() async throws {
+        let router = NotificationQuickEntryRouter(notificationCenter: NotificationCenter())
+
+        router.routeToQuickEntry(
+            context: NotificationActionContext(
+                identifier: "ddiary.bp.d20260214.0930",
+                categoryIdentifier: UserNotificationsRepository.IDs.bpCategory,
+                title: L10n.notificationBPTitle,
+                body: L10n.notificationBPBody,
+                mealSlotRawValue: nil,
+                measurementTypeRawValue: nil,
+                deliveredDate: nil
+            )
+        )
+
+        let request = try XCTUnwrap(router.consumePendingRequest())
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = Calendar.current.timeZone
+        let expected = try XCTUnwrap(
+            calendar.date(
+                from: DateComponents(
+                    timeZone: calendar.timeZone,
+                    year: 2026,
+                    month: 2,
+                    day: 14,
+                    hour: 9,
+                    minute: 30
+                )
+            )
+        )
+
+        XCTAssertEqual(request.target, .bloodPressure)
+        XCTAssertEqual(request.scheduledDate, expected)
+    }
+
+    func test_routeToQuickEntry_rejectsMalformedIdentifierDateToken() async throws {
+        let router = NotificationQuickEntryRouter(notificationCenter: NotificationCenter())
+
+        router.routeToQuickEntry(
+            context: NotificationActionContext(
+                identifier: "ddiary.bp.d20260229.2561",
+                categoryIdentifier: UserNotificationsRepository.IDs.bpCategory,
+                title: L10n.notificationBPTitle,
+                body: L10n.notificationBPBody,
+                mealSlotRawValue: nil,
+                measurementTypeRawValue: nil,
+                deliveredDate: nil
+            )
+        )
+
+        let request = try XCTUnwrap(router.consumePendingRequest())
+        XCTAssertEqual(request.target, .bloodPressure)
+        XCTAssertNil(request.scheduledDate)
     }
 }
 
