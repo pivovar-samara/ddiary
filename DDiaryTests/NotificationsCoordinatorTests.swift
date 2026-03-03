@@ -8,7 +8,6 @@ final class NotificationsCoordinatorTests: XCTestCase {
         let actionHandler = BlockingNotificationsActionHandler(
             skipStarted: nil,
             snoozeStarted: nil,
-            moveStarted: nil,
             gate: AsyncGate()
         )
         let quickEntryRouter = SpyQuickEntryRouter()
@@ -45,7 +44,6 @@ final class NotificationsCoordinatorTests: XCTestCase {
         let actionHandler = BlockingNotificationsActionHandler(
             skipStarted: skipStarted,
             snoozeStarted: nil,
-            moveStarted: nil,
             gate: gate
         )
         let sut = NotificationsCoordinator(actionHandler: actionHandler)
@@ -71,6 +69,10 @@ final class NotificationsCoordinatorTests: XCTestCase {
         await fulfillment(of: [skipStarted], timeout: 1.0)
         XCTAssertFalse(didCallCompletion)
         XCTAssertFalse(actionHandler.didFinishSkip)
+        XCTAssertEqual(
+            actionHandler.receivedSkipCategoryIdentifier,
+            UserNotificationsRepository.IDs.glucoseBeforeCategory
+        )
 
         await gate.open()
 
@@ -85,7 +87,6 @@ final class NotificationsCoordinatorTests: XCTestCase {
         let actionHandler = BlockingNotificationsActionHandler(
             skipStarted: nil,
             snoozeStarted: snoozeStarted,
-            moveStarted: nil,
             gate: gate
         )
         let sut = NotificationsCoordinator(actionHandler: actionHandler)
@@ -95,8 +96,8 @@ final class NotificationsCoordinatorTests: XCTestCase {
             categoryIdentifier: UserNotificationsRepository.IDs.glucoseBeforeCategory,
             title: "Glucose reminder",
             body: "Before breakfast",
-            mealSlotRawValue: nil,
-            measurementTypeRawValue: nil,
+            mealSlotRawValue: MealSlot.breakfast.rawValue,
+            measurementTypeRawValue: GlucoseMeasurementType.beforeMeal.rawValue,
             deliveredDate: nil
         )
 
@@ -118,52 +119,13 @@ final class NotificationsCoordinatorTests: XCTestCase {
         XCTAssertEqual(actionHandler.receivedSnoozeTitle, context.title)
         XCTAssertEqual(actionHandler.receivedSnoozeBody, context.body)
         XCTAssertEqual(actionHandler.receivedSnoozeCategoryIdentifier, context.categoryIdentifier)
+        XCTAssertEqual(actionHandler.receivedSnoozeMealSlotRawValue, context.mealSlotRawValue)
+        XCTAssertEqual(actionHandler.receivedSnoozeMeasurementTypeRawValue, context.measurementTypeRawValue)
 
         await gate.open()
 
         await fulfillment(of: [completionCalled], timeout: 1.0)
         XCTAssertTrue(actionHandler.didFinishSnooze)
-    }
-
-    func test_handleAction_waitsForAsyncMoveBeforeCallingCompletion() async {
-        let moveStarted = expectation(description: "move started")
-        let completionCalled = expectation(description: "completion called")
-        let gate = AsyncGate()
-        let actionHandler = BlockingNotificationsActionHandler(
-            skipStarted: nil,
-            snoozeStarted: nil,
-            moveStarted: moveStarted,
-            gate: gate
-        )
-        let sut = NotificationsCoordinator(actionHandler: actionHandler)
-
-        var didCallCompletion = false
-        sut.handleAction(
-            .moveToDinner,
-            context: NotificationActionContext(
-                identifier: "ddiary.glucose.before.0800",
-                categoryIdentifier: UserNotificationsRepository.IDs.glucoseBeforeCategory,
-                title: "Glucose reminder",
-                body: "Before breakfast",
-                mealSlotRawValue: nil,
-                measurementTypeRawValue: nil,
-                deliveredDate: nil
-            ),
-            completionHandler: {
-                didCallCompletion = true
-                completionCalled.fulfill()
-            }
-        )
-
-        await fulfillment(of: [moveStarted], timeout: 1.0)
-        XCTAssertFalse(didCallCompletion)
-        XCTAssertFalse(actionHandler.didFinishMove)
-        XCTAssertEqual(actionHandler.receivedMoveMeal, .dinner)
-
-        await gate.open()
-
-        await fulfillment(of: [completionCalled], timeout: 1.0)
-        XCTAssertTrue(actionHandler.didFinishMove)
     }
 
     func test_routeToQuickEntry_usesDeliveredDateAsScheduledDate() async {
@@ -241,6 +203,45 @@ final class NotificationsCoordinatorTests: XCTestCase {
         XCTAssertEqual(request.target, .bloodPressure)
         XCTAssertNil(request.scheduledDate)
     }
+
+    func test_routeToQuickEntry_snoozedIdentifierPrefersOriginalDateTokenOverDeliveredDate() async throws {
+        let router = NotificationQuickEntryRouter(notificationCenter: NotificationCenter())
+        let deliveredDate = Date(timeIntervalSince1970: 1_770_700_800)
+
+        router.routeToQuickEntry(
+            context: NotificationActionContext(
+                identifier: "ddiary.glucose.before.d20260214.0930.snooze.30",
+                categoryIdentifier: UserNotificationsRepository.IDs.glucoseBeforeCategory,
+                title: L10n.notificationGlucoseBeforeLunchTitle,
+                body: L10n.notificationGlucoseBeforeLunchBody,
+                mealSlotRawValue: MealSlot.lunch.rawValue,
+                measurementTypeRawValue: GlucoseMeasurementType.beforeMeal.rawValue,
+                deliveredDate: deliveredDate
+            )
+        )
+
+        let request = try XCTUnwrap(router.consumePendingRequest())
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = Calendar.current.timeZone
+        let expectedOriginalDate = try XCTUnwrap(
+            calendar.date(
+                from: DateComponents(
+                    timeZone: calendar.timeZone,
+                    year: 2026,
+                    month: 2,
+                    day: 14,
+                    hour: 9,
+                    minute: 30
+                )
+            )
+        )
+
+        XCTAssertEqual(
+            request.target,
+            .glucose(mealSlot: .lunch, measurementType: .beforeMeal)
+        )
+        XCTAssertEqual(request.scheduledDate, expectedOriginalDate)
+    }
 }
 
 private actor AsyncGate {
@@ -262,41 +263,48 @@ private actor AsyncGate {
 private final class BlockingNotificationsActionHandler: NotificationsActionHandling {
     private let skipStarted: XCTestExpectation?
     private let snoozeStarted: XCTestExpectation?
-    private let moveStarted: XCTestExpectation?
     private let gate: AsyncGate
     private(set) var didFinishSkip = false
     private(set) var didFinishSnooze = false
-    private(set) var didFinishMove = false
+    private(set) var receivedSkipCategoryIdentifier: String?
     private(set) var receivedSnoozeIdentifier: String?
     private(set) var receivedSnoozeMinutes: Int?
     private(set) var receivedSnoozeTitle: String?
     private(set) var receivedSnoozeBody: String?
     private(set) var receivedSnoozeCategoryIdentifier: String?
-    private(set) var receivedMoveMeal: MealSlot?
+    private(set) var receivedSnoozeMealSlotRawValue: String?
+    private(set) var receivedSnoozeMeasurementTypeRawValue: String?
 
     init(
         skipStarted: XCTestExpectation?,
         snoozeStarted: XCTestExpectation?,
-        moveStarted: XCTestExpectation?,
         gate: AsyncGate
     ) {
         self.skipStarted = skipStarted
         self.snoozeStarted = snoozeStarted
-        self.moveStarted = moveStarted
         self.gate = gate
     }
 
-    func skip() async {
+    func skip(categoryIdentifier: String) async {
         guard let skipStarted else {
             XCTFail("Unexpected skip call")
             return
         }
+        receivedSkipCategoryIdentifier = categoryIdentifier
         skipStarted.fulfill()
         await gate.wait()
         didFinishSkip = true
     }
 
-    func snooze(originalIdentifier: String, minutes: Int, title: String, body: String, categoryIdentifier: String) async {
+    func snooze(
+        originalIdentifier: String,
+        minutes: Int,
+        title: String,
+        body: String,
+        categoryIdentifier: String,
+        mealSlotRawValue: String?,
+        measurementTypeRawValue: String?
+    ) async {
         guard let snoozeStarted else {
             XCTFail("Unexpected snooze call")
             return
@@ -306,20 +314,11 @@ private final class BlockingNotificationsActionHandler: NotificationsActionHandl
         receivedSnoozeTitle = title
         receivedSnoozeBody = body
         receivedSnoozeCategoryIdentifier = categoryIdentifier
+        receivedSnoozeMealSlotRawValue = mealSlotRawValue
+        receivedSnoozeMeasurementTypeRawValue = measurementTypeRawValue
         snoozeStarted.fulfill()
         await gate.wait()
         didFinishSnooze = true
-    }
-
-    func moveBeforeBreakfast(to meal: MealSlot) async {
-        guard let moveStarted else {
-            XCTFail("Unexpected move call")
-            return
-        }
-        receivedMoveMeal = meal
-        moveStarted.fulfill()
-        await gate.wait()
-        didFinishMove = true
     }
 }
 

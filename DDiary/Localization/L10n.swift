@@ -229,8 +229,6 @@ enum L10n {
             minutes
         )
     }
-    static let notificationActionMoveToLunch = tr("notification.action.move_to_lunch", "Move to lunch")
-    static let notificationActionMoveToDinner = tr("notification.action.move_to_dinner", "Move to dinner")
 
     static let notificationBPTitle = tr("notification.bp.title", "Blood Pressure")
     static let notificationBPBody = tr("notification.bp.body", "Time to measure your blood pressure.")

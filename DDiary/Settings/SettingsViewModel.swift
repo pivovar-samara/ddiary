@@ -4,6 +4,7 @@ import OSLog
 
 extension Notification.Name {
     nonisolated static let settingsDidSave = Notification.Name("SettingsDidSave")
+    nonisolated static let settingsDidChangeOutsideSettings = Notification.Name("SettingsDidChangeOutsideSettings")
 }
 
 @MainActor
@@ -265,6 +266,40 @@ final class SettingsViewModel {
         let shiftedAnchor = calendar.date(byAdding: .day, value: -1, to: anchorDate) ?? anchorDate
         dailyCycleAnchorDate = shiftedAnchor
         currentCycleIndex = GlucoseCyclePlanner.step(on: referenceDay, anchorDate: shiftedAnchor, calendar: calendar).rawValue
+    }
+
+    func applyDailyCycleTargetForward(today: Date = Date()) async {
+        guard enableDailyCycleMode else { return }
+        switchDailyCycleTargetForward(today: today)
+
+        do {
+            let settings = try await resolveSettingsModel()
+            settings.enableDailyCycleMode = true
+            settings.currentCycleIndex = currentCycleIndex
+            if dailyCycleAnchorDate == nil {
+                dailyCycleAnchorDate = GlucoseCyclePlanner.fallbackAnchorDate(
+                    currentCycleIndex: currentCycleIndex,
+                    referenceDate: today,
+                    calendar: Calendar.current
+                )
+            }
+            settings.dailyCycleAnchorDate = dailyCycleAnchorDate
+
+            try await settingsRepository.save(settings)
+            errorMessage = nil
+            do {
+                try await schedulesUpdater.scheduleFromCurrentSettings()
+            } catch {
+                handleError(
+                    error,
+                    context: "applyDailyCycleTargetForward.scheduleFromCurrentSettings",
+                    policy: .showMessage(L10n.settingsErrorSavedButRemindersNotUpdated)
+                )
+            }
+            NotificationCenter.default.post(name: .settingsDidSave, object: nil)
+        } catch {
+            handleError(error, context: "applyDailyCycleTargetForward", policy: .showErrorDescription)
+        }
     }
 
     func connectGoogle() async -> Bool {

@@ -57,14 +57,10 @@ public struct TodayView: View {
                         BlockHeader(L10n.todayBlockNow, emphasis: .prominent)
                             .accessibilityIdentifier("today.block.now")
                         ForEach(bvm.itemsDue) { item in
-                            SlotRow(
-                                title: item.title,
-                                timeText: item.timeText,
-                                status: item.status,
+                            todayItemRow(
+                                item,
+                                vm: vm,
                                 trailingStatusText: nil,
-                                onTap: { handleTap(item, vm: vm) },
-                                accessibilityId: "today.row.\(item.kind.rawValue).\(stableId(for: item))",
-                                leadingBadgeText: item.kind == .bp ? "BP" : "GLU",
                                 titleFontWeight: .semibold,
                                 rowVerticalPadding: DS.Spacing.s8
                             )
@@ -77,14 +73,10 @@ public struct TodayView: View {
                         BlockHeader(L10n.todayBlockLater)
                             .accessibilityIdentifier("today.block.later")
                         ForEach(bvm.itemsScheduled) { item in
-                            SlotRow(
-                                title: item.title,
-                                timeText: item.timeText,
-                                status: item.status,
+                            todayItemRow(
+                                item,
+                                vm: vm,
                                 trailingStatusText: "",
-                                onTap: { handleTap(item, vm: vm) },
-                                accessibilityId: "today.row.\(item.kind.rawValue).\(stableId(for: item))",
-                                leadingBadgeText: item.kind == .bp ? "BP" : "GLU",
                                 trailingIsSecondary: true
                             )
                         }
@@ -96,14 +88,10 @@ public struct TodayView: View {
                         BlockHeader(L10n.todayBlockOverdue)
                             .accessibilityIdentifier("today.block.overdue")
                         ForEach(bvm.itemsMissed) { item in
-                            SlotRow(
-                                title: item.title,
-                                timeText: item.timeText,
-                                status: item.status,
+                            todayItemRow(
+                                item,
+                                vm: vm,
                                 trailingStatusText: "",
-                                onTap: { handleTap(item, vm: vm) },
-                                accessibilityId: "today.row.\(item.kind.rawValue).\(stableId(for: item))",
-                                leadingBadgeText: item.kind == .bp ? "BP" : "GLU",
                                 trailingIsSecondary: true
                             )
                         }
@@ -114,14 +102,10 @@ public struct TodayView: View {
                     CompletedDisclosure(title: L10n.todayBlockCompleted) {
                         VStack(alignment: .leading, spacing: DS.Spacing.small) {
                             ForEach(bvm.itemsCompleted) { item in
-                                SlotRow(
-                                    title: item.title,
-                                    timeText: item.timeText,
-                                    status: item.status,
+                                todayItemRow(
+                                    item,
+                                    vm: vm,
                                     trailingStatusText: nil,
-                                    onTap: { handleTap(item, vm: vm) },
-                                    accessibilityId: "today.row.\(item.kind.rawValue).\(stableId(for: item))",
-                                    leadingBadgeText: item.kind == .bp ? "BP" : "GLU",
                                     trailingIsSecondary: true
                                 )
                                 .opacity(0.6)
@@ -177,6 +161,103 @@ public struct TodayView: View {
                 handleNotificationQuickEntryIfNeeded(vm: vm)
             }
         }
+    }
+
+    @ViewBuilder
+    private func todayItemRow(
+        _ item: TodayViewModel.TodayItem,
+        vm: TodayViewModel,
+        trailingStatusText: String?,
+        titleFontWeight: Font.Weight? = nil,
+        rowVerticalPadding: CGFloat = 6,
+        trailingIsSecondary: Bool = false
+    ) -> some View {
+        switch item.payload {
+        case .bp:
+            baseSlotRow(
+                item,
+                vm: vm,
+                trailingStatusText: trailingStatusText,
+                titleFontWeight: titleFontWeight,
+                rowVerticalPadding: rowVerticalPadding,
+                trailingIsSecondary: trailingIsSecondary
+            )
+        case .glucose(let slot):
+            let targets = vm.cycleSwitchTargets(for: slot)
+            if targets.isEmpty {
+                baseSlotRow(
+                    item,
+                    vm: vm,
+                    trailingStatusText: trailingStatusText,
+                    titleFontWeight: titleFontWeight,
+                    rowVerticalPadding: rowVerticalPadding,
+                    trailingIsSecondary: trailingIsSecondary
+                )
+            } else {
+                HStack(alignment: .center, spacing: DS.Spacing.xSmall) {
+                    baseSlotRow(
+                        item,
+                        vm: vm,
+                        trailingStatusText: trailingStatusText,
+                        titleFontWeight: titleFontWeight,
+                        rowVerticalPadding: rowVerticalPadding,
+                        trailingIsSecondary: trailingIsSecondary
+                    )
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    cycleSwitchMenu(targets: targets, item: item, vm: vm)
+                }
+            }
+        }
+    }
+
+    private func baseSlotRow(
+        _ item: TodayViewModel.TodayItem,
+        vm: TodayViewModel,
+        trailingStatusText: String?,
+        titleFontWeight: Font.Weight?,
+        rowVerticalPadding: CGFloat,
+        trailingIsSecondary: Bool
+    ) -> some View {
+        SlotRow(
+            title: item.title,
+            timeText: item.timeText,
+            status: item.status,
+            trailingStatusText: trailingStatusText,
+            onTap: { handleTap(item, vm: vm) },
+            accessibilityId: "today.row.\(item.kind.rawValue).\(stableId(for: item))",
+            leadingBadgeText: item.kind == .bp ? "BP" : "GLU",
+            trailingIsSecondary: trailingIsSecondary,
+            titleFontWeight: titleFontWeight,
+            rowVerticalPadding: rowVerticalPadding
+        )
+    }
+
+    private func cycleSwitchMenu(
+        targets: [MealSlot],
+        item: TodayViewModel.TodayItem,
+        vm: TodayViewModel
+    ) -> some View {
+        Menu {
+            ForEach(targets, id: \.rawValue) { target in
+                Button(L10n.settingsRowDailyCycleSwitchTo(vm.cycleSlotTitle(target))) {
+                    Task { await vm.switchDailyCycleTarget(to: target) }
+                }
+            }
+        } label: {
+            Group {
+                if vm.isSwitchingCycleTarget {
+                    ProgressView()
+                } else {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .font(.body)
+                }
+            }
+            .foregroundStyle(.secondary)
+            .frame(width: 28, height: 28)
+        }
+        .buttonStyle(.plain)
+        .disabled(vm.isSwitchingCycleTarget)
+        .accessibilityIdentifier("today.row.cycleSwitch.\(stableId(for: item))")
     }
 
     @ViewBuilder

@@ -15,6 +15,11 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         )
     }
 
+    func test_parseAction_legacyMoveActionsAreIgnored() {
+        XCTAssertNil(UserNotificationsRepository.parseAction(actionIdentifier: "ddiary.action.move.lunch"))
+        XCTAssertNil(UserNotificationsRepository.parseAction(actionIdentifier: "ddiary.action.move.dinner"))
+    }
+
     func test_registerCategories_setsAllExpectedCategories() {
         let center = FakeNotificationCenter()
 
@@ -27,6 +32,12 @@ final class UserNotificationsRepositoryTests: XCTestCase {
             UserNotificationsRepository.IDs.glucoseAfterCategory,
             UserNotificationsRepository.IDs.glucoseBedtimeCategory
         ]))
+        let beforeCategory = center.categories.first {
+            $0.identifier == UserNotificationsRepository.IDs.glucoseBeforeCategory
+        }
+        let beforeActionIdentifiers = Set(beforeCategory?.actions.map(\.identifier) ?? [])
+        XCTAssertFalse(beforeActionIdentifiers.contains("ddiary.action.move.lunch"))
+        XCTAssertFalse(beforeActionIdentifiers.contains("ddiary.action.move.dinner"))
     }
 
     func test_scheduleBloodPressure_createsRequestsForEachWeekdayAndTime() async throws {
@@ -324,6 +335,41 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         }
     }
 
+    func test_hasPendingNotificationRequests_returnsFalseForRegularScheduledRequestsOnly() async {
+        let center = FakeNotificationCenter()
+        center.pendingRequests["ddiary.bp.d20260216.0900"] = makeRequest(id: "ddiary.bp.d20260216.0900")
+        center.pendingRequests["ddiary.glucose.before.d20260216.1300"] = makeRequest(id: "ddiary.glucose.before.d20260216.1300")
+        let repository = UserNotificationsRepository(center: center)
+
+        let hasPending = await repository.hasPendingNotificationRequests()
+
+        XCTAssertFalse(hasPending)
+    }
+
+    func test_hasPendingNotificationRequests_returnsTrueWhenSnoozedRequestExists() async {
+        let center = FakeNotificationCenter()
+        center.pendingRequests["ddiary.glucose.before.d20260216.1300.snooze.30"] = makeRequest(
+            id: "ddiary.glucose.before.d20260216.1300.snooze.30"
+        )
+        let repository = UserNotificationsRepository(center: center)
+
+        let hasPending = await repository.hasPendingNotificationRequests()
+
+        XCTAssertTrue(hasPending)
+    }
+
+    func test_hasPendingNotificationRequests_returnsTrueWhenShiftedRequestExists() async {
+        let center = FakeNotificationCenter()
+        center.pendingRequests["ddiary.glucose.after.shifted.lunch.d20260216.1530"] = makeRequest(
+            id: "ddiary.glucose.after.shifted.lunch.d20260216.1530"
+        )
+        let repository = UserNotificationsRepository(center: center)
+
+        let hasPending = await repository.hasPendingNotificationRequests()
+
+        XCTAssertTrue(hasPending)
+    }
+
     func test_rescheduleGlucoseCycle_schedulesOnlyCycleRemindersForWindow() async throws {
         let center = FakeNotificationCenter()
         let repository = UserNotificationsRepository(center: center)
@@ -431,6 +477,33 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         XCTAssertNotNil(center.pendingRequests["ddiary.oneoff.capacity-test"])
         let removedPrefillCount = (0..<64).filter { center.pendingRequests["ddiary.prefill.\($0)"] == nil }.count
         XCTAssertEqual(removedPrefillCount, 1)
+    }
+
+    func test_snooze_preservesQuickEntryMetadataWhenProvided() async {
+        let center = FakeNotificationCenter()
+        let repository = UserNotificationsRepository(center: center)
+
+        await repository.snooze(
+            originalIdentifier: "ddiary.glucose.before.d20990216.1300",
+            minutes: 15,
+            title: L10n.notificationGlucoseBeforeLunchTitle,
+            body: L10n.notificationGlucoseBeforeLunchBody,
+            categoryIdentifier: UserNotificationsRepository.IDs.glucoseBeforeCategory,
+            mealSlotRawValue: MealSlot.lunch.rawValue,
+            measurementTypeRawValue: GlucoseMeasurementType.beforeMeal.rawValue
+        )
+
+        let snoozedID = "ddiary.glucose.before.d20990216.1300.snooze.15"
+        let request = try? XCTUnwrap(center.pendingRequests[snoozedID])
+        XCTAssertNotNil(request)
+        XCTAssertEqual(
+            request?.content.userInfo[UserNotificationsRepository.PayloadKeys.mealSlot] as? String,
+            MealSlot.lunch.rawValue
+        )
+        XCTAssertEqual(
+            request?.content.userInfo[UserNotificationsRepository.PayloadKeys.measurementType] as? String,
+            GlucoseMeasurementType.beforeMeal.rawValue
+        )
     }
 
     func test_rescheduleShiftedAfterMeal2hNotification_cancelsOriginalAndSchedulesShiftedOneOff() async {

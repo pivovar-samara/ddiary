@@ -177,7 +177,6 @@ struct AppContainer {
             analyticsRepository: analyticsRepository
         )
         self.notificationsActionUseCase = NotificationsActionUseCase(
-            settingsRepository: settingsRepository,
             notificationsRepository: notificationsRepository,
             analyticsRepository: analyticsRepository
         )

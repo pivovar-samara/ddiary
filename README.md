@@ -280,10 +280,6 @@ Actions:
 When the notification corresponds to a “before meal” glucose measurement:
 
 - **Enter** — currently foregrounds the app (explicit deep-link into a specific quick-entry form is not yet implemented).
-
-- **Move to lunch** / **Move to dinner**:
-  - In current implementation this schedules a one-off reminder for today at the configured lunch/dinner time.
-  - It does not mutate cycle index or mark the original slot as missed.
 - **Snooze** — as above.
 - **Skip** — currently handled as a lightweight analytics action.
 
@@ -657,7 +653,7 @@ Included in v1:
 - Today screen with slot-based statuses and quick entry.
 - History screen (list + aggregates).
 - Configurable BP and glucose reminders.
-- Notification actions (snooze/skip/move; `enter` currently foregrounds the app).
+- Notification actions (snooze/skip; `enter` currently foregrounds the app).
 - CSV export.
 - Google Sheets backup (push-only).
 - Manual DI, MVVM, `@MainActor` use case classes, SwiftData models as domain models.

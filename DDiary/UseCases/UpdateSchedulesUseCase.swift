@@ -41,6 +41,8 @@ public final class UpdateSchedulesUseCase: SchedulesUpdating {
         do {
             let granted = try await notificationsRepository.requestAuthorization()
             guard granted else { return }
+            let hasPendingOneOffRequests = await notificationsRepository.hasPendingNotificationRequests()
+            guard !hasPendingOneOffRequests else { return }
             let settings = try await settingsRepository.getOrCreate()
             try await notificationsRepository.scheduleAllNotifications(settings: settings)
         } catch {
