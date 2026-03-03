@@ -41,396 +41,331 @@ struct SettingsView: View {
     @ViewBuilder
     private func content(for vm: SettingsViewModel) -> some View {
         @Bindable var bvm = vm
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: DS.Spacing.large) {
-                // Units
-                SettingsSectionCard(title: L10n.settingsSectionUnits) {
-                    VStack(spacing: 0) {
-                        SettingsRow(title: L10n.settingsRowGlucoseUnit) {
-                            Picker("", selection: $bvm.glucoseUnit) {
-                                ForEach(GlucoseUnit.allCases, id: \.self) { unit in
-                                    Text(label(for: unit)).tag(unit)
-                                }
-                            }
-                            .labelsHidden()
+        Form {
+            // Units
+            SettingsSectionCard(title: L10n.settingsSectionUnits) {
+                SettingsRow(title: L10n.settingsRowGlucoseUnit) {
+                    Picker("", selection: $bvm.glucoseUnit) {
+                        ForEach(GlucoseUnit.allCases, id: \.self) { unit in
+                            Text(label(for: unit)).tag(unit)
                         }
                     }
-                }
-
-                // Meal Times
-                SettingsSectionCard(title: L10n.settingsSectionMealTimes) {
-                    VStack(spacing: 0) {
-                        SettingsRow(title: L10n.settingsRowBreakfast) {
-                            TimeOfDayPicker(
-                                minutesSinceMidnight: mealTimeBinding(
-                                    hour: $bvm.breakfastHour,
-                                    minute: $bvm.breakfastMinute
-                                )
-                            )
-                            .accessibilityIdentifier("settings.meal.breakfast")
-                        }
-                        SettingsDivider()
-                        SettingsRow(title: L10n.settingsRowLunch) {
-                            TimeOfDayPicker(
-                                minutesSinceMidnight: mealTimeBinding(
-                                    hour: $bvm.lunchHour,
-                                    minute: $bvm.lunchMinute
-                                )
-                            )
-                            .accessibilityIdentifier("settings.meal.lunch")
-                        }
-                        SettingsDivider()
-                        SettingsRow(title: L10n.settingsRowDinner) {
-                            TimeOfDayPicker(
-                                minutesSinceMidnight: mealTimeBinding(
-                                    hour: $bvm.dinnerHour,
-                                    minute: $bvm.dinnerMinute
-                                )
-                            )
-                            .accessibilityIdentifier("settings.meal.dinner")
-                        }
-                        SettingsDivider()
-                        SettingsRow(title: L10n.settingsRowBedtime) {
-                            TimeOfDayPicker(
-                                minutesSinceMidnight: mealTimeBinding(
-                                    hour: $bvm.bedtimeHour,
-                                    minute: $bvm.bedtimeMinute
-                                )
-                            )
-                            .accessibilityIdentifier("settings.meal.bedtime")
-                        }
-                        SettingsDivider()
-                        SettingsToggleRow(
-                            title: L10n.settingsRowBedtimeSlotEnabled,
-                            isOn: $bvm.bedtimeSlotEnabled,
-                            toggleAccessibilityId: "settings.bedtimeSlotEnabled"
-                        )
-                    }
-                }
-
-                // Blood Pressure Reminders
-                SettingsSectionCard(title: L10n.settingsSectionBPReminders) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        if bvm.bpTimes.isEmpty {
-                            Text(L10n.settingsRowNoTimesConfigured)
-                                .foregroundStyle(.secondary)
-                                .frame(minHeight: 48)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            SettingsDivider()
-                        } else {
-                            ForEach(Array(bvm.bpTimes.indices), id: \.self) { index in
-                                HStack(spacing: DS.Spacing.small) {
-                                    TimeOfDayPicker(
-                                        minutesSinceMidnight: Binding(
-                                            get: {
-                                                guard bvm.bpTimes.indices.contains(index) else { return 9 * 60 }
-                                                return bvm.bpTimes[index]
-                                            },
-                                            set: { newValue in
-                                                guard bvm.bpTimes.indices.contains(index) else { return }
-                                                bvm.bpTimes[index] = clampedMinutesSinceMidnight(newValue)
-                                            }
-                                        )
-                                    )
-                                    .accessibilityIdentifier("settings.bp.time.\(index)")
-                                    Spacer(minLength: DS.Spacing.small)
-                                    Button(role: .destructive) {
-                                        bvm.bpTimes.remove(at: index)
-                                    } label: {
-                                        Image(systemName: "trash")
-                                    }
-                                    .buttonStyle(.plain)
-                                    .accessibilityIdentifier("settings.bp.remove.\(index)")
-                                }
-                                .frame(minHeight: 48)
-                                if index < bvm.bpTimes.count - 1 {
-                                    SettingsDivider()
-                                }
-                            }
-                            SettingsDivider()
-                        }
-
-                        SettingsActionRow(icon: "plus", title: L10n.settingsRowAddTime, role: .none) {
-                            // Add a default time (9:00)
-                            bvm.bpTimes.append(9 * 60)
-                        }
-
-                        SettingsDivider()
-
-                        VStack(alignment: .leading, spacing: DS.Spacing.small) {
-                            Text(L10n.settingsRowActiveWeekdays)
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                            WeekdayGrid(selected: $bvm.bpActiveWeekdays)
-                        }
-                    }
-                }
-
-                // Glucose Reminders
-                SettingsSectionCard(title: L10n.settingsSectionGlucoseReminders) {
-                    VStack(spacing: 0) {
-                        SettingsToggleRow(
-                            title: L10n.settingsRowBeforeMeal,
-                            isOn: $bvm.enableBeforeMeal,
-                            toggleAccessibilityId: "settings.glucose.beforeMeal"
-                        )
-                        .disabled(bvm.enableDailyCycleMode)
-                        SettingsDivider()
-                        SettingsToggleRow(
-                            title: L10n.settingsRowAfterMeal2h,
-                            isOn: $bvm.enableAfterMeal2h,
-                            toggleAccessibilityId: "settings.glucose.afterMeal2h"
-                        )
-                        .disabled(bvm.enableDailyCycleMode)
-                        SettingsDivider()
-                        SettingsToggleRow(
-                            title: L10n.settingsRowBedtimeToggle,
-                            isOn: $bvm.enableBedtime,
-                            toggleAccessibilityId: "settings.glucose.bedtime"
-                        )
-                        .disabled(bvm.enableDailyCycleMode)
-                        SettingsDivider()
-                        SettingsToggleRow(
-                            title: L10n.settingsRowDailyCycleMode,
-                            isOn: $bvm.enableDailyCycleMode,
-                            toggleAccessibilityId: "settings.glucose.dailyCycle"
-                        )
-                        SettingsDivider()
-                        SettingsRow(title: L10n.settingsRowDailyCycleTodayIs) {
-                            HStack(spacing: DS.Spacing.small) {
-                                Text(bvm.dailyCycleCurrentSlotTitle)
-                                    .foregroundStyle(.secondary)
-                                    .accessibilityIdentifier("settings.glucose.dailyCycle.current")
-                                Button {
-                                    let targets = bvm.dailyCycleSwitchTargets()
-                                    guard !targets.isEmpty else { return }
-                                    isDailyCycleTargetDialogPresented = true
-                                } label: {
-                                    Image(systemName: "arrow.triangle.2.circlepath")
-                                        .font(.body)
-                                        .foregroundStyle(.secondary)
-                                        .frame(width: 28, height: 28)
-                                }
-                                .buttonStyle(.plain)
-                                .disabled(!bvm.enableDailyCycleMode || bvm.isSwitchingCycleTarget || bvm.dailyCycleSwitchTargets().isEmpty)
-                                .accessibilityIdentifier("settings.glucose.dailyCycle.switch")
-                                .accessibilityLabel(L10n.todayCycleSwitchAccessibilityLabel)
-                                .accessibilityHint(L10n.todayCycleSwitchAccessibilityHint)
-                                .confirmationDialog(
-                                    "",
-                                    isPresented: $isDailyCycleTargetDialogPresented,
-                                    titleVisibility: .hidden
-                                ) {
-                                    ForEach(bvm.dailyCycleSwitchTargets(), id: \.rawValue) { target in
-                                        Button(L10n.settingsRowDailyCycleSwitchTo(bvm.cycleSlotTitle(target))) {
-                                            Task { await bvm.applyDailyCycleTarget(target) }
-                                        }
-                                    }
-                                    Button(L10n.quickEntryActionCancel, role: .cancel) {}
-                                }
-                            }
-                        }
-                        .disabled(!bvm.enableDailyCycleMode)
-                    }
-                }
-
-                // Thresholds
-                SettingsSectionCard(title: L10n.settingsSectionThresholds) {
-                    VStack(alignment: .leading, spacing: DS.Spacing.medium) {
-                        VStack(alignment: .leading, spacing: DS.Spacing.small) {
-                            Text(L10n.settingsRowBloodPressure)
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                            VStack(spacing: 0) {
-                                SettingsRow(title: L10n.settingsRowSysMin) {
-                                    IntValueCapsuleEditor(value: $bvm.bpSystolicMin, range: 50...250, step: 1)
-                                }
-                                SettingsDivider()
-                                SettingsRow(title: L10n.settingsRowSysMax) {
-                                    IntValueCapsuleEditor(value: $bvm.bpSystolicMax, range: 50...250, step: 1)
-                                }
-                                SettingsDivider()
-                                SettingsRow(title: L10n.settingsRowDiaMin) {
-                                    IntValueCapsuleEditor(value: $bvm.bpDiastolicMin, range: 30...200, step: 1)
-                                }
-                                SettingsDivider()
-                                SettingsRow(title: L10n.settingsRowDiaMax) {
-                                    IntValueCapsuleEditor(value: $bvm.bpDiastolicMax, range: 30...200, step: 1)
-                                }
-                            }
-                        }
-                        VStack(alignment: .leading, spacing: DS.Spacing.small) {
-                            Text(L10n.settingsRowGlucose)
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                            VStack(spacing: 0) {
-                                SettingsRow(title: L10n.settingsRowGlucoseMin) {
-                                    DoubleValueCapsuleEditor(
-                                        value: glucoseThresholdBinding(
-                                            mmolBinding: $bvm.glucoseMin,
-                                            vm: vm
-                                        ),
-                                        range: vm.glucoseThresholdRangeForCurrentUnit(),
-                                        step: vm.glucoseThresholdStepForCurrentUnit(),
-                                        fractionDigits: vm.glucoseUnit == .mmolL ? 1 : 0
-                                    )
-                                }
-                                SettingsDivider()
-                                SettingsRow(title: L10n.settingsRowGlucoseMax) {
-                                    DoubleValueCapsuleEditor(
-                                        value: glucoseThresholdBinding(
-                                            mmolBinding: $bvm.glucoseMax,
-                                            vm: vm
-                                        ),
-                                        range: vm.glucoseThresholdRangeForCurrentUnit(),
-                                        step: vm.glucoseThresholdStepForCurrentUnit(),
-                                        fractionDigits: vm.glucoseUnit == .mmolL ? 1 : 0
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Google Sheets Backup
-                SettingsSectionCard(title: L10n.settingsSectionGoogleBackup) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        // Status block (non-interactive)
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack {
-                                Circle()
-                                    .fill(bvm.isGoogleBusy ? Color.orange : (bvm.isGoogleEnabled ? Color.green : Color.red))
-                                    .frame(width: 10, height: 10)
-                                Text(bvm.googleSummary)
-                                    .font(.body)
-                                    .lineLimit(1)
-                                    .truncationMode(.tail)
-                                Spacer()
-                                ProgressView()
-                                    .scaleEffect(0.85)
-                                    .opacity(bvm.isGoogleBusy ? 1 : 0)
-                            }
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(L10n.settingsPendingFailed(pending: bvm.pendingCount, failed: bvm.failedCount))
-                                    .font(.footnote)
-                                    .foregroundStyle(.secondary)
-                                if let last = bvm.lastSyncAt {
-                                    Text(L10n.settingsLastSync(dateTimeString(last)))
-                                        .font(.footnote)
-                                        .foregroundStyle(.secondary)
-                                } else {
-                                    Text(L10n.settingsLastSyncNone)
-                                        .font(.footnote)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                            if bvm.isLikelyRestoringFromICloud {
-                                HStack(spacing: DS.Spacing.small) {
-                                    ProgressView()
-                                        .scaleEffect(0.85)
-                                    Text(L10n.cloudRestoreSettingsDescription)
-                                        .font(.footnote)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-
-                        SettingsDivider()
-
-                        if !bvm.isGoogleEnabled {
-                            // Primary action when not connected
-                            SettingsActionRow(
-                                icon: "link",
-                                title: L10n.settingsRowConnect,
-                                role: .none,
-                                showsActivityIndicator: bvm.isGoogleBusy
-                            ) {
-                                Task {
-                                    await vm.connectGoogleAndSync {
-                                        await container.syncWithGoogleUseCase.syncPendingMeasurements()
-                                    }
-                                }
-                            }
-                            .disabled(bvm.isGoogleBusy)
-                        } else {
-                            // Primary action when connected
-                            SettingsActionRow(
-                                icon: "arrow.clockwise",
-                                title: L10n.settingsRowSyncNow,
-                                role: .none,
-                                showsActivityIndicator: bvm.isGoogleBusy
-                            ) {
-                                Task {
-                                    await container.syncWithGoogleUseCase.syncPendingMeasurements()
-                                    await vm.refreshSyncStatus()
-                                }
-                            }
-                            .disabled(bvm.isGoogleBusy)
-                            SettingsDivider()
-                            // Secondary destructive action
-                            SettingsActionRow(icon: "xmark.circle", title: L10n.settingsRowDisconnect, role: .destructive) {
-                                Task { await vm.disconnectGoogle() }
-                            }
-                            .disabled(bvm.isGoogleBusy)
-                        }
-                    }
-                }
-
-                // Export
-                SettingsSectionCard(title: L10n.settingsSectionExport) {
-                    VStack(spacing: 0) {
-                        SettingsRow(title: L10n.settingsRowFrom) {
-                            exportDateButton(
-                                date: exportStartDate,
-                                sheet: .from
-                            )
-                            .accessibilityIdentifier("settings.export.fromDate")
-                        }
-                        SettingsDivider()
-                        SettingsRow(title: L10n.settingsRowTo) {
-                            exportDateButton(
-                                date: exportEndDate,
-                                sheet: .to
-                            )
-                            .accessibilityIdentifier("settings.export.toDate")
-                        }
-                        SettingsDivider()
-                        SettingsToggleRow(title: L10n.settingsRowIncludeBP, isOn: $exportIncludeBP)
-                        SettingsDivider()
-                        SettingsToggleRow(title: L10n.settingsRowIncludeGlucose, isOn: $exportIncludeGlucose)
-                        SettingsDivider()
-                        SettingsActionRow(icon: "square.and.arrow.up", title: L10n.settingsRowExportCSV, role: .none) {
-                            Task {
-                                if let url = await vm.exportCSV(from: exportStartDate, to: exportEndDate, includeBP: exportIncludeBP, includeGlucose: exportIncludeGlucose) {
-                                    exportShareItem = ExportShareItem(url: url)
-                                }
-                            }
-                        }
-                        .disabled(vm.isExporting)
-                        .overlay(alignment: .trailing) {
-                            if vm.isExporting { ProgressView().scaleEffect(0.9) }
-                        }
-                    }
-                }
-
-                // Feedback & About
-                SettingsSectionCard(title: L10n.settingsSectionFeedbackAbout) {
-                    VStack(alignment: .leading, spacing: DS.Spacing.small) {
-                        SettingsActionRow(icon: "envelope", title: L10n.settingsRowSendFeedback) {
-                            if let url = feedbackEmailURL() {
-                                openURL(url)
-                            }
-                        }
-                        .disabled(feedbackEmailURL() == nil)
-                        Text(L10n.settingsDisclaimerMedical)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
+                    .labelsHidden()
                 }
             }
-            .padding(.horizontal, DS.Spacing.medium)
-            .padding(.vertical, DS.Spacing.large)
+
+            // Meal Times
+            SettingsSectionCard(title: L10n.settingsSectionMealTimes) {
+                SettingsRow(title: L10n.settingsRowBreakfast) {
+                    TimeOfDayPicker(
+                        minutesSinceMidnight: mealTimeBinding(
+                            hour: $bvm.breakfastHour,
+                            minute: $bvm.breakfastMinute
+                        )
+                    )
+                    .accessibilityIdentifier("settings.meal.breakfast")
+                }
+                SettingsRow(title: L10n.settingsRowLunch) {
+                    TimeOfDayPicker(
+                        minutesSinceMidnight: mealTimeBinding(
+                            hour: $bvm.lunchHour,
+                            minute: $bvm.lunchMinute
+                        )
+                    )
+                    .accessibilityIdentifier("settings.meal.lunch")
+                }
+                SettingsRow(title: L10n.settingsRowDinner) {
+                    TimeOfDayPicker(
+                        minutesSinceMidnight: mealTimeBinding(
+                            hour: $bvm.dinnerHour,
+                            minute: $bvm.dinnerMinute
+                        )
+                    )
+                    .accessibilityIdentifier("settings.meal.dinner")
+                }
+                SettingsRow(title: L10n.settingsRowBedtime) {
+                    TimeOfDayPicker(
+                        minutesSinceMidnight: mealTimeBinding(
+                            hour: $bvm.bedtimeHour,
+                            minute: $bvm.bedtimeMinute
+                        )
+                    )
+                    .accessibilityIdentifier("settings.meal.bedtime")
+                }
+                SettingsToggleRow(
+                    title: L10n.settingsRowBedtimeSlotEnabled,
+                    isOn: $bvm.bedtimeSlotEnabled,
+                    toggleAccessibilityId: "settings.bedtimeSlotEnabled"
+                )
+            }
+
+            // Blood Pressure Reminders
+            SettingsSectionCard(title: L10n.settingsSectionBPReminders) {
+                if bvm.bpTimes.isEmpty {
+                    Text(L10n.settingsRowNoTimesConfigured)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(Array(bvm.bpTimes.indices), id: \.self) { index in
+                        HStack(spacing: DS.Spacing.small) {
+                            TimeOfDayPicker(
+                                minutesSinceMidnight: Binding(
+                                    get: {
+                                        guard bvm.bpTimes.indices.contains(index) else { return 9 * 60 }
+                                        return bvm.bpTimes[index]
+                                    },
+                                    set: { newValue in
+                                        guard bvm.bpTimes.indices.contains(index) else { return }
+                                        bvm.bpTimes[index] = clampedMinutesSinceMidnight(newValue)
+                                    }
+                                )
+                            )
+                            .accessibilityIdentifier("settings.bp.time.\(index)")
+                            Spacer(minLength: DS.Spacing.small)
+                            Button(role: .destructive) {
+                                bvm.bpTimes.remove(at: index)
+                            } label: {
+                                Image(systemName: "trash")
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("settings.bp.remove.\(index)")
+                        }
+                        .frame(minHeight: 38)
+                        .settingsCompactRow()
+                    }
+                }
+
+                SettingsActionRow(icon: "plus", title: L10n.settingsRowAddTime, role: .none) {
+                    bvm.bpTimes.append(9 * 60)
+                }
+
+                VStack(alignment: .leading, spacing: DS.Spacing.small) {
+                    Text(L10n.settingsRowActiveWeekdays)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    WeekdayGrid(selected: $bvm.bpActiveWeekdays)
+                }
+            }
+
+            // Glucose Reminders
+            SettingsSectionCard(title: L10n.settingsSectionGlucoseReminders) {
+                SettingsToggleRow(
+                    title: L10n.settingsRowBeforeMeal,
+                    isOn: $bvm.enableBeforeMeal,
+                    toggleAccessibilityId: "settings.glucose.beforeMeal"
+                )
+                .disabled(bvm.enableDailyCycleMode)
+                SettingsToggleRow(
+                    title: L10n.settingsRowAfterMeal2h,
+                    isOn: $bvm.enableAfterMeal2h,
+                    toggleAccessibilityId: "settings.glucose.afterMeal2h"
+                )
+                .disabled(bvm.enableDailyCycleMode)
+                SettingsToggleRow(
+                    title: L10n.settingsRowBedtimeToggle,
+                    isOn: $bvm.enableBedtime,
+                    toggleAccessibilityId: "settings.glucose.bedtime"
+                )
+                .disabled(bvm.enableDailyCycleMode)
+                SettingsToggleRow(
+                    title: L10n.settingsRowDailyCycleMode,
+                    isOn: $bvm.enableDailyCycleMode,
+                    toggleAccessibilityId: "settings.glucose.dailyCycle"
+                )
+                SettingsRow(title: L10n.settingsRowDailyCycleTodayIs) {
+                    HStack(spacing: DS.Spacing.small) {
+                        Text(bvm.dailyCycleCurrentSlotTitle)
+                            .foregroundStyle(.secondary)
+                            .accessibilityIdentifier("settings.glucose.dailyCycle.current")
+                        Button {
+                            let targets = bvm.dailyCycleSwitchTargets()
+                            guard !targets.isEmpty else { return }
+                            isDailyCycleTargetDialogPresented = true
+                        } label: {
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                                .font(.body)
+                                .foregroundStyle(.secondary)
+                                .frame(width: 28, height: 28)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(!bvm.enableDailyCycleMode || bvm.isSwitchingCycleTarget || bvm.dailyCycleSwitchTargets().isEmpty)
+                        .accessibilityIdentifier("settings.glucose.dailyCycle.switch")
+                        .accessibilityLabel(L10n.todayCycleSwitchAccessibilityLabel)
+                        .accessibilityHint(L10n.todayCycleSwitchAccessibilityHint)
+                        .confirmationDialog(
+                            "",
+                            isPresented: $isDailyCycleTargetDialogPresented,
+                            titleVisibility: .hidden
+                        ) {
+                            ForEach(bvm.dailyCycleSwitchTargets(), id: \.rawValue) { target in
+                                Button(L10n.settingsRowDailyCycleSwitchTo(bvm.cycleSlotTitle(target))) {
+                                    Task { await bvm.applyDailyCycleTarget(target) }
+                                }
+                            }
+                            Button(L10n.quickEntryActionCancel, role: .cancel) {}
+                        }
+                    }
+                }
+                .disabled(!bvm.enableDailyCycleMode)
+            }
+
+            // Thresholds
+            SettingsSectionCard(title: L10n.settingsSectionThresholds) {
+                ThresholdGroupHeader(title: L10n.settingsRowBloodPressure)
+                SettingsRow(title: L10n.settingsRowSysMin) {
+                    IntValueCapsuleEditor(value: $bvm.bpSystolicMin, range: 50...250, step: 1)
+                }
+                SettingsRow(title: L10n.settingsRowSysMax) {
+                    IntValueCapsuleEditor(value: $bvm.bpSystolicMax, range: 50...250, step: 1)
+                }
+                SettingsRow(title: L10n.settingsRowDiaMin) {
+                    IntValueCapsuleEditor(value: $bvm.bpDiastolicMin, range: 30...200, step: 1)
+                }
+                SettingsRow(title: L10n.settingsRowDiaMax) {
+                    IntValueCapsuleEditor(value: $bvm.bpDiastolicMax, range: 30...200, step: 1)
+                }
+
+                ThresholdGroupHeader(title: L10n.settingsRowGlucose, topPadding: 8)
+                SettingsRow(title: L10n.settingsRowGlucoseMin) {
+                    DoubleValueCapsuleEditor(
+                        value: glucoseThresholdBinding(
+                            mmolBinding: $bvm.glucoseMin,
+                            vm: vm
+                        ),
+                        range: vm.glucoseThresholdRangeForCurrentUnit(),
+                        step: vm.glucoseThresholdStepForCurrentUnit(),
+                        fractionDigits: vm.glucoseUnit == .mmolL ? 1 : 0
+                    )
+                }
+                SettingsRow(title: L10n.settingsRowGlucoseMax) {
+                    DoubleValueCapsuleEditor(
+                        value: glucoseThresholdBinding(
+                            mmolBinding: $bvm.glucoseMax,
+                            vm: vm
+                        ),
+                        range: vm.glucoseThresholdRangeForCurrentUnit(),
+                        step: vm.glucoseThresholdStepForCurrentUnit(),
+                        fractionDigits: vm.glucoseUnit == .mmolL ? 1 : 0
+                    )
+                }
+            }
+
+            // Google Sheets Backup
+            SettingsSectionCard(title: L10n.settingsSectionGoogleBackup) {
+                HStack {
+                    Circle()
+                        .fill(bvm.isGoogleBusy ? Color.orange : (bvm.isGoogleEnabled ? Color.green : Color.red))
+                        .frame(width: 10, height: 10)
+                    Text(bvm.googleSummary)
+                        .font(.body)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    Spacer()
+                    ProgressView()
+                        .scaleEffect(0.85)
+                        .opacity(bvm.isGoogleBusy ? 1 : 0)
+                }
+                .frame(minHeight: 38)
+                .settingsCompactRow()
+
+                if !bvm.isGoogleEnabled {
+                    SettingsActionRow(
+                        icon: "link",
+                        title: L10n.settingsRowConnect,
+                        role: .none,
+                        showsActivityIndicator: bvm.isGoogleBusy
+                    ) {
+                        Task {
+                            await vm.connectGoogleAndSync {
+                                await container.syncWithGoogleUseCase.syncPendingMeasurements()
+                            }
+                        }
+                    }
+                    .disabled(bvm.isGoogleBusy)
+                } else {
+                    SettingsActionRow(
+                        icon: "arrow.clockwise",
+                        title: L10n.settingsRowSyncNow,
+                        role: .none,
+                        showsActivityIndicator: bvm.isGoogleBusy
+                    ) {
+                        Task {
+                            await container.syncWithGoogleUseCase.syncPendingMeasurements()
+                            await vm.refreshSyncStatus()
+                        }
+                    }
+                    .disabled(bvm.isGoogleBusy)
+                    SettingsActionRow(icon: "xmark.circle", title: L10n.settingsRowDisconnect, role: .destructive) {
+                        Task { await vm.disconnectGoogle() }
+                    }
+                    .disabled(bvm.isGoogleBusy)
+                }
+            } footer: {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(L10n.settingsPendingFailed(pending: bvm.pendingCount, failed: bvm.failedCount))
+                    if let last = bvm.lastSyncAt {
+                        Text(L10n.settingsLastSync(dateTimeString(last)))
+                    } else {
+                        Text(L10n.settingsLastSyncNone)
+                    }
+                    if bvm.isLikelyRestoringFromICloud {
+                        HStack(spacing: DS.Spacing.small) {
+                            ProgressView()
+                                .scaleEffect(0.85)
+                            Text(L10n.cloudRestoreSettingsDescription)
+                        }
+                    }
+                }
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            }
+
+            // Export
+            SettingsSectionCard(title: L10n.settingsSectionExport) {
+                SettingsRow(title: L10n.settingsRowFrom) {
+                    exportDateButton(
+                        date: exportStartDate,
+                        sheet: .from
+                    )
+                    .accessibilityIdentifier("settings.export.fromDate")
+                }
+                SettingsRow(title: L10n.settingsRowTo) {
+                    exportDateButton(
+                        date: exportEndDate,
+                        sheet: .to
+                    )
+                    .accessibilityIdentifier("settings.export.toDate")
+                }
+                SettingsToggleRow(title: L10n.settingsRowIncludeBP, isOn: $exportIncludeBP)
+                SettingsToggleRow(title: L10n.settingsRowIncludeGlucose, isOn: $exportIncludeGlucose)
+                SettingsActionRow(icon: "square.and.arrow.up", title: L10n.settingsRowExportCSV, role: .none) {
+                    Task {
+                        if let url = await vm.exportCSV(from: exportStartDate, to: exportEndDate, includeBP: exportIncludeBP, includeGlucose: exportIncludeGlucose) {
+                            exportShareItem = ExportShareItem(url: url)
+                        }
+                    }
+                }
+                .disabled(vm.isExporting)
+                .overlay(alignment: .trailing) {
+                    if vm.isExporting { ProgressView().scaleEffect(0.9) }
+                }
+            }
+
+            // Feedback & About
+            SettingsSectionCard(title: L10n.settingsSectionFeedbackAbout) {
+                SettingsActionRow(icon: "envelope", title: L10n.settingsRowSendFeedback) {
+                    if let url = feedbackEmailURL() {
+                        openURL(url)
+                    }
+                }
+                .disabled(feedbackEmailURL() == nil)
+            } footer: {
+                Text(L10n.settingsDisclaimerMedical)
+            }
         }
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(.compact)
+        .listRowSeparatorTint(Color(uiColor: .separator).opacity(0.5))
+        .environment(\.defaultMinListRowHeight, 38)
         .refreshable {
             await vm.refreshCloudBackedState()
         }
@@ -597,40 +532,53 @@ struct SettingsView: View {
 
 // MARK: - Settings Section Helpers
 
-private struct SectionHeader: View {
-    let text: String
-    var body: some View {
-        Text(text)
-            .font(.subheadline)
-            .fontWeight(.semibold)
-            .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, DS.Spacing.medium)
-    }
-}
-
-private struct SettingsSectionCard<Content: View>: View {
+private struct SettingsSectionCard<Content: View, Footer: View>: View {
     let title: String
     @ViewBuilder var content: () -> Content
+    @ViewBuilder var footer: () -> Footer
+
+    init(
+        title: String,
+        @ViewBuilder content: @escaping () -> Content,
+        @ViewBuilder footer: @escaping () -> Footer
+    ) {
+        self.title = title
+        self.content = content
+        self.footer = footer
+    }
+
+    init(
+        title: String,
+        @ViewBuilder content: @escaping () -> Content
+    ) where Footer == EmptyView {
+        self.init(title: title, content: content, footer: { EmptyView() })
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.small) {
-            SectionHeader(text: title)
-            VStack(alignment: .leading, spacing: DS.Spacing.medium) {
-                content()
-            }
-            .cardContainer()
+        Section {
+            content()
+        } header: {
+            Text(title)
+                .textCase(nil)
+        } footer: {
+            footer()
         }
+        .listRowBackground(Color(uiColor: .secondarySystemGroupedBackground).opacity(0.9))
     }
 }
 
-private struct SettingsDivider: View {
-    @Environment(\.pixelLength) private var pixelLength
+private struct ThresholdGroupHeader: View {
+    let title: String
+    var topPadding: CGFloat = 0
 
     var body: some View {
-        Rectangle()
-            .fill(Color(uiColor: .separator))
-            .frame(height: pixelLength)
+        Text(title)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .textCase(.uppercase)
+            .padding(.top, topPadding)
+            .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 2, trailing: 16))
     }
 }
 
@@ -639,15 +587,15 @@ private struct SettingsRow<Trailing: View>: View {
     @ViewBuilder var trailing: () -> Trailing
 
     var body: some View {
-        HStack(spacing: DS.Spacing.small) {
+        LabeledContent {
+            trailing()
+        } label: {
             Text(title)
-                .foregroundStyle(.primary)
                 .lineLimit(1)
                 .truncationMode(.tail)
-            Spacer(minLength: DS.Spacing.small)
-            trailing()
         }
-        .frame(minHeight: 48)
+        .frame(minHeight: 38)
+        .settingsCompactRow()
     }
 }
 
@@ -657,25 +605,18 @@ private struct SettingsToggleRow: View {
     var toggleAccessibilityId: String? = nil
 
     var body: some View {
-        HStack(spacing: DS.Spacing.small) {
+        let toggle = Toggle(isOn: $isOn) {
             Text(title)
                 .lineLimit(1)
                 .truncationMode(.tail)
-            Spacer(minLength: DS.Spacing.small)
-            toggleView
         }
-        .frame(minHeight: 48)
-    }
+        .frame(minHeight: 38)
+        .settingsCompactRow()
 
-    @ViewBuilder
-    private var toggleView: some View {
         if let id = toggleAccessibilityId {
-            Toggle("", isOn: $isOn)
-                .labelsHidden()
-                .accessibilityIdentifier(id)
+            toggle.accessibilityIdentifier(id)
         } else {
-            Toggle("", isOn: $isOn)
-                .labelsHidden()
+            toggle
         }
     }
 }
@@ -704,10 +645,11 @@ private struct SettingsActionRow: View {
                     .scaleEffect(0.85)
                     .opacity(showsActivityIndicator ? 1 : 0)
             }
-            .frame(minHeight: 48)
+            .frame(minHeight: 38)
         }
         .buttonStyle(.plain)
         .contentShape(Rectangle())
+        .settingsCompactRow()
     }
 }
 
@@ -726,7 +668,6 @@ private struct IntValueCapsuleEditor: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-
             Text("\(value)")
                 .font(.callout.weight(.semibold))
                 .monospacedDigit()
@@ -744,7 +685,7 @@ private struct IntValueCapsuleEditor: View {
             .buttonStyle(.plain)
         }
         .padding(.horizontal, 10)
-        .frame(height: 44)
+        .frame(height: 38)
         .background(Color(uiColor: .secondarySystemFill))
         .clipShape(Capsule())
         .fixedSize(horizontal: true, vertical: false)
@@ -788,7 +729,7 @@ private struct DoubleValueCapsuleEditor: View {
             .buttonStyle(.plain)
         }
         .padding(.horizontal, 10)
-        .frame(height: 44)
+        .frame(height: 38)
         .background(Color(uiColor: .secondarySystemFill))
         .clipShape(Capsule())
         .fixedSize(horizontal: true, vertical: false)
@@ -840,7 +781,7 @@ private struct TimeOfDayPicker: View {
         DatePicker("", selection: selection, displayedComponents: [.hourAndMinute])
             .labelsHidden()
             .datePickerStyle(.compact)
-            .frame(height: 44)
+            .frame(height: 34)
     }
 
     private func date(from minutes: Int) -> Date {
@@ -861,12 +802,29 @@ private struct TimeOfDayPicker: View {
     }
 }
 
+private struct SettingsCompactRowModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+            .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
+    }
+}
+
+private extension View {
+    func settingsCompactRow() -> some View {
+        modifier(SettingsCompactRowModifier())
+    }
+}
+
 // MARK: - Weekday Grid Helper
 
 private struct WeekdayGrid: View {
     @Binding var selected: Set<Int>
 
-    private let symbols = Calendar.current.shortWeekdaySymbols // locale-aware
+    private let symbols = Calendar.autoupdatingCurrent.shortWeekdaySymbols.map { symbol in
+        let normalized = symbol.replacingOccurrences(of: ".", with: "").trimmingCharacters(in: .whitespaces)
+        return normalized.count > 2 ? String(normalized.prefix(2)) : normalized
+    }
 
     var body: some View {
         LazyVGrid(columns: Array(repeating: .init(.flexible(), spacing: 8), count: 7), spacing: 8) {
@@ -874,9 +832,10 @@ private struct WeekdayGrid: View {
                 let isOn = selected.contains(weekday)
                 Button(action: { toggle(weekday) }) {
                     Text(symbols[(weekday - 1) % symbols.count])
-                        .font(.caption)
-                        .frame(maxWidth: .infinity)
-                        .padding(8)
+                        .font(.caption.weight(.medium))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .frame(maxWidth: .infinity, minHeight: 36)
                         .background(isOn ? Color.accentColor.opacity(0.2) : Color.secondary.opacity(0.1))
                         .clipShape(RoundedRectangle(cornerRadius: 6))
                 }
