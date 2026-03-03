@@ -257,6 +257,8 @@ public struct TodayView: View {
         }
         .buttonStyle(.plain)
         .disabled(vm.isSwitchingCycleTarget)
+        .accessibilityLabel(L10n.todayCycleSwitchAccessibilityLabel)
+        .accessibilityHint(L10n.todayCycleSwitchAccessibilityHint)
         .accessibilityIdentifier("today.row.cycleSwitch.\(stableId(for: item))")
     }
 

@@ -51,6 +51,14 @@ enum L10n {
     static let todayBlockOverdue = tr("today.block.overdue", "Overdue")
     static let todayBlockCompleted = tr("today.block.completed", "Completed")
     static let todayQuickEntryTitle = tr("today.quick_entry.title", "Quick Entry")
+    static let todayCycleSwitchAccessibilityLabel = tr(
+        "today.cycle_switch.accessibility.label",
+        "Switch daily cycle target"
+    )
+    static let todayCycleSwitchAccessibilityHint = tr(
+        "today.cycle_switch.accessibility.hint",
+        "Opens a menu to change the daily cycle target"
+    )
     static let slotStatusScheduled = tr("slot.status.scheduled", "Scheduled")
     static let slotStatusDue = tr("slot.status.due", "Due")
     static let slotStatusMissed = tr("slot.status.missed", "Missed")

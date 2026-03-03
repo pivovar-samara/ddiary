@@ -339,6 +339,7 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         let center = FakeNotificationCenter()
         center.pendingRequests["ddiary.bp.d20260216.0900"] = makeRequest(id: "ddiary.bp.d20260216.0900")
         center.pendingRequests["ddiary.glucose.before.d20260216.1300"] = makeRequest(id: "ddiary.glucose.before.d20260216.1300")
+        center.deliveredIdentifiers = ["ddiary.glucose.before.d20260215.1300"]
         let repository = UserNotificationsRepository(center: center)
 
         let hasPending = await repository.hasPendingNotificationRequests()
@@ -363,6 +364,16 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         center.pendingRequests["ddiary.glucose.after.shifted.lunch.d20260216.1530"] = makeRequest(
             id: "ddiary.glucose.after.shifted.lunch.d20260216.1530"
         )
+        let repository = UserNotificationsRepository(center: center)
+
+        let hasPending = await repository.hasPendingNotificationRequests()
+
+        XCTAssertTrue(hasPending)
+    }
+
+    func test_hasPendingNotificationRequests_returnsTrueWhenDeliveredSnoozedRequestExists() async {
+        let center = FakeNotificationCenter()
+        center.deliveredIdentifiers = ["ddiary.glucose.before.d20260216.1300.snooze.30"]
         let repository = UserNotificationsRepository(center: center)
 
         let hasPending = await repository.hasPendingNotificationRequests()

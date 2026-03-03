@@ -172,10 +172,8 @@ final class TodayViewModelNotificationSyncTests: XCTestCase {
 
         let userSettings = try await settings.getOrCreate()
         userSettings.enableDailyCycleMode = true
-        let futureBedtime = calendar.date(byAdding: .minute, value: 30, to: now) ?? now
-        let futureComponents = calendar.dateComponents([.hour, .minute], from: futureBedtime)
-        userSettings.bedtimeHour = futureComponents.hour ?? 22
-        userSettings.bedtimeMinute = futureComponents.minute ?? 0
+        userSettings.bedtimeHour = 22
+        userSettings.bedtimeMinute = 0
         userSettings.dailyCycleAnchorDate = calendar.date(
             byAdding: .day,
             value: -3,

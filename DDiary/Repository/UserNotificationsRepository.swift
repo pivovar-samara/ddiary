@@ -250,7 +250,12 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
 
     func hasPendingNotificationRequests() async -> Bool {
         let pendingIDs = await center.pendingRequestIdentifiers()
-        return pendingIDs.contains(where: shouldPreservePendingRequestOnStartup)
+        if pendingIDs.contains(where: shouldPreservePendingRequestOnStartup) {
+            return true
+        }
+
+        let deliveredIDs = await center.deliveredNotificationIdentifiers()
+        return deliveredIDs.contains(where: shouldPreservePendingRequestOnStartup)
     }
 
     func scheduleBloodPressure(times: [Int], activeWeekdays: Set<Int>) async throws {
