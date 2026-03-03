@@ -3,9 +3,16 @@ import UserNotifications
 
 @MainActor
 protocol NotificationsActionHandling: AnyObject {
-    func skip() async
-    func snooze(originalIdentifier: String, minutes: Int, title: String, body: String, categoryIdentifier: String) async
-    func moveBeforeBreakfast(to meal: MealSlot) async
+    func skip(categoryIdentifier: String) async
+    func snooze(
+        originalIdentifier: String,
+        minutes: Int,
+        title: String,
+        body: String,
+        categoryIdentifier: String,
+        mealSlotRawValue: String?,
+        measurementTypeRawValue: String?
+    ) async
 }
 
 extension NotificationsActionUseCase: NotificationsActionHandling {}
@@ -52,7 +59,12 @@ final class NotificationQuickEntryRouter: NotificationQuickEntryRouting {
 
     func routeToQuickEntry(context: NotificationActionContext) {
         guard let target = Self.decodeTarget(from: context) else { return }
-        let scheduledDate = context.deliveredDate ?? Self.decodeScheduledDate(from: context.identifier)
+        let parsedScheduledDate = Self.decodeScheduledDate(from: context.identifier)
+        let scheduledDate: Date? = if Self.isSnoozedIdentifier(context.identifier), let parsedScheduledDate {
+            parsedScheduledDate
+        } else {
+            context.deliveredDate ?? parsedScheduledDate
+        }
         pendingRequest = NotificationQuickEntryRequest(
             identifier: context.identifier,
             target: target,
@@ -150,6 +162,10 @@ final class NotificationQuickEntryRouter: NotificationQuickEntryRouting {
 
         return scheduledDate
     }
+
+    private static func isSnoozedIdentifier(_ identifier: String) -> Bool {
+        identifier.contains(".snooze.")
+    }
 }
 
 struct NotificationActionContext: Sendable {
@@ -218,19 +234,17 @@ final class NotificationsCoordinator: NSObject, UNUserNotificationCenterDelegate
             case .enter:
                 quickEntryRouter.routeToQuickEntry(context: context)
             case .skip:
-                await actionHandler.skip()
+                await actionHandler.skip(categoryIdentifier: context.categoryIdentifier)
             case .snooze(let minutes):
                 await actionHandler.snooze(
                     originalIdentifier: context.identifier,
                     minutes: minutes,
                     title: context.title,
                     body: context.body,
-                    categoryIdentifier: context.categoryIdentifier
+                    categoryIdentifier: context.categoryIdentifier,
+                    mealSlotRawValue: context.mealSlotRawValue,
+                    measurementTypeRawValue: context.measurementTypeRawValue
                 )
-            case .moveToLunch:
-                await actionHandler.moveBeforeBreakfast(to: .lunch)
-            case .moveToDinner:
-                await actionHandler.moveBeforeBreakfast(to: .dinner)
             }
             completionHandler()
         }

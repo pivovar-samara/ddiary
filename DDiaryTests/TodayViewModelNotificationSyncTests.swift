@@ -163,6 +163,74 @@ final class TodayViewModelNotificationSyncTests: XCTestCase {
         XCTAssertTrue(viewModel.presentGlucoseQuickEntry)
     }
 
+    func test_cycleSwitchTargets_inDailyCycleMode_areAvailableForBedtimeSlot() async throws {
+        let measurements = MockMeasurementsRepository()
+        let settings = MockSettingsRepository()
+        let notifications = SpyNotificationsRepository()
+        let calendar = Calendar.current
+        let now = Date()
+
+        let userSettings = try await settings.getOrCreate()
+        userSettings.enableDailyCycleMode = true
+        userSettings.bedtimeHour = 22
+        userSettings.bedtimeMinute = 0
+        userSettings.dailyCycleAnchorDate = calendar.date(
+            byAdding: .day,
+            value: -3,
+            to: calendar.startOfDay(for: now)
+        )
+        userSettings.currentCycleIndex = 3
+
+        let viewModel = makeViewModel(
+            measurements: measurements,
+            settings: settings,
+            notifications: notifications
+        )
+        await viewModel.refresh()
+
+        let bedtimeSlot = try XCTUnwrap(
+            viewModel.glucoseSlots.first(where: { $0.measurementType == .bedtime })
+        )
+        let targets = viewModel.cycleSwitchTargets(for: bedtimeSlot)
+
+        XCTAssertEqual(targets, [.breakfast, .lunch, .dinner])
+    }
+
+    func test_switchDailyCycleTarget_postsExternalSettingsChangeNotification() async throws {
+        let measurements = MockMeasurementsRepository()
+        let settings = MockSettingsRepository()
+        let notifications = SpyNotificationsRepository()
+        let calendar = Calendar.current
+        let now = Date()
+
+        let userSettings = try await settings.getOrCreate()
+        userSettings.enableDailyCycleMode = true
+        userSettings.dailyCycleAnchorDate = calendar.startOfDay(for: now)
+        userSettings.currentCycleIndex = 0
+
+        let viewModel = makeViewModel(
+            measurements: measurements,
+            settings: settings,
+            notifications: notifications
+        )
+        await viewModel.refresh()
+        let target = try XCTUnwrap(viewModel.availableCycleSwitchTargets.first)
+
+        var didPostExternalUpdate = false
+        let token = NotificationCenter.default.addObserver(
+            forName: .settingsDidChangeOutsideSettings,
+            object: nil,
+            queue: nil
+        ) { _ in
+            didPostExternalUpdate = true
+        }
+        defer { NotificationCenter.default.removeObserver(token) }
+
+        await viewModel.switchDailyCycleTarget(to: target)
+
+        XCTAssertTrue(didPostExternalUpdate)
+    }
+
     private func makeViewModel(
         measurements: MockMeasurementsRepository,
         settings: MockSettingsRepository,
@@ -213,6 +281,8 @@ private final class SpyNotificationsRepository: NotificationsRepository, @unchec
     private(set) var canceledGlucose: [CanceledGlucoseSlot] = []
 
     func requestAuthorization() async throws -> Bool { true }
+
+    func hasPendingNotificationRequests() async -> Bool { false }
 
     func scheduleBloodPressure(times: [Int], activeWeekdays: Set<Int>) async throws {}
 
@@ -268,7 +338,9 @@ private final class SpyNotificationsRepository: NotificationsRepository, @unchec
         minutes: Int,
         title: String,
         body: String,
-        categoryIdentifier: String
+        categoryIdentifier: String,
+        mealSlotRawValue: String?,
+        measurementTypeRawValue: String?
     ) async {}
 
     func cancel(withIdentifier id: String) async {}

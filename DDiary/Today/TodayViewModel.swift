@@ -89,7 +89,9 @@ public final class TodayViewModel {
     // State
     public private(set) var isLoading: Bool = false
     public private(set) var isShiftingCycleDay: Bool = false
+    public private(set) var isSwitchingCycleTarget: Bool = false
     public private(set) var isDailyCycleModeEnabled: Bool = false
+    public private(set) var availableCycleSwitchTargets: [MealSlot] = []
     public private(set) var errorMessage: String? = nil
     private var isRefreshInProgress: Bool = false
     private var hasPendingRefresh: Bool = false
@@ -290,6 +292,12 @@ public final class TodayViewModel {
             )
         }
 
+        if isDailyCycleModeEnabled {
+            availableCycleSwitchTargets = await rescheduleGlucoseCycleUseCase.availableForwardTargetsForToday(today: now)
+        } else {
+            availableCycleSwitchTargets = []
+        }
+
         await syncNotificationsFromTodayOverview(overview)
 
         isLoading = false
@@ -310,6 +318,46 @@ public final class TodayViewModel {
         } catch {
             errorMessage = L10n.settingsErrorSavedButRemindersNotUpdated
         }
+        NotificationCenter.default.post(name: .settingsDidChangeOutsideSettings, object: nil)
+        await refresh()
+    }
+
+    public func cycleSwitchTargets(for slot: GlucoseSlotViewModel) -> [MealSlot] {
+        guard isDailyCycleModeEnabled else { return [] }
+        guard slot.measurementType == .beforeMeal || slot.measurementType == .bedtime else { return [] }
+        guard slot.status != .completed else { return [] }
+        return availableCycleSwitchTargets
+    }
+
+    public func cycleSlotTitle(_ slot: MealSlot) -> String {
+        switch slot {
+        case .breakfast:
+            return L10n.settingsRowBreakfast
+        case .lunch:
+            return L10n.settingsRowLunch
+        case .dinner:
+            return L10n.settingsRowDinner
+        case .none:
+            return L10n.settingsRowBedtime
+        }
+    }
+
+    public func switchDailyCycleTarget(to mealSlot: MealSlot, today: Date = Date()) async {
+        guard !isSwitchingCycleTarget else { return }
+        guard availableCycleSwitchTargets.contains(mealSlot) else { return }
+
+        isSwitchingCycleTarget = true
+        defer { isSwitchingCycleTarget = false }
+
+        let shifted = await rescheduleGlucoseCycleUseCase.setTodayTarget(mealSlot, today: today)
+        guard shifted else { return }
+
+        do {
+            try await schedulesUpdater.scheduleFromCurrentSettings()
+        } catch {
+            errorMessage = L10n.settingsErrorSavedButRemindersNotUpdated
+        }
+        NotificationCenter.default.post(name: .settingsDidChangeOutsideSettings, object: nil)
         await refresh()
     }
 

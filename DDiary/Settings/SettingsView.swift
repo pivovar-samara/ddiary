@@ -179,7 +179,7 @@ struct SettingsView: View {
                             title: bvm.dailyCycleSwitchTitle,
                             role: .none
                         ) {
-                            bvm.switchDailyCycleTargetForward()
+                            Task { await bvm.applyDailyCycleTargetForward() }
                         }
                         .disabled(!bvm.enableDailyCycleMode)
                         .accessibilityIdentifier("settings.glucose.dailyCycle.switch")
@@ -386,6 +386,11 @@ struct SettingsView: View {
         .onChange(of: scenePhase) { _, newPhase in
             guard newPhase == .active else { return }
             Task { await vm.refreshCloudBackedState() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .settingsDidChangeOutsideSettings)) { _ in
+            Task {
+                await vm.loadSettings()
+            }
         }
         .toolbar {
             Button(L10n.settingsRowSave) {

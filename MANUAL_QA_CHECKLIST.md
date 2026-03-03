@@ -54,7 +54,7 @@ Use this checklist for final iPhone/iPad smoke validation before tagging an RC.
 - [ ] Editing schedules removes outdated pending notifications.
 - [ ] BP reminders are scheduled for selected weekdays only.
 - [ ] Glucose reminders respect enabled kinds (before meal, after meal 2h, bedtime).
-- [ ] Notification actions (`skip`, `snooze`, `move`) execute expected behavior.
+- [ ] Notification actions (`skip`, `snooze`) execute expected behavior.
 
 ## Google Sync (Offline/Online)
 

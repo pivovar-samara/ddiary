@@ -104,6 +104,10 @@ public protocol NotificationsRepository: Sendable {
     /// Request authorization for notifications. Returns the current authorization state.
     func requestAuthorization() async throws -> Bool
 
+    /// Returns `true` when there are pending user-triggered one-off requests that should be preserved.
+    /// Used to avoid destructive startup rescheduling that would remove snoozed/shifted reminders.
+    func hasPendingNotificationRequests() async -> Bool
+
     // MARK: Blood Pressure scheduling
 
     /// Schedule repeating notifications for blood pressure times.
@@ -151,7 +155,7 @@ public protocol NotificationsRepository: Sendable {
         numberOfDays: Int
     ) async throws
 
-    // MARK: One-off helpers for actions (snooze/move/cancel by id)
+    // MARK: One-off helpers for actions (snooze/cancel by id)
     /// Schedule a one-off notification at a specific date (non-repeating).
     func scheduleOneOff(
         at date: Date,
@@ -168,7 +172,9 @@ public protocol NotificationsRepository: Sendable {
         minutes: Int,
         title: String,
         body: String,
-        categoryIdentifier: String
+        categoryIdentifier: String,
+        mealSlotRawValue: String?,
+        measurementTypeRawValue: String?
     ) async
 
     /// Cancel a specific notification by identifier (pending and delivered).

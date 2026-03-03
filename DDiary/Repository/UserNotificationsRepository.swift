@@ -152,8 +152,6 @@ Usage notes:
             case .enter: /* handle enter action */
             case .skip: /* handle skip action */
             case .snooze(let minutes): /* handle snooze for given minutes */
-            case .moveToLunch: /* handle move to lunch */
-            case .moveToDinner: /* handle move to dinner */
             }
         }
         completionHandler()
@@ -194,9 +192,6 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         static let snooze15Action = "ddiary.action.snooze.15"
         static let snooze30Action = "ddiary.action.snooze.30"
         static let snooze60Action = "ddiary.action.snooze.60"
-        static let moveToLunchAction = "ddiary.action.move.lunch"
-        static let moveToDinnerAction = "ddiary.action.move.dinner"
-
         // Prefixes
         static let bpPrefix = "ddiary.bp."
         static let glucoseBeforePrefix = "ddiary.glucose.before."
@@ -217,9 +212,6 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         let snooze30 = UNNotificationAction(identifier: IDs.snooze30Action, title: L10n.notificationActionSnooze(30), options: [])
         let snooze60 = UNNotificationAction(identifier: IDs.snooze60Action, title: L10n.notificationActionSnooze(60), options: [])
 
-        let moveToLunch = UNNotificationAction(identifier: IDs.moveToLunchAction, title: L10n.notificationActionMoveToLunch, options: [])
-        let moveToDinner = UNNotificationAction(identifier: IDs.moveToDinnerAction, title: L10n.notificationActionMoveToDinner, options: [])
-
         let bpCategory = UNNotificationCategory(
             identifier: IDs.bpCategory,
             actions: [enter, snooze15, snooze30, snooze60, skip],
@@ -229,7 +221,7 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
 
         let glucoseBeforeCategory = UNNotificationCategory(
             identifier: IDs.glucoseBeforeCategory,
-            actions: [enter, moveToLunch, moveToDinner, snooze15, snooze30, snooze60, skip],
+            actions: [enter, snooze15, snooze30, snooze60, skip],
             intentIdentifiers: [],
             options: [.customDismissAction]
         )
@@ -254,6 +246,11 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
     // MARK: - NotificationsRepository
     func requestAuthorization() async throws -> Bool {
         try await center.requestAuthorization(options: [.alert, .sound, .badge])
+    }
+
+    func hasPendingNotificationRequests() async -> Bool {
+        let pendingIDs = await center.pendingRequestIdentifiers()
+        return pendingIDs.contains(where: shouldPreservePendingRequestOnStartup)
     }
 
     func scheduleBloodPressure(times: [Int], activeWeekdays: Set<Int>) async throws {
@@ -389,9 +386,9 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         center.removeAllDeliveredNotifications()
     }
 
-    // MARK: - One-off helpers (snooze / move / cancel by id)
+    // MARK: - One-off helpers (snooze / cancel by id)
     /// Schedule a one-off notification at the specified date with provided content.
-    /// This does not repeat and is useful for snooze/move actions.
+    /// This does not repeat and is useful for action-driven follow-up reminders.
     public func scheduleOneOff(
         at date: Date,
         identifier: String,
@@ -425,17 +422,26 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         minutes: Int,
         title: String,
         body: String,
-        categoryIdentifier: String
+        categoryIdentifier: String,
+        mealSlotRawValue: String?,
+        measurementTypeRawValue: String?
     ) async {
-        let fireDate = Date().addingTimeInterval(TimeInterval(minutes * 60))
+        let fireDate = now().addingTimeInterval(TimeInterval(minutes * 60))
         let snoozedID = originalIdentifier + ".snooze.\(minutes)"
+        var userInfo: [AnyHashable: Any] = [:]
+        if let mealSlotRawValue {
+            userInfo[PayloadKeys.mealSlot] = mealSlotRawValue
+        }
+        if let measurementTypeRawValue {
+            userInfo[PayloadKeys.measurementType] = measurementTypeRawValue
+        }
         await scheduleOneOff(
             at: fireDate,
             identifier: snoozedID,
             title: title,
             body: body,
             categoryIdentifier: categoryIdentifier,
-            userInfo: [:]
+            userInfo: userInfo
         )
     }
 
@@ -535,8 +541,6 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         case IDs.snooze15Action: return .snooze(minutes: 15)
         case IDs.snooze30Action: return .snooze(minutes: 30)
         case IDs.snooze60Action: return .snooze(minutes: 60)
-        case IDs.moveToLunchAction: return .moveToLunch
-        case IDs.moveToDinnerAction: return .moveToDinner
         default: return nil
         }
     }
@@ -545,8 +549,6 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         case enter
         case skip
         case snooze(minutes: Int)
-        case moveToLunch
-        case moveToDinner
     }
 
     // MARK: - Private helpers
@@ -957,6 +959,10 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         default:
             return nil
         }
+    }
+
+    private func shouldPreservePendingRequestOnStartup(_ identifier: String) -> Bool {
+        identifier.contains(".snooze.") || identifier.contains(".shifted.")
     }
 
     private func resolveMealSlot(rawValue: String?, title: String) -> MealSlot? {

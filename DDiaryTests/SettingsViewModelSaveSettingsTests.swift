@@ -224,6 +224,41 @@ final class SettingsViewModelSaveSettingsTests: XCTestCase {
         XCTAssertEqual(savedAnchor, expectedAnchor)
     }
 
+    func test_applyDailyCycleTargetForward_persistsImmediatelyAndPostsSettingsDidSave() async throws {
+        let settingsRepository = SpySettingsRepository()
+        let updater = SpySchedulesUpdater()
+        let measurementsRepository = MockMeasurementsRepository()
+        let sut = makeSUT(
+            settingsRepository: settingsRepository,
+            measurementsRepository: measurementsRepository,
+            schedulesUpdater: updater
+        )
+
+        await sut.loadSettings()
+        sut.enableDailyCycleMode = true
+        let fixedToday = Calendar.current.date(
+            from: DateComponents(year: 2026, month: 2, day: 16, hour: 9, minute: 0)
+        ) ?? Date()
+
+        var didPostSettingsDidSave = false
+        let token = NotificationCenter.default.addObserver(
+            forName: .settingsDidSave,
+            object: nil,
+            queue: nil
+        ) { _ in
+            didPostSettingsDidSave = true
+        }
+        defer { NotificationCenter.default.removeObserver(token) }
+
+        await sut.applyDailyCycleTargetForward(today: fixedToday)
+
+        let saved = try XCTUnwrap(settingsRepository.savedSettings)
+        XCTAssertEqual(saved.currentCycleIndex, 1)
+        XCTAssertEqual(settingsRepository.saveCount, 1)
+        XCTAssertEqual(updater.callCount, 1)
+        XCTAssertTrue(didPostSettingsDidSave)
+    }
+
     func test_refreshCloudBackedState_picksUpLaterCloudRestoredIntegration() async throws {
         let settingsRepository = SpySettingsRepository()
         let updater = SpySchedulesUpdater()

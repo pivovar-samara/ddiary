@@ -3,6 +3,46 @@ import XCTest
 
 @MainActor
 final class UpdateSchedulesUseCaseTests: XCTestCase {
+    func test_requestAuthorizationAndSchedule_whenGrantedAndNoPending_reschedulesFromCurrentSettings() async {
+        let settings = UserSettings.default()
+        let settingsRepository = FixedSettingsRepository(settings: settings)
+        let notificationsRepository = SpyNotificationsRepository()
+        notificationsRepository.requestAuthorizationResult = true
+        notificationsRepository.hasPendingNotificationRequestsResult = false
+        let analyticsRepository = MockAnalyticsRepository()
+        let sut = UpdateSchedulesUseCase(
+            settingsRepository: settingsRepository,
+            notificationsRepository: notificationsRepository,
+            analyticsRepository: analyticsRepository
+        )
+
+        await sut.requestAuthorizationAndSchedule()
+
+        XCTAssertEqual(notificationsRepository.requestAuthorizationCallCount, 1)
+        XCTAssertEqual(notificationsRepository.hasPendingNotificationRequestsCallCount, 1)
+        XCTAssertEqual(notificationsRepository.cancelAllCount, 1)
+    }
+
+    func test_requestAuthorizationAndSchedule_whenGrantedAndPending_keepsCurrentSchedule() async {
+        let settings = UserSettings.default()
+        let settingsRepository = FixedSettingsRepository(settings: settings)
+        let notificationsRepository = SpyNotificationsRepository()
+        notificationsRepository.requestAuthorizationResult = true
+        notificationsRepository.hasPendingNotificationRequestsResult = true
+        let analyticsRepository = MockAnalyticsRepository()
+        let sut = UpdateSchedulesUseCase(
+            settingsRepository: settingsRepository,
+            notificationsRepository: notificationsRepository,
+            analyticsRepository: analyticsRepository
+        )
+
+        await sut.requestAuthorizationAndSchedule()
+
+        XCTAssertEqual(notificationsRepository.requestAuthorizationCallCount, 1)
+        XCTAssertEqual(notificationsRepository.hasPendingNotificationRequestsCallCount, 1)
+        XCTAssertEqual(notificationsRepository.cancelAllCount, 0)
+    }
+
     func test_scheduleFromCurrentSettings_reschedulesBPAndGlucose_andLogsAnalytics() async throws {
         let settings = UserSettings.default()
         settings.bpTimes = [540, 1260]
@@ -149,6 +189,10 @@ private final class FixedSettingsRepository: SettingsRepository {
 }
 
 private final class SpyNotificationsRepository: NotificationsRepository, @unchecked Sendable {
+    var requestAuthorizationResult = true
+    var hasPendingNotificationRequestsResult = false
+    private(set) var requestAuthorizationCallCount = 0
+    private(set) var hasPendingNotificationRequestsCallCount = 0
     private(set) var cancelAllCount = 0
     private(set) var bpTimes: [Int] = []
     private(set) var bpActiveWeekdays: Set<Int> = []
@@ -164,7 +208,15 @@ private final class SpyNotificationsRepository: NotificationsRepository, @unchec
     private(set) var glucoseCycleStartDate: Date?
     private(set) var glucoseCycleNumberOfDays: Int?
 
-    func requestAuthorization() async throws -> Bool { true }
+    func requestAuthorization() async throws -> Bool {
+        requestAuthorizationCallCount += 1
+        return requestAuthorizationResult
+    }
+
+    func hasPendingNotificationRequests() async -> Bool {
+        hasPendingNotificationRequestsCallCount += 1
+        return hasPendingNotificationRequestsResult
+    }
 
     func scheduleBloodPressure(times: [Int], activeWeekdays: Set<Int>) async throws {
         bpTimes = times
@@ -224,7 +276,15 @@ private final class SpyNotificationsRepository: NotificationsRepository, @unchec
         userInfo: [AnyHashable: Any]
     ) async {}
 
-    func snooze(originalIdentifier: String, minutes: Int, title: String, body: String, categoryIdentifier: String) async {}
+    func snooze(
+        originalIdentifier: String,
+        minutes: Int,
+        title: String,
+        body: String,
+        categoryIdentifier: String,
+        mealSlotRawValue: String?,
+        measurementTypeRawValue: String?
+    ) async {}
 
     func cancel(withIdentifier id: String) async {}
 
