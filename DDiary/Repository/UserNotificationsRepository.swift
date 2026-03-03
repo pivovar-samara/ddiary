@@ -250,12 +250,7 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
 
     func hasPendingNotificationRequests() async -> Bool {
         let pendingIDs = await center.pendingRequestIdentifiers()
-        if pendingIDs.contains(where: shouldPreservePendingRequestOnStartup) {
-            return true
-        }
-
-        let deliveredIDs = await center.deliveredNotificationIdentifiers()
-        return deliveredIDs.contains(where: shouldPreservePendingRequestOnStartup)
+        return pendingIDs.contains(where: shouldPreservePendingRequestOnStartup)
     }
 
     func scheduleBloodPressure(times: [Int], activeWeekdays: Set<Int>) async throws {
@@ -431,7 +426,7 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         mealSlotRawValue: String?,
         measurementTypeRawValue: String?
     ) async {
-        let fireDate = Date().addingTimeInterval(TimeInterval(minutes * 60))
+        let fireDate = now().addingTimeInterval(TimeInterval(minutes * 60))
         let snoozedID = originalIdentifier + ".snooze.\(minutes)"
         var userInfo: [AnyHashable: Any] = [:]
         if let mealSlotRawValue {

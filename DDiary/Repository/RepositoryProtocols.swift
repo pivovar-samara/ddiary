@@ -104,7 +104,7 @@ public protocol NotificationsRepository: Sendable {
     /// Request authorization for notifications. Returns the current authorization state.
     func requestAuthorization() async throws -> Bool
 
-    /// Returns `true` when there are pending or delivered user-triggered one-off requests that should be preserved.
+    /// Returns `true` when there are pending user-triggered one-off requests that should be preserved.
     /// Used to avoid destructive startup rescheduling that would remove snoozed/shifted reminders.
     func hasPendingNotificationRequests() async -> Bool
 

@@ -371,14 +371,14 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         XCTAssertTrue(hasPending)
     }
 
-    func test_hasPendingNotificationRequests_returnsTrueWhenDeliveredSnoozedRequestExists() async {
+    func test_hasPendingNotificationRequests_returnsFalseWhenOnlyDeliveredSnoozedRequestExists() async {
         let center = FakeNotificationCenter()
         center.deliveredIdentifiers = ["ddiary.glucose.before.d20260216.1300.snooze.30"]
         let repository = UserNotificationsRepository(center: center)
 
         let hasPending = await repository.hasPendingNotificationRequests()
 
-        XCTAssertTrue(hasPending)
+        XCTAssertFalse(hasPending)
     }
 
     func test_rescheduleGlucoseCycle_schedulesOnlyCycleRemindersForWindow() async throws {
@@ -515,6 +515,37 @@ final class UserNotificationsRepositoryTests: XCTestCase {
             request?.content.userInfo[UserNotificationsRepository.PayloadKeys.measurementType] as? String,
             GlucoseMeasurementType.beforeMeal.rawValue
         )
+    }
+
+    func test_snooze_usesInjectedClockForFireDate() async {
+        let center = FakeNotificationCenter()
+        let calendar = Calendar.current
+        let referenceNow = calendar.date(
+            from: DateComponents(year: 2099, month: 2, day: 16, hour: 13, minute: 5)
+        ) ?? Date()
+        let repository = UserNotificationsRepository(
+            center: center,
+            calendar: calendar,
+            now: { referenceNow }
+        )
+
+        await repository.snooze(
+            originalIdentifier: "ddiary.glucose.before.d20990216.1300",
+            minutes: 15,
+            title: L10n.notificationGlucoseBeforeLunchTitle,
+            body: L10n.notificationGlucoseBeforeLunchBody,
+            categoryIdentifier: UserNotificationsRepository.IDs.glucoseBeforeCategory,
+            mealSlotRawValue: MealSlot.lunch.rawValue,
+            measurementTypeRawValue: GlucoseMeasurementType.beforeMeal.rawValue
+        )
+
+        let request = try? XCTUnwrap(center.pendingRequests["ddiary.glucose.before.d20990216.1300.snooze.15"])
+        let trigger = request?.trigger as? UNCalendarNotificationTrigger
+        XCTAssertEqual(trigger?.dateComponents.year, 2099)
+        XCTAssertEqual(trigger?.dateComponents.month, 2)
+        XCTAssertEqual(trigger?.dateComponents.day, 16)
+        XCTAssertEqual(trigger?.dateComponents.hour, 13)
+        XCTAssertEqual(trigger?.dateComponents.minute, 20)
     }
 
     func test_rescheduleShiftedAfterMeal2hNotification_cancelsOriginalAndSchedulesShiftedOneOff() async {
