@@ -192,9 +192,9 @@ struct SettingsView: View {
                         .accessibilityLabel(L10n.todayCycleSwitchAccessibilityLabel)
                         .accessibilityHint(L10n.todayCycleSwitchAccessibilityHint)
                         .confirmationDialog(
-                            "",
+                            L10n.todayCycleSwitchAccessibilityLabel,
                             isPresented: $isDailyCycleTargetDialogPresented,
-                            titleVisibility: .hidden
+                            titleVisibility: .automatic
                         ) {
                             ForEach(bvm.dailyCycleSwitchTargets(), id: \.rawValue) { target in
                                 Button(L10n.settingsRowDailyCycleSwitchTo(bvm.cycleSlotTitle(target))) {

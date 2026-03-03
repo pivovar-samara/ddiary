@@ -188,9 +188,9 @@ final class SettingsViewModel {
             enableBeforeMeal = settings.enableBeforeMeal
             enableAfterMeal2h = settings.enableAfterMeal2h
             enableBedtime = settings.enableBedtime
-            enableDailyCycleMode = settings.enableDailyCycleMode
             currentCycleIndex = settings.currentCycleIndex
             dailyCycleAnchorDate = settings.dailyCycleAnchorDate
+            enableDailyCycleMode = settings.enableDailyCycleMode
             syncDailyCycleDisplaySlot()
 
             bpSystolicMin = settings.bpSystolicMin

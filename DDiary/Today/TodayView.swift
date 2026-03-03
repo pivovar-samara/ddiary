@@ -262,9 +262,9 @@ public struct TodayView: View {
         .buttonStyle(.plain)
         .disabled(vm.isSwitchingCycleTarget || targets.isEmpty)
         .confirmationDialog(
-            "",
+            L10n.todayCycleSwitchAccessibilityLabel,
             isPresented: isDialogPresented,
-            titleVisibility: .hidden
+            titleVisibility: .automatic
         ) {
             ForEach(targets, id: \.rawValue) { target in
                 Button(L10n.settingsRowDailyCycleSwitchTo(vm.cycleSlotTitle(target))) {
