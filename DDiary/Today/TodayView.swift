@@ -14,6 +14,7 @@ public struct TodayView: View {
     @State private var editingGlucoseMeasurementId: UUID? = nil
     @State private var selectedBPScheduledDate: Date? = nil
     @State private var selectedGlucoseScheduledDate: Date? = nil
+    @State private var cycleSwitchDialogItemID: String? = nil
 
     public init(isActiveTab: Bool = true) {
         self.isActiveTab = isActiveTab
@@ -237,26 +238,41 @@ public struct TodayView: View {
         item: TodayViewModel.TodayItem,
         vm: TodayViewModel
     ) -> some View {
-        Menu {
+        let itemID = stableId(for: item)
+        let isDialogPresented = Binding(
+            get: { cycleSwitchDialogItemID == itemID },
+            set: { isPresented in
+                if isPresented {
+                    cycleSwitchDialogItemID = itemID
+                } else if cycleSwitchDialogItemID == itemID {
+                    cycleSwitchDialogItemID = nil
+                }
+            }
+        )
+
+        return Button {
+            guard !targets.isEmpty else { return }
+            cycleSwitchDialogItemID = itemID
+        } label: {
+            Image(systemName: "arrow.triangle.2.circlepath")
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .frame(width: 28, height: 28)
+        }
+        .buttonStyle(.plain)
+        .disabled(vm.isSwitchingCycleTarget || targets.isEmpty)
+        .confirmationDialog(
+            "",
+            isPresented: isDialogPresented,
+            titleVisibility: .hidden
+        ) {
             ForEach(targets, id: \.rawValue) { target in
                 Button(L10n.settingsRowDailyCycleSwitchTo(vm.cycleSlotTitle(target))) {
                     Task { await vm.switchDailyCycleTarget(to: target) }
                 }
             }
-        } label: {
-            Group {
-                if vm.isSwitchingCycleTarget {
-                    ProgressView()
-                } else {
-                    Image(systemName: "arrow.triangle.2.circlepath")
-                        .font(.body)
-                }
-            }
-            .foregroundStyle(.secondary)
-            .frame(width: 28, height: 28)
+            Button(L10n.quickEntryActionCancel, role: .cancel) {}
         }
-        .buttonStyle(.plain)
-        .disabled(vm.isSwitchingCycleTarget)
         .accessibilityLabel(L10n.todayCycleSwitchAccessibilityLabel)
         .accessibilityHint(L10n.todayCycleSwitchAccessibilityHint)
         .accessibilityIdentifier("today.row.cycleSwitch.\(stableId(for: item))")

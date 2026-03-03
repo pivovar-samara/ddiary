@@ -169,6 +169,44 @@ final class SettingsViewModelSaveSettingsTests: XCTestCase {
         XCTAssertEqual(settingsRepository.savedSettings?.enableAfterMeal2h, false)
     }
 
+    func test_scheduleAutoSave_beforeInitialLoad_doesNotPersist() async throws {
+        let settingsRepository = SpySettingsRepository()
+        let updater = SpySchedulesUpdater()
+        let measurementsRepository = MockMeasurementsRepository()
+        let sut = makeSUT(
+            settingsRepository: settingsRepository,
+            measurementsRepository: measurementsRepository,
+            schedulesUpdater: updater
+        )
+
+        sut.bpSystolicMin = 123
+        sut.scheduleAutoSave()
+        try await Task.sleep(nanoseconds: 400_000_000)
+
+        XCTAssertEqual(settingsRepository.saveCount, 0)
+        XCTAssertEqual(updater.callCount, 0)
+    }
+
+    func test_scheduleAutoSave_afterInitialLoad_persistsChanges() async throws {
+        let settingsRepository = SpySettingsRepository()
+        let updater = SpySchedulesUpdater()
+        let measurementsRepository = MockMeasurementsRepository()
+        let sut = makeSUT(
+            settingsRepository: settingsRepository,
+            measurementsRepository: measurementsRepository,
+            schedulesUpdater: updater
+        )
+
+        await sut.loadSettings()
+        sut.bpSystolicMin = 123
+        sut.scheduleAutoSave()
+        try await Task.sleep(nanoseconds: 400_000_000)
+
+        XCTAssertEqual(settingsRepository.saveCount, 1)
+        XCTAssertEqual(settingsRepository.savedSettings?.bpSystolicMin, 123)
+        XCTAssertEqual(updater.callCount, 1)
+    }
+
     func test_switchDailyCycleTargetForward_rotatesCurrentAndNextSlots() async throws {
         let settingsRepository = SpySettingsRepository()
         let updater = SpySchedulesUpdater()
@@ -257,6 +295,60 @@ final class SettingsViewModelSaveSettingsTests: XCTestCase {
         XCTAssertEqual(settingsRepository.saveCount, 1)
         XCTAssertEqual(updater.callCount, 1)
         XCTAssertTrue(didPostSettingsDidSave)
+    }
+
+    func test_applyDailyCycleTarget_persistsSelectedTargetAndAnchorDate() async throws {
+        let settingsRepository = SpySettingsRepository()
+        let updater = SpySchedulesUpdater()
+        let measurementsRepository = MockMeasurementsRepository()
+        let sut = makeSUT(
+            settingsRepository: settingsRepository,
+            measurementsRepository: measurementsRepository,
+            schedulesUpdater: updater
+        )
+
+        await sut.loadSettings()
+        sut.enableDailyCycleMode = true
+        let fixedToday = Calendar.current.date(
+            from: DateComponents(year: 2026, month: 2, day: 16, hour: 9, minute: 0)
+        ) ?? Date()
+
+        XCTAssertEqual(sut.dailyCycleCurrentSlotTitle, L10n.settingsRowBreakfast)
+
+        await sut.applyDailyCycleTarget(.dinner, today: fixedToday)
+
+        let saved = try XCTUnwrap(settingsRepository.savedSettings)
+        XCTAssertEqual(saved.currentCycleIndex, 2)
+        XCTAssertEqual(settingsRepository.saveCount, 1)
+        XCTAssertEqual(updater.callCount, 1)
+        XCTAssertEqual(sut.dailyCycleCurrentSlotTitle, L10n.settingsRowDinner)
+
+        let expectedAnchor = Calendar.current.date(
+            byAdding: .day,
+            value: -2,
+            to: Calendar.current.startOfDay(for: fixedToday)
+        )
+        XCTAssertEqual(saved.dailyCycleAnchorDate, expectedAnchor)
+    }
+
+    func test_glucoseThresholdHelpers_convertValuesAndRangesForMgdl() async throws {
+        let settingsRepository = SpySettingsRepository()
+        let updater = SpySchedulesUpdater()
+        let measurementsRepository = MockMeasurementsRepository()
+        let sut = makeSUT(
+            settingsRepository: settingsRepository,
+            measurementsRepository: measurementsRepository,
+            schedulesUpdater: updater
+        )
+
+        sut.glucoseUnit = .mgdL
+
+        let range = sut.glucoseThresholdRangeForCurrentUnit()
+        XCTAssertEqual(range.lowerBound, 36.0, accuracy: 0.001)
+        XCTAssertEqual(range.upperBound, 599.4, accuracy: 0.001)
+        XCTAssertEqual(sut.glucoseThresholdStepForCurrentUnit(), 1.0, accuracy: 0.001)
+        XCTAssertEqual(sut.displayGlucoseThreshold(3.9), 70)
+        XCTAssertEqual(sut.storedGlucoseThreshold(140), 140.0 / 18.0, accuracy: 0.0001)
     }
 
     func test_refreshCloudBackedState_picksUpLaterCloudRestoredIntegration() async throws {
