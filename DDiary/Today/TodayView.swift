@@ -225,7 +225,7 @@ public struct TodayView: View {
             status: item.status,
             trailingStatusText: trailingStatusText,
             onTap: { handleTap(item, vm: vm) },
-            accessibilityId: "today.row.\(item.kind.rawValue).\(stableId(for: item))",
+            accessibilityId: rowAccessibilityId(for: item),
             leadingBadgeText: item.kind == .bp ? "BP" : "GLU",
             trailingIsSecondary: trailingIsSecondary,
             titleFontWeight: titleFontWeight,
@@ -420,6 +420,15 @@ public struct TodayView: View {
     private func stableId(for item: TodayViewModel.TodayItem) -> String {
         // Use the UUID to keep it deterministic and stable across renders
         item.id.uuidString
+    }
+
+    private func rowAccessibilityId(for item: TodayViewModel.TodayItem) -> String {
+        switch item.payload {
+        case .bp:
+            return "today.row.bp.\(stableId(for: item))"
+        case .glucose(let slot):
+            return "today.row.glucose.\(slot.measurementType.rawValue).\(stableId(for: item))"
+        }
     }
 }
 

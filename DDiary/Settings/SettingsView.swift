@@ -19,6 +19,8 @@ struct SettingsView: View {
     @State private var exportIncludeGlucose: Bool = true
     @State private var exportDatePickerSheet: ExportDatePickerSheet? = nil
     @State private var isDailyCycleTargetDialogPresented: Bool = false
+    @State private var dailyCycleDialogTargets: [MealSlot] = []
+    @State private var dailyCycleDialogDate: Date? = nil
 
     var body: some View {
         Group {
@@ -177,8 +179,11 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                             .accessibilityIdentifier("settings.glucose.dailyCycle.current")
                         Button {
-                            let targets = bvm.dailyCycleSwitchTargets()
+                            let now = Date()
+                            let targets = bvm.dailyCycleSwitchTargets(today: now)
                             guard !targets.isEmpty else { return }
+                            dailyCycleDialogTargets = targets
+                            dailyCycleDialogDate = now
                             isDailyCycleTargetDialogPresented = true
                         } label: {
                             Image(systemName: "arrow.triangle.2.circlepath")
@@ -196,9 +201,10 @@ struct SettingsView: View {
                             isPresented: $isDailyCycleTargetDialogPresented,
                             titleVisibility: .automatic
                         ) {
-                            ForEach(bvm.dailyCycleSwitchTargets(), id: \.rawValue) { target in
+                            ForEach(dailyCycleDialogTargets, id: \.rawValue) { target in
                                 Button(L10n.settingsRowDailyCycleSwitchTo(bvm.cycleSlotTitle(target))) {
-                                    Task { await bvm.applyDailyCycleTarget(target) }
+                                    let referenceDate = dailyCycleDialogDate ?? Date()
+                                    Task { await bvm.applyDailyCycleTarget(target, today: referenceDate) }
                                 }
                             }
                             Button(L10n.quickEntryActionCancel, role: .cancel) {}
@@ -383,11 +389,19 @@ struct SettingsView: View {
                 await vm.loadSettings()
             }
         }
-        .onChange(of: vm.autoSaveSignature) { _, _ in
+        .onChange(of: vm.bedtimeSlotEnabled) { _, _ in
             vm.scheduleAutoSave()
         }
         .onChange(of: vm.enableDailyCycleMode) { _, _ in
-            vm.syncDailyCycleDisplaySlot()
+            vm.scheduleAutoSave()
+        }
+        .onChange(of: vm.autoSaveSignature) { _, _ in
+            vm.scheduleAutoSave()
+        }
+        .onChange(of: isDailyCycleTargetDialogPresented) { _, isPresented in
+            guard !isPresented else { return }
+            dailyCycleDialogTargets = []
+            dailyCycleDialogDate = nil
         }
         .overlay(alignment: .bottom) {
             if let error = vm.errorMessage {
@@ -440,9 +454,10 @@ struct SettingsView: View {
                 vm.displayGlucoseThreshold(mmolBinding.wrappedValue)
             },
             set: { newValue in
+                let range = vm.glucoseThresholdRangeForCurrentUnit()
                 let clamped = min(
-                    max(newValue, vm.glucoseThresholdRangeForCurrentUnit().lowerBound),
-                    vm.glucoseThresholdRangeForCurrentUnit().upperBound
+                    max(newValue, range.lowerBound),
+                    range.upperBound
                 )
                 mmolBinding.wrappedValue = vm.storedGlucoseThreshold(clamped)
             }
@@ -821,17 +836,20 @@ private extension View {
 private struct WeekdayGrid: View {
     @Binding var selected: Set<Int>
 
-    private let symbols = Calendar.autoupdatingCurrent.shortWeekdaySymbols.map { symbol in
-        let normalized = symbol.replacingOccurrences(of: ".", with: "").trimmingCharacters(in: .whitespaces)
-        return normalized.count > 2 ? String(normalized.prefix(2)) : normalized
+    private let calendar = Calendar.autoupdatingCurrent
+
+    private var weekdayItems: [(value: Int, label: String)] {
+        let firstWeekday = min(max(calendar.firstWeekday, 1), 7)
+        let orderedValues = (0..<7).map { ((firstWeekday - 1 + $0) % 7) + 1 }
+        return orderedValues.map { (value: $0, label: weekdayLabel(for: $0)) }
     }
 
     var body: some View {
         LazyVGrid(columns: Array(repeating: .init(.flexible(), spacing: 8), count: 7), spacing: 8) {
-            ForEach(1...7, id: \.self) { weekday in
-                let isOn = selected.contains(weekday)
-                Button(action: { toggle(weekday) }) {
-                    Text(symbols[(weekday - 1) % symbols.count])
+            ForEach(weekdayItems, id: \.value) { item in
+                let isOn = selected.contains(item.value)
+                Button(action: { toggle(item.value) }) {
+                    Text(item.label)
                         .font(.caption.weight(.medium))
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
@@ -839,6 +857,7 @@ private struct WeekdayGrid: View {
                         .background(isOn ? Color.accentColor.opacity(0.2) : Color.secondary.opacity(0.1))
                         .clipShape(RoundedRectangle(cornerRadius: 6))
                 }
+                .buttonStyle(.plain)
             }
         }
     }
@@ -846,6 +865,35 @@ private struct WeekdayGrid: View {
     private func toggle(_ weekday: Int) {
         if selected.contains(weekday) { selected.remove(weekday) } else { selected.insert(weekday) }
     }
+
+    private func weekdayLabel(for weekday: Int) -> String {
+        guard (1...7).contains(weekday) else { return "" }
+        let start = calendar.startOfDay(for: Date())
+        guard let date = calendar.nextDate(
+            after: start.addingTimeInterval(-1),
+            matching: DateComponents(weekday: weekday),
+            matchingPolicy: .nextTime,
+            direction: .forward
+        ) else {
+            return ""
+        }
+        let symbol = calendar.shortWeekdaySymbols[(weekday - 1) % 7]
+        let normalized = symbol.replacingOccurrences(of: ".", with: "").trimmingCharacters(in: .whitespaces)
+        let fromDate = DateFormatter.weekdayChipFormatter.string(from: date)
+        let compact = fromDate.replacingOccurrences(of: ".", with: "").trimmingCharacters(in: .whitespaces)
+        let resolved = compact.isEmpty ? normalized : compact
+        return resolved.count > 2 ? String(resolved.prefix(2)) : resolved
+    }
+}
+
+private extension DateFormatter {
+    static let weekdayChipFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.calendar = .autoupdatingCurrent
+        formatter.locale = .autoupdatingCurrent
+        formatter.setLocalizedDateFormatFromTemplate("EEE")
+        return formatter
+    }()
 }
 
 #Preview {

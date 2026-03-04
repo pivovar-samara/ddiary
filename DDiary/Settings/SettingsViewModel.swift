@@ -201,9 +201,11 @@ final class SettingsViewModel {
             glucoseMin = settings.glucoseMin
             glucoseMax = settings.glucoseMax
 
+            // Enable autosave as soon as editable settings are hydrated.
+            hasFinishedInitialLoad = true
+
             // Google
             await refreshSyncStatus()
-            hasFinishedInitialLoad = true
         } catch {
             handleError(error, context: "loadSettings", policy: .showErrorDescription)
         }
