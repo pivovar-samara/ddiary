@@ -527,6 +527,7 @@ final class DDiaryUITests: XCTestCase {
         return app.buttons.matching(predicate).firstMatch
     }
 
+    @MainActor
     private func switchValueIsOn(_ toggle: XCUIElement) -> Bool? {
         guard let rawValue = toggle.value as? String else { return nil }
         let value = rawValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -535,6 +536,7 @@ final class DDiaryUITests: XCTestCase {
         return nil
     }
 
+    @MainActor
     private func waitForSwitchState(_ toggle: XCUIElement, isOn: Bool, timeout: TimeInterval) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         repeat {

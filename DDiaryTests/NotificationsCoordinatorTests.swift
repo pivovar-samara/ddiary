@@ -128,13 +128,49 @@ final class NotificationsCoordinatorTests: XCTestCase {
         XCTAssertTrue(actionHandler.didFinishSnooze)
     }
 
-    func test_routeToQuickEntry_usesDeliveredDateAsScheduledDate() async {
+    func test_routeToQuickEntry_prefersIdentifierScheduledDateOverDeliveredDate() async throws {
         let router = NotificationQuickEntryRouter(notificationCenter: NotificationCenter())
         let deliveredDate = Date(timeIntervalSince1970: 1_770_700_800)
 
         router.routeToQuickEntry(
             context: NotificationActionContext(
                 identifier: "ddiary.bp.d20260214.0900",
+                categoryIdentifier: UserNotificationsRepository.IDs.bpCategory,
+                title: L10n.notificationBPTitle,
+                body: L10n.notificationBPBody,
+                mealSlotRawValue: nil,
+                measurementTypeRawValue: nil,
+                deliveredDate: deliveredDate
+            )
+        )
+
+        let request = try XCTUnwrap(router.consumePendingRequest())
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = Calendar.current.timeZone
+        let expected = try XCTUnwrap(
+            calendar.date(
+                from: DateComponents(
+                    timeZone: calendar.timeZone,
+                    year: 2026,
+                    month: 2,
+                    day: 14,
+                    hour: 9,
+                    minute: 0
+                )
+            )
+        )
+
+        XCTAssertEqual(request.target, .bloodPressure)
+        XCTAssertEqual(request.scheduledDate, expected)
+    }
+
+    func test_routeToQuickEntry_usesDeliveredDateWhenIdentifierHasNoScheduledDateToken() async {
+        let router = NotificationQuickEntryRouter(notificationCenter: NotificationCenter())
+        let deliveredDate = Date(timeIntervalSince1970: 1_770_700_800)
+
+        router.routeToQuickEntry(
+            context: NotificationActionContext(
+                identifier: "ddiary.bp.0900",
                 categoryIdentifier: UserNotificationsRepository.IDs.bpCategory,
                 title: L10n.notificationBPTitle,
                 body: L10n.notificationBPBody,

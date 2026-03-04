@@ -60,11 +60,7 @@ final class NotificationQuickEntryRouter: NotificationQuickEntryRouting {
     func routeToQuickEntry(context: NotificationActionContext) {
         guard let target = Self.decodeTarget(from: context) else { return }
         let parsedScheduledDate = Self.decodeScheduledDate(from: context.identifier)
-        let scheduledDate: Date? = if Self.isSnoozedIdentifier(context.identifier), let parsedScheduledDate {
-            parsedScheduledDate
-        } else {
-            context.deliveredDate ?? parsedScheduledDate
-        }
+        let scheduledDate = parsedScheduledDate ?? context.deliveredDate
         pendingRequest = NotificationQuickEntryRequest(
             identifier: context.identifier,
             target: target,
@@ -163,9 +159,6 @@ final class NotificationQuickEntryRouter: NotificationQuickEntryRouting {
         return scheduledDate
     }
 
-    private static func isSnoozedIdentifier(_ identifier: String) -> Bool {
-        identifier.contains(".snooze.")
-    }
 }
 
 struct NotificationActionContext: Sendable {
