@@ -34,6 +34,7 @@ final class DDiaryUITests: XCTestCase {
         enum TodayRowPrefix {
             static let bp = "today.row.bp."
             static let glucose = "today.row.glucose."
+            static let glucoseBedtime = "today.row.glucose.bedtime."
         }
         enum Field {
             static let systolic = "quickEntry.bp.systolicField"
@@ -47,6 +48,7 @@ final class DDiaryUITests: XCTestCase {
         }
         enum Settings {
             static let bedtimeSlotEnabled = "settings.bedtimeSlotEnabled"
+            static let dailyCycleMode = "settings.glucose.dailyCycle"
             static let glucoseBeforeMeal = "settings.glucose.beforeMeal"
             static let glucoseAfterMeal2h = "settings.glucose.afterMeal2h"
             static let glucoseBedtime = "settings.glucose.bedtime"
@@ -270,47 +272,60 @@ final class DDiaryUITests: XCTestCase {
 
         navigateToTab(app: app, tabId: A11y.Tab.settings, fallbackLabel: "Settings")
         XCTAssertTrue(waitForExistence(app.navigationBars["Settings"], timeout: 8), "Settings screen should be visible")
-        _ = waitForExistence(app.scrollViews["settings.scroll"], timeout: 8)
+        _ = waitForExistence(settingsContainer(in: app), timeout: 8)
 
         let bedtimeToggle = app.switches[A11y.Settings.bedtimeSlotEnabled]
         scrollToElement(bedtimeToggle, in: app)
         XCTAssertTrue(waitForExistence(bedtimeToggle, timeout: 10), "Bedtime slot toggle should exist")
 
-        if (bedtimeToggle.value as? String) == "1" {
-            bedtimeToggle.tap()
+        // Keep this test deterministic: bedtime visibility on Today is unconditional only in non-cycle mode.
+        let dailyCycleToggle = app.switches[A11y.Settings.dailyCycleMode]
+        scrollToElement(dailyCycleToggle, in: app)
+        if waitForExistence(dailyCycleToggle, timeout: 5) {
+            XCTAssertTrue(setSwitch(dailyCycleToggle, on: false), "Daily cycle mode should be disabled for this test")
         }
 
+        scrollToElement(bedtimeToggle, in: app)
+        XCTAssertTrue(waitForExistence(bedtimeToggle, timeout: 5), "Bedtime slot toggle should still be reachable")
+        XCTAssertTrue(setSwitch(bedtimeToggle, on: false), "Bedtime slot toggle should be disabled before verification")
+
+        waitForAutosaveDebounce()
         tapSaveIfPresent(app: app)
         navigateToTab(app: app, tabId: A11y.Tab.today, fallbackLabel: "Today")
         _ = waitForExistence(app.navigationBars["Today"], timeout: 8)
         _ = waitForExistence(app.scrollViews["today.scroll"], timeout: 8)
         waitForTodayRows(app: app)
 
-        let bedtimeRow = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Bedtime")).firstMatch
-        scrollToElement(bedtimeRow, in: app, maxSwipes: 3)
-        XCTAssertTrue(waitForNonExistence(bedtimeRow, timeout: 8), "Bedtime slot should not appear when disabled")
+        let bedtimeRowWhenDisabled = bedtimeRow(in: app)
+        scrollToTop(in: app)
+        scrollToElement(bedtimeRowWhenDisabled, in: app, maxSwipes: 4)
+        XCTAssertTrue(waitForNonExistence(bedtimeRowWhenDisabled, timeout: 8), "Bedtime slot should not appear when disabled")
 
         navigateToTab(app: app, tabId: A11y.Tab.settings, fallbackLabel: "Settings")
         scrollToElement(bedtimeToggle, in: app)
-        if (bedtimeToggle.value as? String) == "0" {
-            bedtimeToggle.tap()
-        }
+        XCTAssertTrue(waitForExistence(bedtimeToggle, timeout: 5), "Bedtime slot toggle should exist in Settings")
+        XCTAssertTrue(setSwitch(bedtimeToggle, on: true), "Bedtime slot toggle should be enabled")
 
+        waitForAutosaveDebounce()
         tapSaveIfPresent(app: app)
         navigateToTab(app: app, tabId: A11y.Tab.today, fallbackLabel: "Today")
         _ = waitForExistence(app.navigationBars["Today"], timeout: 8)
         _ = waitForExistence(app.scrollViews["today.scroll"], timeout: 8)
         waitForTodayRows(app: app)
 
-        scrollToElement(bedtimeRow, in: app, maxSwipes: 3)
-        XCTAssertTrue(waitForExistence(bedtimeRow, timeout: 10), "Bedtime slot should appear when enabled")
+        let bedtimeRowWhenEnabled = bedtimeRow(in: app)
+        scrollToTop(in: app)
+        scrollToElement(bedtimeRowWhenEnabled, in: app, maxSwipes: 4)
+        if !bedtimeRowWhenEnabled.exists {
+            expandCompletedSectionIfPresent(app: app)
+            scrollToElement(bedtimeRowWhenEnabled, in: app, maxSwipes: 4)
+        }
+        XCTAssertTrue(waitForExistence(bedtimeRowWhenEnabled, timeout: 10), "Bedtime slot should appear when enabled")
 
         // Cleanup: disable again to avoid affecting other tests
         navigateToTab(app: app, tabId: A11y.Tab.settings, fallbackLabel: "Settings")
         scrollToElement(bedtimeToggle, in: app)
-        if (bedtimeToggle.value as? String) == "1" {
-            bedtimeToggle.tap()
-        }
+        _ = setSwitch(bedtimeToggle, on: false)
         tapSaveIfPresent(app: app)
     }
 
@@ -364,13 +379,13 @@ final class DDiaryUITests: XCTestCase {
         let tabBar = app.tabBars.firstMatch
         if waitForExistence(tabBar, timeout: 8) {
             let tabButton = tabBar.buttons[tabId].firstMatch
-            if waitForExistence(tabButton, timeout: 8) {
+            if tabButton.exists || waitForExistence(tabButton, timeout: 1) {
                 tabButton.tap()
                 waitForScreen(app: app, label: fallbackLabel)
                 return
             }
             let fallbackButton = tabBar.buttons[fallbackLabel].firstMatch
-            if waitForExistence(fallbackButton, timeout: 8) {
+            if fallbackButton.exists || waitForExistence(fallbackButton, timeout: 1) {
                 fallbackButton.tap()
                 waitForScreen(app: app, label: fallbackLabel)
                 return
@@ -395,7 +410,7 @@ final class DDiaryUITests: XCTestCase {
         case "Today":
             _ = waitForExistence(app.scrollViews["today.scroll"], timeout: 8)
         case "Settings":
-            _ = waitForExistence(app.scrollViews["settings.scroll"], timeout: 8)
+            _ = waitForExistence(settingsContainer(in: app), timeout: 8)
         case "History":
             if !waitForExistence(app.scrollViews["history.scroll"], timeout: 8) {
                 _ = waitForExistence(app.otherElements["history.list"], timeout: 8)
@@ -407,21 +422,48 @@ final class DDiaryUITests: XCTestCase {
 
     @MainActor
     private func scrollToElement(_ element: XCUIElement, in app: XCUIApplication, maxSwipes: Int = 3) {
+        let scrollContainer = scrollContainer(in: app)
+
         var swipes = 0
         while !element.isHittable && swipes < maxSwipes {
-            if app.scrollViews["settings.scroll"].exists {
-                app.scrollViews["settings.scroll"].swipeUp()
-            } else if app.scrollViews["today.scroll"].exists {
-                app.scrollViews["today.scroll"].swipeUp()
-            } else if app.scrollViews["history.scroll"].exists {
-                app.scrollViews["history.scroll"].swipeUp()
-            } else if app.scrollViews.firstMatch.exists {
-                app.scrollViews.firstMatch.swipeUp()
+            if scrollContainer.exists {
+                scrollContainer.swipeUp()
             } else {
                 app.swipeUp()
             }
             swipes += 1
         }
+
+        swipes = 0
+        while !element.isHittable && swipes < maxSwipes {
+            if scrollContainer.exists {
+                scrollContainer.swipeDown()
+            } else {
+                app.swipeDown()
+            }
+            swipes += 1
+        }
+    }
+
+    @MainActor
+    private func scrollToTop(in app: XCUIApplication, maxSwipes: Int = 8) {
+        let scrollContainer = scrollContainer(in: app)
+
+        for _ in 0..<maxSwipes {
+            if scrollContainer.exists {
+                scrollContainer.swipeDown()
+            } else {
+                app.swipeDown()
+            }
+        }
+    }
+
+    private func waitForAutosaveDebounce() {
+        let expectation = XCTestExpectation(description: "Wait for settings autosave debounce")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            expectation.fulfill()
+        }
+        _ = XCTWaiter.wait(for: [expectation], timeout: 2.0)
     }
 
     @MainActor
@@ -443,7 +485,7 @@ final class DDiaryUITests: XCTestCase {
 
         navigateToTab(app: app, tabId: A11y.Tab.settings, fallbackLabel: "Settings")
         _ = waitForExistence(app.navigationBars["Settings"], timeout: 8)
-        _ = waitForExistence(app.scrollViews["settings.scroll"], timeout: 8)
+        _ = waitForExistence(settingsContainer(in: app), timeout: 8)
         let addTimeButton = app.buttons["Add time"]
         scrollToElement(addTimeButton, in: app)
         XCTAssertTrue(waitForExistence(addTimeButton, timeout: 8), "Add time button should exist in Settings")
@@ -460,7 +502,7 @@ final class DDiaryUITests: XCTestCase {
 
         navigateToTab(app: app, tabId: A11y.Tab.settings, fallbackLabel: "Settings")
         _ = waitForExistence(app.navigationBars["Settings"], timeout: 8)
-        _ = waitForExistence(app.scrollViews["settings.scroll"], timeout: 8)
+        _ = waitForExistence(settingsContainer(in: app), timeout: 8)
         let beforeMealToggle = app.switches[A11y.Settings.glucoseBeforeMeal]
         scrollToElement(beforeMealToggle, in: app)
         XCTAssertTrue(waitForExistence(beforeMealToggle, timeout: 10), "Before meal toggle should exist in Settings")
@@ -477,6 +519,94 @@ final class DDiaryUITests: XCTestCase {
         _ = waitForExistence(app.scrollViews["today.scroll"], timeout: 8)
         let anyRow = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "today.row.")).firstMatch
         _ = waitForExistence(anyRow, timeout: 10)
+    }
+
+    @MainActor
+    private func bedtimeRow(in app: XCUIApplication) -> XCUIElement {
+        let predicate = NSPredicate(format: "identifier BEGINSWITH %@", A11y.TodayRowPrefix.glucoseBedtime)
+        return app.buttons.matching(predicate).firstMatch
+    }
+
+    private func switchValueIsOn(_ toggle: XCUIElement) -> Bool? {
+        guard let rawValue = toggle.value as? String else { return nil }
+        let value = rawValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if value == "1" || value == "on" || value == "true" { return true }
+        if value == "0" || value == "off" || value == "false" { return false }
+        return nil
+    }
+
+    private func waitForSwitchState(_ toggle: XCUIElement, isOn: Bool, timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            if let current = switchValueIsOn(toggle), current == isOn {
+                return true
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        } while Date() < deadline
+        return false
+    }
+
+    @MainActor
+    @discardableResult
+    private func setSwitch(_ toggle: XCUIElement, on shouldBeOn: Bool, timeout: TimeInterval = 5) -> Bool {
+        guard waitForExistence(toggle, timeout: timeout) else { return false }
+
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if waitForSwitchState(toggle, isOn: shouldBeOn, timeout: 0.3) {
+                return true
+            }
+
+            toggle.tap()
+            if waitForSwitchState(toggle, isOn: shouldBeOn, timeout: 0.3) {
+                return true
+            }
+
+            // Some wrapped SwiftUI Toggle rows may require tapping near the trailing switch control.
+            toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+            if waitForSwitchState(toggle, isOn: shouldBeOn, timeout: 0.3) {
+                return true
+            }
+        }
+
+        return false
+    }
+
+    @MainActor
+    private func settingsContainer(in app: XCUIApplication) -> XCUIElement {
+        let settingsCollection = app.collectionViews["settings.scroll"]
+        if settingsCollection.exists { return settingsCollection }
+        let settingsScroll = app.scrollViews["settings.scroll"]
+        if settingsScroll.exists { return settingsScroll }
+        return app.otherElements["settings.scroll"].firstMatch
+    }
+
+    @MainActor
+    private func scrollContainer(in app: XCUIApplication) -> XCUIElement {
+        if app.scrollViews["today.scroll"].exists {
+            return app.scrollViews["today.scroll"]
+        }
+        if app.scrollViews["history.scroll"].exists {
+            return app.scrollViews["history.scroll"]
+        }
+        let settings = settingsContainer(in: app)
+        if settings.exists {
+            return settings
+        }
+        return app.scrollViews.firstMatch
+    }
+
+    @MainActor
+    private func expandCompletedSectionIfPresent(app: XCUIApplication) {
+        let disclosure = app.otherElements[A11y.Today.completedDisclosure].firstMatch
+        if disclosure.exists {
+            disclosure.tap()
+            return
+        }
+        let button = app.buttons[A11y.Today.completedDisclosure].firstMatch
+        if button.exists {
+            button.tap()
+        }
     }
 }
 

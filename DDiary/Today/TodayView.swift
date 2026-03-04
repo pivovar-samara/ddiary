@@ -14,6 +14,7 @@ public struct TodayView: View {
     @State private var editingGlucoseMeasurementId: UUID? = nil
     @State private var selectedBPScheduledDate: Date? = nil
     @State private var selectedGlucoseScheduledDate: Date? = nil
+    @State private var cycleSwitchDialogItemID: String? = nil
 
     public init(isActiveTab: Bool = true) {
         self.isActiveTab = isActiveTab
@@ -224,7 +225,7 @@ public struct TodayView: View {
             status: item.status,
             trailingStatusText: trailingStatusText,
             onTap: { handleTap(item, vm: vm) },
-            accessibilityId: "today.row.\(item.kind.rawValue).\(stableId(for: item))",
+            accessibilityId: rowAccessibilityId(for: item),
             leadingBadgeText: item.kind == .bp ? "BP" : "GLU",
             trailingIsSecondary: trailingIsSecondary,
             titleFontWeight: titleFontWeight,
@@ -237,26 +238,41 @@ public struct TodayView: View {
         item: TodayViewModel.TodayItem,
         vm: TodayViewModel
     ) -> some View {
-        Menu {
+        let itemID = stableId(for: item)
+        let isDialogPresented = Binding(
+            get: { cycleSwitchDialogItemID == itemID },
+            set: { isPresented in
+                if isPresented {
+                    cycleSwitchDialogItemID = itemID
+                } else if cycleSwitchDialogItemID == itemID {
+                    cycleSwitchDialogItemID = nil
+                }
+            }
+        )
+
+        return Button {
+            guard !targets.isEmpty else { return }
+            cycleSwitchDialogItemID = itemID
+        } label: {
+            Image(systemName: "arrow.triangle.2.circlepath")
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .frame(width: 28, height: 28)
+        }
+        .buttonStyle(.plain)
+        .disabled(vm.isSwitchingCycleTarget || targets.isEmpty)
+        .confirmationDialog(
+            L10n.todayCycleSwitchAccessibilityLabel,
+            isPresented: isDialogPresented,
+            titleVisibility: .automatic
+        ) {
             ForEach(targets, id: \.rawValue) { target in
                 Button(L10n.settingsRowDailyCycleSwitchTo(vm.cycleSlotTitle(target))) {
                     Task { await vm.switchDailyCycleTarget(to: target) }
                 }
             }
-        } label: {
-            Group {
-                if vm.isSwitchingCycleTarget {
-                    ProgressView()
-                } else {
-                    Image(systemName: "arrow.triangle.2.circlepath")
-                        .font(.body)
-                }
-            }
-            .foregroundStyle(.secondary)
-            .frame(width: 28, height: 28)
+            Button(L10n.quickEntryActionCancel, role: .cancel) {}
         }
-        .buttonStyle(.plain)
-        .disabled(vm.isSwitchingCycleTarget)
         .accessibilityLabel(L10n.todayCycleSwitchAccessibilityLabel)
         .accessibilityHint(L10n.todayCycleSwitchAccessibilityHint)
         .accessibilityIdentifier("today.row.cycleSwitch.\(stableId(for: item))")
@@ -404,6 +420,15 @@ public struct TodayView: View {
     private func stableId(for item: TodayViewModel.TodayItem) -> String {
         // Use the UUID to keep it deterministic and stable across renders
         item.id.uuidString
+    }
+
+    private func rowAccessibilityId(for item: TodayViewModel.TodayItem) -> String {
+        switch item.payload {
+        case .bp:
+            return "today.row.bp.\(stableId(for: item))"
+        case .glucose(let slot):
+            return "today.row.glucose.\(slot.measurementType.rawValue).\(stableId(for: item))"
+        }
     }
 }
 

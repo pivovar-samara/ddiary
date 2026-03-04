@@ -40,6 +40,7 @@ final class SettingsViewModel {
         subsystem: Bundle.main.bundleIdentifier ?? "DDiary",
         category: "SettingsViewModel"
     )
+    private let mgdLPerMmolL: Double = 18.0
 
     // MARK: - Backing models (MainActor-bound)
     private var settingsModel: UserSettings?
@@ -73,12 +74,18 @@ final class SettingsViewModel {
     var enableBeforeMeal: Bool = true
     var enableAfterMeal2h: Bool = true
     var enableBedtime: Bool = false
-    var enableDailyCycleMode: Bool = false
+    var enableDailyCycleMode: Bool = false {
+        didSet {
+            guard oldValue != enableDailyCycleMode else { return }
+            syncDailyCycleDisplaySlot()
+        }
+    }
     private var currentCycleIndex: Int = 0
     private var dailyCycleAnchorDate: Date? = nil
+    private(set) var dailyCycleDisplaySlot: MealSlot? = nil
 
     var dailyCycleCurrentSlotTitle: String {
-        guard let slot = dailyCycleCurrentSlot() else { return "—" }
+        guard enableDailyCycleMode, let slot = dailyCycleDisplaySlot else { return "—" }
         return cycleSlotTitle(slot)
     }
 
@@ -112,6 +119,11 @@ final class SettingsViewModel {
     private var googleSyncLifecycleObserver: NSObjectProtocol?
     private var measurementsDidChangeObserver: NSObjectProtocol?
     private var syncStatusRefreshDebounceTask: Task<Void, Never>?
+    private var autoSaveDebounceTask: Task<Void, Never>?
+    private var hasFinishedInitialLoad: Bool = false
+    private var isSavingSettings: Bool = false
+    private var hasQueuedSaveRequest: Bool = false
+    var isSwitchingCycleTarget: Bool = false
 
     // MARK: - Init
     init(
@@ -145,11 +157,14 @@ final class SettingsViewModel {
             NotificationCenter.default.removeObserver(observer)
         }
         syncStatusRefreshDebounceTask?.cancel()
+        autoSaveDebounceTask?.cancel()
     }
 
     // MARK: - Public API
     func loadSettings() async {
         isLoading = true
+        hasFinishedInitialLoad = false
+        autoSaveDebounceTask?.cancel()
         defer { isLoading = false }
         do {
             let settings = try await settingsRepository.getOrCreate()
@@ -173,9 +188,10 @@ final class SettingsViewModel {
             enableBeforeMeal = settings.enableBeforeMeal
             enableAfterMeal2h = settings.enableAfterMeal2h
             enableBedtime = settings.enableBedtime
-            enableDailyCycleMode = settings.enableDailyCycleMode
             currentCycleIndex = settings.currentCycleIndex
             dailyCycleAnchorDate = settings.dailyCycleAnchorDate
+            enableDailyCycleMode = settings.enableDailyCycleMode
+            syncDailyCycleDisplaySlot()
 
             bpSystolicMin = settings.bpSystolicMin
             bpSystolicMax = settings.bpSystolicMax
@@ -185,6 +201,9 @@ final class SettingsViewModel {
             glucoseMin = settings.glucoseMin
             glucoseMax = settings.glucoseMax
 
+            // Enable autosave as soon as editable settings are hydrated.
+            hasFinishedInitialLoad = true
+
             // Google
             await refreshSyncStatus()
         } catch {
@@ -193,6 +212,136 @@ final class SettingsViewModel {
     }
 
     func saveSettings() async {
+        await enqueueSettingsSave()
+    }
+
+    func scheduleAutoSave() {
+        guard hasFinishedInitialLoad else { return }
+
+        autoSaveDebounceTask?.cancel()
+        autoSaveDebounceTask = Task { [weak self] in
+            guard let self else { return }
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            guard !Task.isCancelled else { return }
+            await self.enqueueSettingsSave()
+        }
+    }
+
+    var autoSaveSignature: String {
+        let weekdaysSignature = bpActiveWeekdays.sorted().map(String.init).joined(separator: ",")
+        let bpTimesSignature = bpTimes.map(String.init).joined(separator: ",")
+        return [
+            glucoseUnit.rawValue,
+            "\(breakfastHour):\(breakfastMinute)",
+            "\(lunchHour):\(lunchMinute)",
+            "\(dinnerHour):\(dinnerMinute)",
+            "\(bedtimeHour):\(bedtimeMinute)",
+            "\(bedtimeSlotEnabled)",
+            bpTimesSignature,
+            weekdaysSignature,
+            "\(enableBeforeMeal)",
+            "\(enableAfterMeal2h)",
+            "\(enableBedtime)",
+            "\(enableDailyCycleMode)",
+            "\(bpSystolicMin)",
+            "\(bpSystolicMax)",
+            "\(bpDiastolicMin)",
+            "\(bpDiastolicMax)",
+            "\(glucoseMin.bitPattern)",
+            "\(glucoseMax.bitPattern)"
+        ].joined(separator: "|")
+    }
+
+    func glucoseThresholdRangeForCurrentUnit() -> ClosedRange<Double> {
+        switch glucoseUnit {
+        case .mmolL:
+            return GlucoseConstraints.mmolRange
+        case .mgdL:
+            let low = GlucoseConstraints.mmolRange.lowerBound * mgdLPerMmolL
+            let high = GlucoseConstraints.mmolRange.upperBound * mgdLPerMmolL
+            return low...high
+        }
+    }
+
+    func glucoseThresholdStepForCurrentUnit() -> Double {
+        switch glucoseUnit {
+        case .mmolL:
+            return 0.1
+        case .mgdL:
+            return 1
+        }
+    }
+
+    func displayGlucoseThreshold(_ valueInMmol: Double) -> Double {
+        switch glucoseUnit {
+        case .mmolL:
+            return valueInMmol
+        case .mgdL:
+            return (valueInMmol * mgdLPerMmolL).rounded()
+        }
+    }
+
+    func storedGlucoseThreshold(_ displayedValue: Double) -> Double {
+        switch glucoseUnit {
+        case .mmolL:
+            return displayedValue
+        case .mgdL:
+            return displayedValue / mgdLPerMmolL
+        }
+    }
+
+    func dailyCycleSwitchTargets(today: Date = Date()) -> [MealSlot] {
+        guard enableDailyCycleMode else { return [] }
+        let order: [MealSlot] = [.breakfast, .lunch, .dinner, .none]
+        let current = dailyCycleCurrentSlot(today: today) ?? .breakfast
+        return order.filter { $0 != current }
+    }
+
+    func cycleSlotTitle(_ slot: MealSlot) -> String {
+        switch slot {
+        case .breakfast:
+            return L10n.settingsRowBreakfast
+        case .lunch:
+            return L10n.settingsRowLunch
+        case .dinner:
+            return L10n.settingsRowDinner
+        case .none:
+            return L10n.settingsRowBedtime
+        }
+    }
+
+    func applyDailyCycleTarget(_ mealSlot: MealSlot, today: Date = Date()) async {
+        guard enableDailyCycleMode else { return }
+        guard !isSwitchingCycleTarget else { return }
+        guard dailyCycleSwitchTargets(today: today).contains(mealSlot) else { return }
+        guard let targetStep = cycleStep(for: mealSlot) else { return }
+
+        isSwitchingCycleTarget = true
+        defer { isSwitchingCycleTarget = false }
+
+        let calendar = Calendar.current
+        let referenceDay = calendar.startOfDay(for: today)
+        dailyCycleAnchorDate = calendar.date(byAdding: .day, value: -targetStep.rawValue, to: referenceDay) ?? referenceDay
+        currentCycleIndex = targetStep.rawValue
+        dailyCycleDisplaySlot = mealSlot
+        await enqueueSettingsSave()
+    }
+
+    private func enqueueSettingsSave() async {
+        if isSavingSettings {
+            hasQueuedSaveRequest = true
+            return
+        }
+
+        repeat {
+            hasQueuedSaveRequest = false
+            isSavingSettings = true
+            await persistSettings()
+            isSavingSettings = false
+        } while hasQueuedSaveRequest
+    }
+
+    private func persistSettings() async {
         do {
             let settings = try await resolveSettingsModel()
             // Map VM -> model
@@ -249,7 +398,7 @@ final class SettingsViewModel {
             }
             NotificationCenter.default.post(name: .settingsDidSave, object: nil)
         } catch {
-            handleError(error, context: "saveSettings", policy: .showErrorDescription)
+            handleError(error, context: "persistSettings", policy: .showErrorDescription)
         }
     }
 
@@ -266,6 +415,7 @@ final class SettingsViewModel {
         let shiftedAnchor = calendar.date(byAdding: .day, value: -1, to: anchorDate) ?? anchorDate
         dailyCycleAnchorDate = shiftedAnchor
         currentCycleIndex = GlucoseCyclePlanner.step(on: referenceDay, anchorDate: shiftedAnchor, calendar: calendar).rawValue
+        syncDailyCycleDisplaySlot(today: today)
     }
 
     func applyDailyCycleTargetForward(today: Date = Date()) async {
@@ -300,6 +450,10 @@ final class SettingsViewModel {
         } catch {
             handleError(error, context: "applyDailyCycleTargetForward", policy: .showErrorDescription)
         }
+    }
+
+    func syncDailyCycleDisplaySlot(today: Date = Date()) {
+        dailyCycleDisplaySlot = dailyCycleCurrentSlot(today: today)
     }
 
     func connectGoogle() async -> Bool {
@@ -616,16 +770,16 @@ final class SettingsViewModel {
         }
     }
 
-    private func cycleSlotTitle(_ slot: MealSlot) -> String {
+    private func cycleStep(for slot: MealSlot) -> GlucoseCycleStep? {
         switch slot {
         case .breakfast:
-            return L10n.settingsRowBreakfast
+            return .breakfastDay
         case .lunch:
-            return L10n.settingsRowLunch
+            return .lunchDay
         case .dinner:
-            return L10n.settingsRowDinner
+            return .dinnerDay
         case .none:
-            return L10n.settingsRowBedtime
+            return .bedtimeDay
         }
     }
 
