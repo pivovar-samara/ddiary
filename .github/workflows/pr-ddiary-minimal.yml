@@ -43,7 +43,7 @@ jobs:
             -project DDiary.xcodeproj \
             -scheme DDiary \
             -testPlan DDiaryMinimal \
-            -destination "platform=iOS Simulator,OS=26.0.1,name=iPhone 16e" \
+            -destination "platform=iOS Simulator,OS=26.2,name=iPhone 17 Pro" \
             -destination-timeout 180 \
             -parallel-testing-enabled NO \
             -maximum-concurrent-test-simulator-destinations 1
