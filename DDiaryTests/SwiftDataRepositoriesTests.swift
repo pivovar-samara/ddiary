@@ -197,12 +197,14 @@ final class SwiftDataSettingsRepositoryTests: XCTestCase {
         let container = try makeInMemoryModelContainer()
         let context = ModelContext(container)
         let repository = SwiftDataSettingsRepository(modelContext: context)
+        let anchorDate = Date(timeIntervalSince1970: 1_700_000_000)
 
         let placeholder = UserSettings.default()
 
         let customized = UserSettings.default()
         customized.enableDailyCycleMode = true
         customized.currentCycleIndex = 2
+        customized.dailyCycleAnchorDate = anchorDate
         customized.bedtimeSlotEnabled = true
         customized.bpTimes = [8 * 60, 13 * 60, 20 * 60]
 
@@ -214,6 +216,7 @@ final class SwiftDataSettingsRepositoryTests: XCTestCase {
         XCTAssertEqual(resolved.id, customized.id)
         XCTAssertTrue(resolved.enableDailyCycleMode)
         XCTAssertEqual(resolved.currentCycleIndex, 2)
+        XCTAssertEqual(resolved.dailyCycleAnchorDate, anchorDate)
         XCTAssertTrue(resolved.bedtimeSlotEnabled)
         XCTAssertEqual(resolved.bpTimes, [8 * 60, 13 * 60, 20 * 60])
 
@@ -226,6 +229,7 @@ final class SwiftDataSettingsRepositoryTests: XCTestCase {
         let container = try makeInMemoryModelContainer()
         let context = ModelContext(container)
         let repository = SwiftDataSettingsRepository(modelContext: context)
+        let anchorDate = Date(timeIntervalSince1970: 1_700_086_400)
 
         let primary = try await repository.getOrCreate()
 
@@ -234,6 +238,7 @@ final class SwiftDataSettingsRepositoryTests: XCTestCase {
         detached.bpSystolicMax = 155
         detached.enableDailyCycleMode = true
         detached.currentCycleIndex = 3
+        detached.dailyCycleAnchorDate = anchorDate
 
         try await repository.save(detached)
 
@@ -245,6 +250,37 @@ final class SwiftDataSettingsRepositoryTests: XCTestCase {
         XCTAssertEqual(stored.bpSystolicMax, 155)
         XCTAssertTrue(stored.enableDailyCycleMode)
         XCTAssertEqual(stored.currentCycleIndex, 3)
+        XCTAssertEqual(stored.dailyCycleAnchorDate, anchorDate)
+    }
+
+    func test_getOrCreate_prefersAnchoredCycleRecord_whenDuplicatesOtherwiseTie() async throws {
+        let container = try makeInMemoryModelContainer()
+        let context = ModelContext(container)
+        let repository = SwiftDataSettingsRepository(modelContext: context)
+        let anchorDate = Date(timeIntervalSince1970: 1_700_172_800)
+
+        let unanchored = UserSettings.default()
+        unanchored.id = UUID(uuidString: "00000000-0000-0000-0000-000000000010")!
+        unanchored.enableDailyCycleMode = true
+        unanchored.currentCycleIndex = 1
+
+        let anchored = UserSettings.default()
+        anchored.id = UUID(uuidString: "00000000-0000-0000-0000-000000000020")!
+        anchored.enableDailyCycleMode = true
+        anchored.currentCycleIndex = 1
+        anchored.dailyCycleAnchorDate = anchorDate
+
+        context.insert(unanchored)
+        context.insert(anchored)
+        try context.save()
+
+        let resolved = try await repository.getOrCreate()
+        XCTAssertEqual(resolved.id, anchored.id)
+        XCTAssertEqual(resolved.dailyCycleAnchorDate, anchorDate)
+
+        let all = try context.fetch(FetchDescriptor<UserSettings>())
+        XCTAssertEqual(all.count, 1)
+        XCTAssertEqual(all.first?.id, anchored.id)
     }
 }
 
