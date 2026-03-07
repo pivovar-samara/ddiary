@@ -332,6 +332,11 @@ enum L10n {
     ]
 
     // MARK: - Startup
+    static let cloudSyncUnavailableTitle = tr("app.cloud_fallback.title", "iCloud sync unavailable")
+    static let cloudSyncUnavailableMessage = tr(
+        "app.cloud_fallback.message",
+        "DDiary is using local storage on this device for now. Changes won't sync with iCloud until a later launch can reconnect."
+    )
     static let startupTitle = tr("app.startup.title", "Unable to start DDiary")
     static let startupRecoveryHint = tr(
         "app.startup.recovery_hint",

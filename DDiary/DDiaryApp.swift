@@ -8,22 +8,50 @@
 import SwiftUI
 import SwiftData
 import UserNotifications
+import OSLog
 
 private enum PersistenceConstants {
     static let cloudKitContainerIdentifier = "iCloud.container.diary"
 }
 
+enum AppLaunchNotice: Equatable {
+    case cloudSyncUnavailable
+
+    var title: String {
+        switch self {
+        case .cloudSyncUnavailable:
+            L10n.cloudSyncUnavailableTitle
+        }
+    }
+
+    var message: String {
+        switch self {
+        case .cloudSyncUnavailable:
+            L10n.cloudSyncUnavailableMessage
+        }
+    }
+}
+
 enum AppLaunchState {
-    case ready(sharedModelContainer: ModelContainer, appContainer: AppContainer)
+    case ready(sharedModelContainer: ModelContainer, appContainer: AppContainer, launchNotice: AppLaunchNotice?)
     case failed(message: String)
 }
 
 @MainActor
 struct AppBootstrapper {
     typealias ModelContainerFactory = (_ schema: Schema, _ configurations: [ModelConfiguration]) throws -> ModelContainer
+    typealias AppContainerFactory = (_ modelContainer: ModelContainer) -> AppContainer
+
+    private static let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "DDiary",
+        category: "AppBootstrapper"
+    )
 
     static func makeLaunchState(
         isUITesting: Bool,
+        appContainerFactory: AppContainerFactory = { modelContainer in
+            AppContainer(modelContainer: modelContainer)
+        },
         modelContainerFactory: ModelContainerFactory = { schema, configurations in
             try ModelContainer(for: schema, configurations: configurations)
         }
@@ -35,28 +63,77 @@ struct AppBootstrapper {
             GoogleIntegration.self,
         ])
 
-        let modelConfiguration: ModelConfiguration
         if isUITesting {
-            modelConfiguration = ModelConfiguration(
-                schema: fullSchema,
-                isStoredInMemoryOnly: true,
-                cloudKitDatabase: .none
-            )
-        } else {
-            modelConfiguration = ModelConfiguration(
-                schema: fullSchema,
-                cloudKitDatabase: .private(PersistenceConstants.cloudKitContainerIdentifier)
-            )
+            do {
+                return try makeReadyLaunchState(
+                    fullSchema: fullSchema,
+                    configuration: ModelConfiguration(
+                        schema: fullSchema,
+                        isStoredInMemoryOnly: true,
+                        cloudKitDatabase: .none
+                    ),
+                    launchNotice: nil,
+                    appContainerFactory: appContainerFactory,
+                    modelContainerFactory: modelContainerFactory
+                )
+            } catch {
+                let message = L10n.startupStorageInitFailed(error.localizedDescription)
+                return .failed(message: message)
+            }
         }
 
         do {
-            let sharedModelContainer = try modelContainerFactory(fullSchema, [modelConfiguration])
-            let appContainer = AppContainer(modelContainer: sharedModelContainer)
-            return .ready(sharedModelContainer: sharedModelContainer, appContainer: appContainer)
-        } catch {
-            let message = L10n.startupStorageInitFailed(error.localizedDescription)
-            return .failed(message: message)
+            return try makeReadyLaunchState(
+                fullSchema: fullSchema,
+                configuration: ModelConfiguration(
+                    schema: fullSchema,
+                    cloudKitDatabase: .private(PersistenceConstants.cloudKitContainerIdentifier)
+                ),
+                launchNotice: nil,
+                appContainerFactory: appContainerFactory,
+                modelContainerFactory: modelContainerFactory
+            )
+        } catch let cloudKitError {
+            logger.error(
+                "CloudKit-backed ModelContainer init failed. Falling back to local-only persistence. error=\(String(describing: cloudKitError), privacy: .public)"
+            )
+
+            do {
+                return try makeReadyLaunchState(
+                    fullSchema: fullSchema,
+                    configuration: ModelConfiguration(
+                        schema: fullSchema,
+                        cloudKitDatabase: .none
+                    ),
+                    launchNotice: .cloudSyncUnavailable,
+                    appContainerFactory: appContainerFactory,
+                    modelContainerFactory: modelContainerFactory
+                )
+            } catch let localError {
+                logger.fault(
+                    "Local-only fallback ModelContainer init failed after CloudKit init failure. cloud_error=\(String(describing: cloudKitError), privacy: .public) local_error=\(String(describing: localError), privacy: .public)"
+                )
+
+                let message = L10n.startupStorageInitFailed(localError.localizedDescription)
+                return .failed(message: message)
+            }
         }
+    }
+
+    private static func makeReadyLaunchState(
+        fullSchema: Schema,
+        configuration: ModelConfiguration,
+        launchNotice: AppLaunchNotice?,
+        appContainerFactory: AppContainerFactory,
+        modelContainerFactory: ModelContainerFactory
+    ) throws -> AppLaunchState {
+        let sharedModelContainer = try modelContainerFactory(fullSchema, [configuration])
+        let appContainer = appContainerFactory(sharedModelContainer)
+        return .ready(
+            sharedModelContainer: sharedModelContainer,
+            appContainer: appContainer,
+            launchNotice: launchNotice
+        )
     }
 }
 
@@ -73,8 +150,7 @@ struct DDiaryApp: App {
         self.launchState = AppBootstrapper.makeLaunchState(isUITesting: isUITesting)
 
         switch launchState {
-        case .ready(_, let appContainer):
-            // Configure notification categories and delegate
+        case let .ready(_, appContainer, _):
             UserNotificationsRepository.registerCategories()
             let center = UNUserNotificationCenter.current()
             let coordinator = NotificationsCoordinator(container: appContainer)
@@ -91,8 +167,8 @@ struct DDiaryApp: App {
     var body: some Scene {
         WindowGroup {
             switch launchState {
-            case .ready(let sharedModelContainer, let appContainer):
-                RootView()
+            case let .ready(sharedModelContainer, appContainer, launchNotice):
+                RootView(launchNotice: launchNotice)
                     .appContainer(appContainer)
                     .modelContainer(sharedModelContainer)
             case .failed(let message):

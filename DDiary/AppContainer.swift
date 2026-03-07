@@ -194,7 +194,7 @@ struct AppContainer {
                 UserSettings.self,
                 GoogleIntegration.self,
             ]),
-            configurations: [ModelConfiguration(isStoredInMemoryOnly: true)]
+            configurations: [ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)]
         )
         return AppContainer(modelContainer: modelContainer)
     }

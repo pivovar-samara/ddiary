@@ -18,8 +18,16 @@ private enum RootTab: Hashable {
 }
 
 struct RootView: View {
+    let launchNotice: AppLaunchNotice?
+
     @Environment(\.appContainer) private var container: AppContainer
     @State private var selectedTab: RootTab = .today
+    @State private var activeLaunchNotice: AppLaunchNotice?
+
+    init(launchNotice: AppLaunchNotice? = nil) {
+        self.launchNotice = launchNotice
+        _activeLaunchNotice = State(initialValue: launchNotice)
+    }
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -71,6 +79,22 @@ struct RootView: View {
             .task {
                 await container.updateSchedulesUseCase.requestAuthorizationAndSchedule()
             }
+        }
+        .alert(
+            activeLaunchNotice?.title ?? "",
+            isPresented: Binding(
+                get: { activeLaunchNotice != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        activeLaunchNotice = nil
+                    }
+                }
+            ),
+            presenting: activeLaunchNotice
+        ) { _ in
+            Button(L10n.quickEntryAlertOK, role: .cancel) {}
+        } message: { notice in
+            Text(notice.message)
         }
     }
 
