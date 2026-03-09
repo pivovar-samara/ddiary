@@ -216,19 +216,11 @@ final class TodayViewModelNotificationSyncTests: XCTestCase {
         await viewModel.refresh()
         let target = try XCTUnwrap(viewModel.availableCycleSwitchTargets.first)
 
-        var didPostExternalUpdate = false
-        let token = NotificationCenter.default.addObserver(
-            forName: .settingsDidChangeOutsideSettings,
-            object: nil,
-            queue: nil
-        ) { _ in
-            didPostExternalUpdate = true
-        }
-        defer { NotificationCenter.default.removeObserver(token) }
+        let expectation = expectation(forNotification: .settingsDidChangeOutsideSettings, object: nil)
 
         await viewModel.switchDailyCycleTarget(to: target)
 
-        XCTAssertTrue(didPostExternalUpdate)
+        await fulfillment(of: [expectation], timeout: 2)
     }
 
     private func makeViewModel(
