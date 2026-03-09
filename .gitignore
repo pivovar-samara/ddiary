@@ -72,3 +72,4 @@ fastlane/test_output
 
 Configs/Secrets.xcconfig
 .cursor/
+.claude/
