@@ -80,6 +80,43 @@ final class NotificationsCoordinatorTests: XCTestCase {
         XCTAssertTrue(actionHandler.didFinishSkip)
     }
 
+    func test_handleAction_skipForwardsNotificationIdentifier() async {
+        let skipStarted = expectation(description: "skip started")
+        let completionCalled = expectation(description: "completion called")
+        let gate = AsyncGate()
+        let actionHandler = BlockingNotificationsActionHandler(
+            skipStarted: skipStarted,
+            snoozeStarted: nil,
+            gate: gate
+        )
+        let sut = NotificationsCoordinator(actionHandler: actionHandler)
+
+        let expectedIdentifier = "ddiary.bp.d20260216.0900"
+        sut.handleAction(
+            .skip,
+            context: NotificationActionContext(
+                identifier: expectedIdentifier,
+                categoryIdentifier: UserNotificationsRepository.IDs.bpCategory,
+                title: L10n.notificationBPTitle,
+                body: L10n.notificationBPBody,
+                mealSlotRawValue: nil,
+                measurementTypeRawValue: nil,
+                deliveredDate: nil
+            ),
+            completionHandler: { completionCalled.fulfill() }
+        )
+
+        await fulfillment(of: [skipStarted], timeout: 1.0)
+        XCTAssertEqual(actionHandler.receivedSkipIdentifier, expectedIdentifier)
+        XCTAssertEqual(
+            actionHandler.receivedSkipCategoryIdentifier,
+            UserNotificationsRepository.IDs.bpCategory
+        )
+
+        await gate.open()
+        await fulfillment(of: [completionCalled], timeout: 1.0)
+    }
+
     func test_handleAction_waitsForAsyncSnoozeBeforeCallingCompletion_andForwardsContext() async {
         let snoozeStarted = expectation(description: "snooze started")
         let completionCalled = expectation(description: "completion called")
@@ -302,6 +339,7 @@ private final class BlockingNotificationsActionHandler: NotificationsActionHandl
     private let gate: AsyncGate
     private(set) var didFinishSkip = false
     private(set) var didFinishSnooze = false
+    private(set) var receivedSkipIdentifier: String?
     private(set) var receivedSkipCategoryIdentifier: String?
     private(set) var receivedSnoozeIdentifier: String?
     private(set) var receivedSnoozeMinutes: Int?
@@ -321,11 +359,12 @@ private final class BlockingNotificationsActionHandler: NotificationsActionHandl
         self.gate = gate
     }
 
-    func skip(categoryIdentifier: String) async {
+    func skip(identifier: String, categoryIdentifier: String) async {
         guard let skipStarted else {
             XCTFail("Unexpected skip call")
             return
         }
+        receivedSkipIdentifier = identifier
         receivedSkipCategoryIdentifier = categoryIdentifier
         skipStarted.fulfill()
         await gate.wait()
