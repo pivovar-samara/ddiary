@@ -57,9 +57,35 @@ final class GoogleOAuthConfigTests: XCTestCase {
         XCTAssertEqual(GoogleOAuthConfig.redirectScheme, "ddiary")
     }
 
-    func test_presentationAnchor_returnsFallbackForEmptyScenes() {
-        let anchor = GoogleOAuth.presentationAnchor(from: [])
-        XCTAssertNotNil(anchor)
+    // MARK: - Presentation anchor resolution
+
+    func test_resolvePresentationAnchor_emptyScenes_returnsNil() {
+        let anchor = GoogleOAuth.resolvePresentationAnchor(from: [])
+        XCTAssertNil(anchor, "Empty scene set should return nil, not crash or block")
+    }
+
+    func test_resolvePresentationAnchor_noScenes_doesNotCrashOrBlock() {
+        // Verifies the old preconditionFailure / busy-wait path is gone.
+        // With no scenes the method must return nil immediately.
+        let start = Date()
+        let anchor = GoogleOAuth.resolvePresentationAnchor(from: [])
+        let elapsed = Date().timeIntervalSince(start)
+        XCTAssertNil(anchor)
+        XCTAssertLessThan(elapsed, 0.5, "resolvePresentationAnchor should return immediately, not busy-wait")
+    }
+
+    func test_noPresentationAnchor_errorHasLocalizedDescription() {
+        let error = GoogleOAuth.OAuthError.noPresentationAnchor
+        XCTAssertNotNil(error.errorDescription)
+        XCTAssertTrue(error.errorDescription?.contains("window") == true)
+    }
+
+    func test_resolvePresentationAnchor_returnsAnchorFromConnectedScenes() {
+        // When the test host app has connected scenes, verify a non-nil anchor.
+        let scenes = UIApplication.shared.connectedScenes
+        guard !scenes.isEmpty else { return } // Skip when no scenes (e.g., headless CI)
+        let anchor = GoogleOAuth.resolvePresentationAnchor(from: scenes)
+        XCTAssertNotNil(anchor, "Should resolve anchor from the test host's connected scenes")
     }
 
     func test_googleOAuth_formURLEncoded_encodesSpecialCharactersStrictly() {
