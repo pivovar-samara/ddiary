@@ -86,7 +86,9 @@ final class KeychainTokenStorage: TokenStorage {
     }
 
     func write(_ token: String, key: String) throws {
-        guard let data = token.data(using: .utf8) else { return }
+        guard let data = token.data(using: .utf8) else {
+            throw KeychainTokenStorageError.writeFailed(errSecParam)
+        }
 
         let lookupQuery = baseQuery(key: key)
         let exists = keychain.itemCopyMatching(lookupQuery as CFDictionary, result: nil) == errSecSuccess
