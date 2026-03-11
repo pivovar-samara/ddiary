@@ -16,6 +16,7 @@ final class NotificationsCoordinatorTests: XCTestCase {
             quickEntryRouter: quickEntryRouter
         )
 
+        var didCallCompletion = false
         sut.handleAction(
             .enter,
             context: NotificationActionContext(
@@ -28,21 +29,25 @@ final class NotificationsCoordinatorTests: XCTestCase {
                 deliveredDate: nil
             ),
             completionHandler: {
+                didCallCompletion = true
                 completionCalled.fulfill()
             }
         )
 
+        XCTAssertTrue(didCallCompletion)
         await fulfillment(of: [completionCalled], timeout: 1.0)
+        await Task.yield()
         XCTAssertEqual(quickEntryRouter.receivedContexts.count, 1)
         XCTAssertEqual(quickEntryRouter.receivedContexts.first?.identifier, "ddiary.glucose.before.0800")
     }
 
-    func test_handleAction_waitsForAsyncSkipBeforeCallingCompletion() async {
+    func test_handleAction_callsCompletionBeforeAsyncSkipCompletes() async {
         let skipStarted = expectation(description: "skip started")
-        let completionCalled = expectation(description: "completion called")
+        let skipFinished = expectation(description: "skip finished")
         let gate = AsyncGate()
         let actionHandler = BlockingNotificationsActionHandler(
             skipStarted: skipStarted,
+            skipFinished: skipFinished,
             snoozeStarted: nil,
             gate: gate
         )
@@ -62,12 +67,11 @@ final class NotificationsCoordinatorTests: XCTestCase {
             ),
             completionHandler: {
                 didCallCompletion = true
-                completionCalled.fulfill()
             }
         )
 
+        XCTAssertTrue(didCallCompletion)
         await fulfillment(of: [skipStarted], timeout: 1.0)
-        XCTAssertFalse(didCallCompletion)
         XCTAssertFalse(actionHandler.didFinishSkip)
         XCTAssertEqual(
             actionHandler.receivedSkipCategoryIdentifier,
@@ -76,16 +80,17 @@ final class NotificationsCoordinatorTests: XCTestCase {
 
         await gate.open()
 
-        await fulfillment(of: [completionCalled], timeout: 1.0)
+        await fulfillment(of: [skipFinished], timeout: 1.0)
         XCTAssertTrue(actionHandler.didFinishSkip)
     }
 
     func test_handleAction_skipForwardsNotificationIdentifier() async {
         let skipStarted = expectation(description: "skip started")
-        let completionCalled = expectation(description: "completion called")
+        let skipFinished = expectation(description: "skip finished")
         let gate = AsyncGate()
         let actionHandler = BlockingNotificationsActionHandler(
             skipStarted: skipStarted,
+            skipFinished: skipFinished,
             snoozeStarted: nil,
             gate: gate
         )
@@ -103,7 +108,7 @@ final class NotificationsCoordinatorTests: XCTestCase {
                 measurementTypeRawValue: nil,
                 deliveredDate: nil
             ),
-            completionHandler: { completionCalled.fulfill() }
+            completionHandler: {}
         )
 
         await fulfillment(of: [skipStarted], timeout: 1.0)
@@ -114,16 +119,17 @@ final class NotificationsCoordinatorTests: XCTestCase {
         )
 
         await gate.open()
-        await fulfillment(of: [completionCalled], timeout: 1.0)
+        await fulfillment(of: [skipFinished], timeout: 1.0)
     }
 
-    func test_handleAction_waitsForAsyncSnoozeBeforeCallingCompletion_andForwardsContext() async {
+    func test_handleAction_callsCompletionBeforeAsyncSnoozeCompletes_andForwardsContext() async {
         let snoozeStarted = expectation(description: "snooze started")
-        let completionCalled = expectation(description: "completion called")
+        let snoozeFinished = expectation(description: "snooze finished")
         let gate = AsyncGate()
         let actionHandler = BlockingNotificationsActionHandler(
             skipStarted: nil,
             snoozeStarted: snoozeStarted,
+            snoozeFinished: snoozeFinished,
             gate: gate
         )
         let sut = NotificationsCoordinator(actionHandler: actionHandler)
@@ -144,12 +150,11 @@ final class NotificationsCoordinatorTests: XCTestCase {
             context: context,
             completionHandler: {
                 didCallCompletion = true
-                completionCalled.fulfill()
             }
         )
 
+        XCTAssertTrue(didCallCompletion)
         await fulfillment(of: [snoozeStarted], timeout: 1.0)
-        XCTAssertFalse(didCallCompletion)
         XCTAssertFalse(actionHandler.didFinishSnooze)
         XCTAssertEqual(actionHandler.receivedSnoozeMinutes, 30)
         XCTAssertEqual(actionHandler.receivedSnoozeIdentifier, context.identifier)
@@ -161,7 +166,7 @@ final class NotificationsCoordinatorTests: XCTestCase {
 
         await gate.open()
 
-        await fulfillment(of: [completionCalled], timeout: 1.0)
+        await fulfillment(of: [snoozeFinished], timeout: 1.0)
         XCTAssertTrue(actionHandler.didFinishSnooze)
     }
 
@@ -335,7 +340,9 @@ private actor AsyncGate {
 @MainActor
 private final class BlockingNotificationsActionHandler: NotificationsActionHandling {
     private let skipStarted: XCTestExpectation?
+    private let skipFinished: XCTestExpectation?
     private let snoozeStarted: XCTestExpectation?
+    private let snoozeFinished: XCTestExpectation?
     private let gate: AsyncGate
     private(set) var didFinishSkip = false
     private(set) var didFinishSnooze = false
@@ -351,11 +358,15 @@ private final class BlockingNotificationsActionHandler: NotificationsActionHandl
 
     init(
         skipStarted: XCTestExpectation?,
+        skipFinished: XCTestExpectation? = nil,
         snoozeStarted: XCTestExpectation?,
+        snoozeFinished: XCTestExpectation? = nil,
         gate: AsyncGate
     ) {
         self.skipStarted = skipStarted
+        self.skipFinished = skipFinished
         self.snoozeStarted = snoozeStarted
+        self.snoozeFinished = snoozeFinished
         self.gate = gate
     }
 
@@ -369,6 +380,7 @@ private final class BlockingNotificationsActionHandler: NotificationsActionHandl
         skipStarted.fulfill()
         await gate.wait()
         didFinishSkip = true
+        skipFinished?.fulfill()
     }
 
     func snooze(
@@ -394,6 +406,7 @@ private final class BlockingNotificationsActionHandler: NotificationsActionHandl
         snoozeStarted.fulfill()
         await gate.wait()
         didFinishSnooze = true
+        snoozeFinished?.fulfill()
     }
 }
 
