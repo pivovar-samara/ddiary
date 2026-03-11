@@ -65,6 +65,7 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
     func test_currentTarget_handlesNegativeIndexByWrapping() async {
         let settings = UserSettings.default()
         settings.enableDailyCycleMode = true
+        settings.bedtimeSlotEnabled = true
         settings.currentCycleIndex = -1
 
         let settingsRepository = SpyCycleSettingsRepository(settings: settings)
@@ -127,6 +128,7 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
     func test_availableForwardTargetsForToday_returnsCanonicalOrderExcludingCurrent() async throws {
         let settings = UserSettings.default()
         settings.enableDailyCycleMode = true
+        settings.bedtimeSlotEnabled = true
         settings.breakfastHour = 8
         settings.breakfastMinute = 0
         settings.lunchHour = 13
@@ -155,6 +157,7 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
     func test_availableForwardTargetsForToday_dinnerDay_includesBedtimeBreakfastLunch() async throws {
         let settings = UserSettings.default()
         settings.enableDailyCycleMode = true
+        settings.bedtimeSlotEnabled = true
         settings.breakfastHour = 8
         settings.breakfastMinute = 0
         settings.lunchHour = 13
@@ -238,6 +241,63 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
         XCTAssertEqual(settings.dailyCycleAnchorDate, expectedAnchor)
         XCTAssertEqual(settings.currentCycleIndex, 2)
         XCTAssertEqual(settingsRepository.saveCount, 1)
+    }
+
+    // MARK: - bedtimeSlotEnabled cycle order
+
+    func test_advanceIfEnabled_wrapsFromDinnerToBreakfastWhenBedtimeDisabled() async {
+        let settings = UserSettings.default()
+        settings.enableDailyCycleMode = true
+        settings.bedtimeSlotEnabled = false
+        settings.currentCycleIndex = 2 // dinner
+
+        let settingsRepository = SpyCycleSettingsRepository(settings: settings)
+        let sut = RescheduleGlucoseCycleUseCase(
+            settingsRepository: settingsRepository,
+            analyticsRepository: MockAnalyticsRepository()
+        )
+
+        await sut.advanceIfEnabled()
+        XCTAssertEqual(settings.currentCycleIndex, 0) // wraps to breakfast, skipping bedtime
+    }
+
+    func test_availableForwardTargets_dinnerDay_bedtimeDisabled_excludesBedtime() async throws {
+        let settings = UserSettings.default()
+        settings.enableDailyCycleMode = true
+        settings.bedtimeSlotEnabled = false
+        let calendar = Calendar.current
+        let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 18, minute: 0)))
+        settings.dailyCycleAnchorDate = calendar.date(byAdding: .day, value: -2, to: calendar.startOfDay(for: today))
+        settings.currentCycleIndex = 2 // dinner
+
+        let sut = RescheduleGlucoseCycleUseCase(
+            settingsRepository: SpyCycleSettingsRepository(settings: settings),
+            analyticsRepository: MockAnalyticsRepository()
+        )
+
+        let targets = await sut.availableForwardTargetsForToday(today: today)
+        XCTAssertEqual(targets, [.breakfast, .lunch])
+        XCTAssertFalse(targets.contains(.none))
+    }
+
+    func test_setTodayTarget_bedtimeDisabled_rejectsBedtimeSlot() async throws {
+        let settings = UserSettings.default()
+        settings.enableDailyCycleMode = true
+        settings.bedtimeSlotEnabled = false
+        let calendar = Calendar.current
+        let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 12, minute: 30)))
+        settings.dailyCycleAnchorDate = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: today))
+        settings.currentCycleIndex = 1 // lunch
+
+        let settingsRepository = SpyCycleSettingsRepository(settings: settings)
+        let sut = RescheduleGlucoseCycleUseCase(
+            settingsRepository: settingsRepository,
+            analyticsRepository: MockAnalyticsRepository()
+        )
+
+        let shifted = await sut.setTodayTarget(.none, today: today)
+        XCTAssertFalse(shifted)
+        XCTAssertEqual(settingsRepository.saveCount, 0)
     }
 
     func test_setTodayTarget_returnsFalseForCurrentSlot() async throws {

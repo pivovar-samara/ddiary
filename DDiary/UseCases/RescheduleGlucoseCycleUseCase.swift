@@ -25,7 +25,7 @@ public final class RescheduleGlucoseCycleUseCase {
     }
 
     /// Advances the daily cycle target by one position if cycle mode is enabled.
-    /// Sequence: breakfast → lunch → dinner → bedtime → breakfast → ...
+    /// Sequence: breakfast → lunch → dinner → breakfast → ... (bedtime inserted when enabled)
     public func advanceIfEnabled() async {
         do {
             let settings = try await settingsRepository.getOrCreate()
@@ -154,8 +154,11 @@ public final class RescheduleGlucoseCycleUseCase {
 
     // MARK: - Helpers
     private func cycleOrder(from settings: UserSettings) -> [MealSlot] {
-        _ = settings
-        return [.breakfast, .lunch, .dinner, .none]
+        var order: [MealSlot] = [.breakfast, .lunch, .dinner]
+        if settings.bedtimeSlotEnabled {
+            order.append(.none)
+        }
+        return order
     }
 
     private func cycleSlot(for step: GlucoseCycleStep) -> MealSlot {
