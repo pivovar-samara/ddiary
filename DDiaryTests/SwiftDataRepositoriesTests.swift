@@ -298,20 +298,22 @@ final class SwiftDataGoogleIntegrationRepositoryTests: XCTestCase {
 
     func test_save_updateAndClearTokens_persistExpectedState() async throws {
         let container = try makeInMemoryModelContainer()
-        let repository = SwiftDataGoogleIntegrationRepository(modelContext: ModelContext(container))
+        let tokenStorage = InMemoryTokenStorage()
+        let repository = SwiftDataGoogleIntegrationRepository(modelContext: ModelContext(container), tokenStorage: tokenStorage)
 
         let integration = GoogleIntegration()
         integration.isEnabled = true
-        integration.refreshToken = "rt"
         integration.spreadsheetId = "sheet"
         integration.googleUserId = "uid"
 
         try await repository.save(integration)
+        try await repository.setRefreshToken("rt")
 
         let stored = try await repository.getOrCreate()
         XCTAssertEqual(stored.id, integration.id)
         XCTAssertTrue(stored.isEnabled)
-        XCTAssertEqual(stored.refreshToken, "rt")
+        let storedToken = try await repository.getRefreshToken()
+        XCTAssertEqual(storedToken, "rt")
         XCTAssertEqual(stored.spreadsheetId, "sheet")
         XCTAssertEqual(stored.googleUserId, "uid")
 
@@ -323,7 +325,8 @@ final class SwiftDataGoogleIntegrationRepositoryTests: XCTestCase {
         try await repository.clearTokens(stored)
         let cleared = try await repository.getOrCreate()
         XCTAssertFalse(cleared.isEnabled)
-        XCTAssertNil(cleared.refreshToken)
+        let clearedToken = try await repository.getRefreshToken()
+        XCTAssertNil(clearedToken)
         XCTAssertNil(cleared.spreadsheetId)
         XCTAssertNil(cleared.googleUserId)
     }
@@ -337,7 +340,6 @@ final class SwiftDataGoogleIntegrationRepositoryTests: XCTestCase {
 
         let cloudSynced = GoogleIntegration()
         cloudSynced.isEnabled = true
-        cloudSynced.refreshToken = "rt"
         cloudSynced.spreadsheetId = "sheet"
         cloudSynced.googleUserId = "uid"
 
@@ -365,7 +367,6 @@ final class SwiftDataGoogleIntegrationRepositoryTests: XCTestCase {
         let cloudSynced = GoogleIntegration()
         cloudSynced.id = sharedID
         cloudSynced.isEnabled = true
-        cloudSynced.refreshToken = "rt"
         cloudSynced.spreadsheetId = "sheet"
         cloudSynced.googleUserId = "uid"
 
@@ -375,7 +376,6 @@ final class SwiftDataGoogleIntegrationRepositoryTests: XCTestCase {
 
         let resolved = try await repository.getOrCreate()
         XCTAssertEqual(resolved.id, sharedID)
-        XCTAssertEqual(resolved.refreshToken, "rt")
         XCTAssertEqual(resolved.spreadsheetId, "sheet")
         XCTAssertTrue(resolved.isEnabled)
 

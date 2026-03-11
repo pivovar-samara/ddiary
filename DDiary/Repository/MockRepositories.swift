@@ -85,6 +85,7 @@ final class MockSettingsRepository: SettingsRepository {
 @MainActor
 final class MockGoogleIntegrationRepository: GoogleIntegrationRepository {
     private var integration: GoogleIntegration? = nil
+    private var refreshToken: String? = nil
 
     func getOrCreate() async throws -> GoogleIntegration {
         if let i = integration { return i }
@@ -102,10 +103,18 @@ final class MockGoogleIntegrationRepository: GoogleIntegrationRepository {
     }
 
     func clearTokens(_ integration: GoogleIntegration) async throws {
-        integration.refreshToken = nil
         integration.spreadsheetId = nil
         integration.googleUserId = nil
         integration.isEnabled = false
         self.integration = integration
+        refreshToken = nil
+    }
+
+    func getRefreshToken() async throws -> String? {
+        refreshToken
+    }
+
+    func setRefreshToken(_ token: String?) async throws {
+        refreshToken = token
     }
 }
