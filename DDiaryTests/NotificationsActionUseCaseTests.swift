@@ -3,10 +3,41 @@ import XCTest
 
 @MainActor
 final class NotificationsActionUseCaseTests: XCTestCase {
+    // MARK: - Skip cancels the notification instance
+
+    func test_skip_cancelsNotificationByIdentifier_forBP() async throws {
+        let sut = makeSUT()
+        let identifier = "ddiary.bp.d20260216.0900"
+
+        await sut.useCase.skip(
+            identifier: identifier,
+            categoryIdentifier: UserNotificationsRepository.IDs.bpCategory
+        )
+
+        XCTAssertEqual(sut.notifications.cancelledIdentifiers, [identifier])
+    }
+
+    func test_skip_cancelsNotificationByIdentifier_forGlucose() async throws {
+        let sut = makeSUT()
+        let identifier = "ddiary.glucose.before.d20260216.1300"
+
+        await sut.useCase.skip(
+            identifier: identifier,
+            categoryIdentifier: UserNotificationsRepository.IDs.glucoseBeforeCategory
+        )
+
+        XCTAssertEqual(sut.notifications.cancelledIdentifiers, [identifier])
+    }
+
+    // MARK: - Skip still logs analytics
+
     func test_skip_logsBloodPressureForBPCategory() async throws {
         let sut = makeSUT()
 
-        await sut.useCase.skip(categoryIdentifier: UserNotificationsRepository.IDs.bpCategory)
+        await sut.useCase.skip(
+            identifier: "ddiary.bp.d20260216.0900",
+            categoryIdentifier: UserNotificationsRepository.IDs.bpCategory
+        )
 
         XCTAssertEqual(sut.analytics.scheduleUpdated, [.bloodPressure])
     }
@@ -14,16 +45,26 @@ final class NotificationsActionUseCaseTests: XCTestCase {
     func test_skip_logsGlucoseForGlucoseCategory() async throws {
         let sut = makeSUT()
 
-        await sut.useCase.skip(categoryIdentifier: UserNotificationsRepository.IDs.glucoseAfterCategory)
+        await sut.useCase.skip(
+            identifier: "ddiary.glucose.after.d20260216.1500",
+            categoryIdentifier: UserNotificationsRepository.IDs.glucoseAfterCategory
+        )
 
         XCTAssertEqual(sut.analytics.scheduleUpdated, [.glucose])
     }
 
-    func test_skip_unknownCategory_doesNotLogScheduleUpdate() async throws {
+    // MARK: - Skip with unknown category
+
+    func test_skip_unknownCategory_cancelsNotificationButDoesNotLogAnalytics() async throws {
         let sut = makeSUT()
+        let identifier = "ddiary.unknown.1234"
 
-        await sut.useCase.skip(categoryIdentifier: "unknown.category")
+        await sut.useCase.skip(
+            identifier: identifier,
+            categoryIdentifier: "unknown.category"
+        )
 
+        XCTAssertEqual(sut.notifications.cancelledIdentifiers, [identifier])
         XCTAssertTrue(sut.analytics.scheduleUpdated.isEmpty)
     }
 
@@ -83,6 +124,7 @@ private final class SpyNotificationsRepository: NotificationsRepository, @unchec
 
     private(set) var snoozeCalls: [SnoozeCall] = []
     private(set) var scheduleOneOffCalls: [ScheduleOneOffCall] = []
+    private(set) var cancelledIdentifiers: [String] = []
 
     func requestAuthorization() async throws -> Bool { true }
     func hasPendingNotificationRequests() async -> Bool { false }
@@ -166,7 +208,9 @@ private final class SpyNotificationsRepository: NotificationsRepository, @unchec
         )
     }
 
-    func cancel(withIdentifier id: String) async {}
+    func cancel(withIdentifier id: String) async {
+        cancelledIdentifiers.append(id)
+    }
     func cancelPlannedBloodPressureNotification(at scheduledDate: Date) async {}
     func cancelPlannedGlucoseNotification(measurementType: GlucoseMeasurementType, at scheduledDate: Date) async {}
     func scheduledReminders(on day: Date) async -> [ScheduledReminder] { [] }

@@ -275,7 +275,6 @@ public final class GoogleIntegration {
     var singletonKey: String = GoogleIntegration.singletonRecordKey
     var spreadsheetId: String?
     var googleUserId: String?
-    var refreshToken: String?
     var isEnabled: Bool = false
 
     init(
@@ -283,14 +282,12 @@ public final class GoogleIntegration {
         singletonKey: String = GoogleIntegration.singletonRecordKey,
         spreadsheetId: String? = nil,
         googleUserId: String? = nil,
-        refreshToken: String? = nil,
         isEnabled: Bool = false
     ) {
         self.id = id
         self.singletonKey = singletonKey
         self.spreadsheetId = spreadsheetId
         self.googleUserId = googleUserId
-        self.refreshToken = refreshToken
         self.isEnabled = isEnabled
     }
 }

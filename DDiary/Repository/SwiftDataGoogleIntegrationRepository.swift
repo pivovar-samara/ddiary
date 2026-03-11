@@ -4,14 +4,19 @@ import SwiftData
 @MainActor
 final class SwiftDataGoogleIntegrationRepository: GoogleIntegrationRepository {
     private let context: ModelContext
+    private let tokenStorage: any TokenStorage
+
+    private static let refreshTokenKey = "ddiary.google.oauth.refreshToken"
 
     // MARK: - Initializers
-    init(modelContainer: ModelContainer) {
+    init(modelContainer: ModelContainer, tokenStorage: any TokenStorage = KeychainTokenStorage()) {
         self.context = ModelContext(modelContainer)
+        self.tokenStorage = tokenStorage
     }
 
-    init(modelContext: ModelContext) {
+    init(modelContext: ModelContext, tokenStorage: any TokenStorage = KeychainTokenStorage()) {
         self.context = modelContext
+        self.tokenStorage = tokenStorage
     }
 
     // MARK: - Google Integration
@@ -41,11 +46,25 @@ final class SwiftDataGoogleIntegrationRepository: GoogleIntegrationRepository {
         guard let primary = try resolveSingleton(createIfMissing: true) else {
             throw GoogleIntegrationRepositoryError.failedToResolveSingleton
         }
-        primary.refreshToken = nil
         primary.spreadsheetId = nil
         primary.googleUserId = nil
         primary.isEnabled = false
+        try tokenStorage.delete(key: Self.refreshTokenKey)
         try context.save()
+    }
+
+    // MARK: - Refresh Token (Keychain)
+
+    func getRefreshToken() async throws -> String? {
+        tokenStorage.read(key: Self.refreshTokenKey)
+    }
+
+    func setRefreshToken(_ token: String?) async throws {
+        if let token {
+            try tokenStorage.write(token, key: Self.refreshTokenKey)
+        } else {
+            try tokenStorage.delete(key: Self.refreshTokenKey)
+        }
     }
 }
 
@@ -120,7 +139,6 @@ private extension SwiftDataGoogleIntegrationRepository {
     func completenessScore(for integration: GoogleIntegration) -> Int {
         var score = 0
         if integration.isEnabled { score += 1 }
-        if normalized(integration.refreshToken) != nil { score += 1 }
         if normalized(integration.spreadsheetId) != nil { score += 1 }
         if normalized(integration.googleUserId) != nil { score += 1 }
         return score
@@ -132,9 +150,6 @@ private extension SwiftDataGoogleIntegrationRepository {
 
     func mergeDuplicateValues(into primary: GoogleIntegration, from candidates: [GoogleIntegration]) {
         for candidate in candidates where candidate !== primary {
-            if primary.refreshToken == nil, let refreshToken = normalized(candidate.refreshToken) {
-                primary.refreshToken = refreshToken
-            }
             if primary.spreadsheetId == nil, let spreadsheetId = normalized(candidate.spreadsheetId) {
                 primary.spreadsheetId = spreadsheetId
             }
@@ -150,7 +165,6 @@ private extension SwiftDataGoogleIntegrationRepository {
     func copyIntegrationValues(from source: GoogleIntegration, to target: GoogleIntegration) {
         target.spreadsheetId = normalized(source.spreadsheetId)
         target.googleUserId = normalized(source.googleUserId)
-        target.refreshToken = normalized(source.refreshToken)
         target.isEnabled = source.isEnabled
     }
 

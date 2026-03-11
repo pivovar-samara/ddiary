@@ -11,6 +11,17 @@ import XCTest
 // Shared test error
 enum TestError: Error { case forced }
 
+// MARK: - InMemoryTokenStorage
+
+/// In-memory TokenStorage for use in tests that involve the repository layer.
+final class InMemoryTokenStorage: TokenStorage {
+    private var store: [String: String] = [:]
+
+    func read(key: String) -> String? { store[key] }
+    func write(_ token: String, key: String) { store[key] = token }
+    func delete(key: String) { store.removeValue(forKey: key) }
+}
+
 // Shared analytics mock
 final class MockAnalyticsRepository: AnalyticsRepository, @unchecked Sendable {
     private(set) var appOpenCount = 0

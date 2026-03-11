@@ -79,6 +79,13 @@ public protocol GoogleIntegrationRepository {
 
     /// Clear tokens and disable integration on logout.
     func clearTokens(_ integration: GoogleIntegration) async throws
+
+    /// Read the stored Google OAuth refresh token from the Keychain.
+    func getRefreshToken() async throws -> String?
+
+    /// Write or delete the Google OAuth refresh token in the Keychain.
+    /// Passing `nil` deletes any stored token.
+    func setRefreshToken(_ token: String?) async throws
 }
 
 // MARK: - NotificationsRepository

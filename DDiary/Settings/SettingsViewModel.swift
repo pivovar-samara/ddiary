@@ -464,7 +464,6 @@ final class SettingsViewModel {
             let tokens = try await googleSignIn()
 
             integration.isEnabled = true
-            integration.refreshToken = tokens.refreshToken
             integration.googleUserId = GoogleIDToken.userIdentifier(from: tokens.idToken)
 
             // Create spreadsheet if missing
@@ -487,6 +486,7 @@ final class SettingsViewModel {
                 }
             }
 
+            try await googleIntegrationRepository.setRefreshToken(tokens.refreshToken)
             try await googleIntegrationRepository.update(integration)
             await refreshSyncStatus()
             await analyticsRepository.logGoogleEnabled()
@@ -580,9 +580,9 @@ final class SettingsViewModel {
         return integration
     }
 
-    private func updateGoogleSummary(using integration: GoogleIntegration) {
+    private func updateGoogleSummary(using integration: GoogleIntegration, hasRefreshToken: Bool) {
         let enabled = integration.isEnabled
-        let hasCreds = integration.refreshToken != nil && integration.spreadsheetId != nil
+        let hasCreds = hasRefreshToken && integration.spreadsheetId != nil
         isGoogleEnabled = enabled && hasCreds
         if !enabled {
             googleSummary = L10n.settingsGoogleSummaryNotConnected
@@ -683,6 +683,7 @@ final class SettingsViewModel {
     func refreshSyncStatus() async {
         do {
             let integration = try await fetchLatestGoogleIntegrationModel()
+            let hasRefreshToken = (try await googleIntegrationRepository.getRefreshToken()) != nil
             // Fetch pending or failed items per type
             let pendingOrFailedBP = try await measurementsRepository.pendingOrFailedBPSync()
             let pendingOrFailedGlucose = try await measurementsRepository.pendingOrFailedGlucoseSync()
@@ -706,27 +707,27 @@ final class SettingsViewModel {
 
             lastSyncAt = allSyncDates.max()
             if !isGoogleBusy {
-                updateGoogleSummary(using: integration)
+                updateGoogleSummary(using: integration, hasRefreshToken: hasRefreshToken)
             }
             let totalMeasurementsCount = allBP.count + allGlucose.count
-            updateRestoreHintState(totalMeasurementsCount: totalMeasurementsCount)
+            updateRestoreHintState(totalMeasurementsCount: totalMeasurementsCount, hasRefreshToken: hasRefreshToken)
         } catch {
             handleError(error, context: "refreshSyncStatus", policy: .suppressed)
         }
     }
 
-    private func updateRestoreHintState(totalMeasurementsCount: Int) {
+    private func updateRestoreHintState(totalMeasurementsCount: Int, hasRefreshToken: Bool) {
         let withinRestoreWindow = Date() < restoreHintUntil
         let hasAnyMeasurements = totalMeasurementsCount > 0
-        let hasCloudMarkers = hasAnyGoogleCloudData(googleIntegrationModel)
+        let hasCloudMarkers = hasAnyGoogleCloudData(googleIntegrationModel, hasRefreshToken: hasRefreshToken)
 
         isLikelyRestoringFromICloud = withinRestoreWindow && !hasAnyMeasurements && !hasCloudMarkers
     }
 
-    private func hasAnyGoogleCloudData(_ integration: GoogleIntegration?) -> Bool {
+    private func hasAnyGoogleCloudData(_ integration: GoogleIntegration?, hasRefreshToken: Bool) -> Bool {
         guard let integration else { return false }
         return integration.isEnabled
-            || hasNonEmpty(integration.refreshToken)
+            || hasRefreshToken
             || hasNonEmpty(integration.spreadsheetId)
             || hasNonEmpty(integration.googleUserId)
     }

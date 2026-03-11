@@ -19,7 +19,7 @@ final class SyncWithGoogleUseCaseTests: XCTestCase {
         let integration = try await google.getOrCreate()
         integration.isEnabled = true
         integration.spreadsheetId = "sheet123"
-        integration.refreshToken = "token"
+        try await google.setRefreshToken("token")
 
         // Seed pending data
         let bp = BPMeasurement(timestamp: Date(), systolic: 120, diastolic: 80, pulse: 70, comment: nil)
@@ -91,7 +91,7 @@ final class SyncWithGoogleUseCaseTests: XCTestCase {
         let integration = try await google.getOrCreate()
         integration.isEnabled = true
         integration.spreadsheetId = "sheet123"
-        integration.refreshToken = "token"
+        try await google.setRefreshToken("token")
 
         let bp = BPMeasurement(timestamp: Date(), systolic: 120, diastolic: 80, pulse: 70, comment: nil)
         try await measurements.insertBP(bp)
@@ -116,7 +116,7 @@ final class SyncWithGoogleUseCaseTests: XCTestCase {
         let integration = try await google.getOrCreate()
         integration.isEnabled = true
         integration.spreadsheetId = "sheet123"
-        integration.refreshToken = "token"
+        try await google.setRefreshToken("token")
         integration.googleUserId = "user@example.com"
 
         let bp = BPMeasurement(timestamp: Date(), systolic: 120, diastolic: 80, pulse: 70, comment: nil)
@@ -128,7 +128,8 @@ final class SyncWithGoogleUseCaseTests: XCTestCase {
         await sut.execute()
 
         XCTAssertFalse(integration.isEnabled)
-        XCTAssertNil(integration.refreshToken)
+        let invalidGrantToken = try await google.getRefreshToken()
+        XCTAssertNil(invalidGrantToken)
         XCTAssertEqual(integration.spreadsheetId, "sheet123")
         XCTAssertEqual(integration.googleUserId, "user@example.com")
 
@@ -144,7 +145,7 @@ final class SyncWithGoogleUseCaseTests: XCTestCase {
         let integration = try await google.getOrCreate()
         integration.isEnabled = true
         integration.spreadsheetId = "sheet123"
-        integration.refreshToken = "token"
+        try await google.setRefreshToken("token")
 
         let bp = BPMeasurement(timestamp: Date(), systolic: 120, diastolic: 80, pulse: 70, comment: nil)
         try await measurements.insertBP(bp)
@@ -179,7 +180,7 @@ final class SyncWithGoogleUseCaseTests: XCTestCase {
         let integration = try await google.getOrCreate()
         integration.isEnabled = true
         integration.spreadsheetId = "sheet123"
-        integration.refreshToken = "token"
+        try await google.setRefreshToken("token")
 
         let bp = BPMeasurement(timestamp: Date(), systolic: 120, diastolic: 80, pulse: 70, comment: nil)
         let glucose = GlucoseMeasurement(timestamp: Date(), value: 5.6, unit: .mmolL, measurementType: .beforeMeal, mealSlot: .breakfast, comment: nil)

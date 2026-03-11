@@ -130,7 +130,6 @@ public enum GoogleIDToken: Sendable {
 @MainActor
 public enum GoogleOAuth {
     private static var activePresentationContextProvider: PresentationContextProvider?
-    private static var fallbackPresentationAnchor: ASPresentationAnchor?
 
     public static func signIn() async throws -> GoogleOAuthTokens {
         // 1) Build PKCE values
@@ -176,12 +175,18 @@ public enum GoogleOAuth {
         case authorizationFailed(code: String, description: String?)
         case tokenExchangeFailed(status: Int, body: String?)
         case sessionStartFailed
+        case noPresentationAnchor
     }
 
     // MARK: - Helpers
 
     private static func startWebAuthSession(authURL: URL, callbackScheme: String) async throws -> URL {
-        try await withCheckedThrowingContinuation { continuation in
+        // Resolve anchor before creating session – never block or crash.
+        guard let anchor = resolvePresentationAnchor(from: UIApplication.shared.connectedScenes) else {
+            throw OAuthError.noPresentationAnchor
+        }
+
+        return try await withCheckedThrowingContinuation { continuation in
             // Hold strong references to avoid deallocation before callback
             var strongSession: ASWebAuthenticationSession?
             var hasResumed = false
@@ -197,17 +202,7 @@ public enum GoogleOAuth {
                 }
             }
 
-            if fallbackPresentationAnchor == nil,
-               let preResolvedAnchor = resolvePresentationAnchor(from: UIApplication.shared.connectedScenes) {
-                fallbackPresentationAnchor = preResolvedAnchor
-            }
-
-            guard fallbackPresentationAnchor != nil else {
-                resumeOnce(.failure(OAuthError.sessionStartFailed))
-                return
-            }
-
-            let provider = PresentationContextProvider()
+            let provider = PresentationContextProvider(anchor: anchor)
             activePresentationContextProvider = provider
 
             strongSession = ASWebAuthenticationSession(url: authURL, callbackURLScheme: callbackScheme) { url, error in
@@ -344,55 +339,24 @@ public enum GoogleOAuth {
     // MARK: - Presentation context provider
 
     private final class PresentationContextProvider: NSObject, ASWebAuthenticationPresentationContextProviding {
+        let anchor: ASPresentationAnchor
+
+        init(anchor: ASPresentationAnchor) {
+            self.anchor = anchor
+            super.init()
+        }
+
         func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
-            GoogleOAuth.presentationAnchor(from: UIApplication.shared.connectedScenes)
+            anchor
         }
     }
 
-    static func presentationAnchor(from scenes: Set<UIScene>) -> ASPresentationAnchor {
-        if let anchor = resolvePresentationAnchor(from: scenes) {
-            return anchor
-        }
-        if let anchor = resolvePresentationAnchor(from: UIApplication.shared.connectedScenes) {
-            return anchor
-        }
-        if let fallbackPresentationAnchor {
-            return fallbackPresentationAnchor
-        }
-
-        // Last-resort fallback for transient app states.
-        if let fallbackScene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first {
-            let fallback = ASPresentationAnchor(windowScene: fallbackScene)
-            fallback.rootViewController = UIViewController()
-            fallbackPresentationAnchor = fallback
-            return fallback
-        }
-
-        assertionFailure("No UIWindowScene available for ASWebAuthenticationSession presentation anchor.")
-        if let fallbackPresentationAnchor {
-            return fallbackPresentationAnchor
-        }
-
-        // Wait briefly for foreground-scene recovery, then fail closed with an inert anchor.
-        let deadline = Date().addingTimeInterval(2)
-        while Date() < deadline {
-            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
-            if let recoveredAnchor = resolvePresentationAnchor(from: UIApplication.shared.connectedScenes) {
-                fallbackPresentationAnchor = recoveredAnchor
-                return recoveredAnchor
-            }
-        }
-
-        guard let emergencyScene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first else {
-            preconditionFailure("No UIWindowScene available for ASWebAuthenticationSession presentation anchor.")
-        }
-
-        let emergencyAnchor = ASPresentationAnchor(windowScene: emergencyScene)
-        fallbackPresentationAnchor = emergencyAnchor
-        return emergencyAnchor
-    }
-
-    private static func resolvePresentationAnchor(from scenes: Set<UIScene>) -> ASPresentationAnchor? {
+    /// Attempt to find a suitable presentation anchor from the given scenes.
+    ///
+    /// Returns `nil` when no valid window scene or window is available,
+    /// allowing callers to surface a recoverable ``OAuthError/noPresentationAnchor`` error
+    /// instead of crashing or blocking the main thread.
+    static func resolvePresentationAnchor(from scenes: Set<UIScene>) -> ASPresentationAnchor? {
         let allWindowScenes = scenes.compactMap { $0 as? UIWindowScene }
         guard !allWindowScenes.isEmpty else { return nil }
 
@@ -432,6 +396,8 @@ extension GoogleOAuth.OAuthError: LocalizedError {
             return "Token exchange failed (\(status)): \(body ?? "No details")"
         case .sessionStartFailed:
             return "Could not start the Google sign-in session."
+        case .noPresentationAnchor:
+            return "No active window available to present Google sign-in. Please try again."
         }
     }
 }

@@ -46,8 +46,10 @@ public final class NotificationsActionUseCase {
         )
     }
 
-    /// Placeholder for skip logic — in v1 we just log analytics.
-    public func skip(categoryIdentifier: String) async {
+    /// Skip the current reminder instance: cancel it from the notification center
+    /// and log analytics. Does not alter the recurring schedule.
+    public func skip(identifier: String, categoryIdentifier: String) async {
+        await notificationsRepository.cancel(withIdentifier: identifier)
         guard let kind = analyticsKind(for: categoryIdentifier) else { return }
         await analyticsRepository.logScheduleUpdated(kind: kind)
     }

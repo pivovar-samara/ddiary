@@ -262,6 +262,7 @@ public final class TodayViewModel {
         isRefreshInProgress = true
         defer { isRefreshInProgress = false }
 
+        errorMessage = nil
         isLoading = true
         
         let overview = await getTodayOverviewUseCase.compute()
@@ -307,6 +308,7 @@ public final class TodayViewModel {
         guard isDailyCycleModeEnabled else { return }
         guard !isShiftingCycleDay else { return }
 
+        errorMessage = nil
         isShiftingCycleDay = true
         defer { isShiftingCycleDay = false }
 
@@ -346,6 +348,7 @@ public final class TodayViewModel {
         guard !isSwitchingCycleTarget else { return }
         guard availableCycleSwitchTargets.contains(mealSlot) else { return }
 
+        errorMessage = nil
         isSwitchingCycleTarget = true
         defer { isSwitchingCycleTarget = false }
 

@@ -86,10 +86,9 @@ struct AppContainer {
         // Use a managed observer that replaces prior registrations to avoid duplicate side effects.
         Self.refreshTokenObserverRegistry.install(onTokenUpdated: { [googleIntegrationRepository] newRT in
             do {
-                let integration = try await googleIntegrationRepository.getOrCreate()
-                if integration.refreshToken != newRT {
-                    integration.refreshToken = newRT
-                    try await googleIntegrationRepository.update(integration)
+                let currentToken = try await googleIntegrationRepository.getRefreshToken()
+                if currentToken != newRT {
+                    try await googleIntegrationRepository.setRefreshToken(newRT)
                 }
             } catch {
                 Self.log(error, operation: "persistGoogleRefreshToken", policy: .suppressed)
@@ -194,7 +193,7 @@ struct AppContainer {
                 UserSettings.self,
                 GoogleIntegration.self,
             ]),
-            configurations: [ModelConfiguration(isStoredInMemoryOnly: true)]
+            configurations: [ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)]
         )
         return AppContainer(modelContainer: modelContainer)
     }

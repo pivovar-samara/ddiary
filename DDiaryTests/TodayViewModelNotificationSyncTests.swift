@@ -196,6 +196,36 @@ final class TodayViewModelNotificationSyncTests: XCTestCase {
         XCTAssertEqual(targets, [.breakfast, .lunch, .dinner])
     }
 
+    func test_refreshIfNeeded_clearsErrorMessageSetByFailedCycleShift() async throws {
+        let measurements = MockMeasurementsRepository()
+        let settings = MockSettingsRepository()
+        let notifications = SpyNotificationsRepository()
+        let calendar = Calendar.current
+        let now = Date()
+
+        let userSettings = try await settings.getOrCreate()
+        userSettings.enableDailyCycleMode = true
+        userSettings.dailyCycleAnchorDate = calendar.startOfDay(for: now)
+        userSettings.currentCycleIndex = 0
+
+        let throwingUpdater = ThrowingSchedulesUpdater()
+        let viewModel = makeViewModel(
+            measurements: measurements,
+            settings: settings,
+            notifications: notifications,
+            schedulesUpdater: throwingUpdater
+        )
+        await viewModel.refresh()
+
+        // Shift fails to reschedule notifications → sets errorMessage, then calls refresh() internally
+        await viewModel.shiftCycleDayForward()
+
+        // Explicit refreshIfNeeded must clear any residual errorMessage
+        await viewModel.refreshIfNeeded(reason: .manual)
+
+        XCTAssertNil(viewModel.errorMessage)
+    }
+
     func test_switchDailyCycleTarget_postsExternalSettingsChangeNotification() async throws {
         let measurements = MockMeasurementsRepository()
         let settings = MockSettingsRepository()
@@ -216,25 +246,18 @@ final class TodayViewModelNotificationSyncTests: XCTestCase {
         await viewModel.refresh()
         let target = try XCTUnwrap(viewModel.availableCycleSwitchTargets.first)
 
-        var didPostExternalUpdate = false
-        let token = NotificationCenter.default.addObserver(
-            forName: .settingsDidChangeOutsideSettings,
-            object: nil,
-            queue: nil
-        ) { _ in
-            didPostExternalUpdate = true
-        }
-        defer { NotificationCenter.default.removeObserver(token) }
+        let expectation = expectation(forNotification: .settingsDidChangeOutsideSettings, object: nil)
 
         await viewModel.switchDailyCycleTarget(to: target)
 
-        XCTAssertTrue(didPostExternalUpdate)
+        await fulfillment(of: [expectation], timeout: 2)
     }
 
     private func makeViewModel(
         measurements: MockMeasurementsRepository,
         settings: MockSettingsRepository,
-        notifications: SpyNotificationsRepository
+        notifications: SpyNotificationsRepository,
+        schedulesUpdater: (any SchedulesUpdating)? = nil
     ) -> TodayViewModel {
         let analytics = MockAnalyticsRepository()
         let getTodayOverviewUseCase = GetTodayOverviewUseCase(
@@ -260,7 +283,7 @@ final class TodayViewModelNotificationSyncTests: XCTestCase {
             logBPMeasurementUseCase: logBPMeasurementUseCase,
             logGlucoseMeasurementUseCase: logGlucoseMeasurementUseCase,
             rescheduleGlucoseCycleUseCase: rescheduleGlucoseCycleUseCase,
-            schedulesUpdater: NoopSchedulesUpdater(),
+            schedulesUpdater: schedulesUpdater ?? NoopSchedulesUpdater(),
             notificationsRepository: notifications
         )
     }
@@ -269,6 +292,13 @@ final class TodayViewModelNotificationSyncTests: XCTestCase {
 @MainActor
 private final class NoopSchedulesUpdater: SchedulesUpdating {
     func scheduleFromCurrentSettings() async throws {}
+}
+
+@MainActor
+private final class ThrowingSchedulesUpdater: SchedulesUpdating {
+    func scheduleFromCurrentSettings() async throws {
+        throw TestError.forced
+    }
 }
 
 private final class SpyNotificationsRepository: NotificationsRepository, @unchecked Sendable {

@@ -278,11 +278,11 @@ final class SettingsViewModelSaveSettingsTests: XCTestCase {
             from: DateComponents(year: 2026, month: 2, day: 16, hour: 9, minute: 0)
         ) ?? Date()
 
-        var didPostSettingsDidSave = false
+        nonisolated(unsafe) var didPostSettingsDidSave = false
         let token = NotificationCenter.default.addObserver(
             forName: .settingsDidSave,
             object: nil,
-            queue: nil
+            queue: .main
         ) { _ in
             didPostSettingsDidSave = true
         }
@@ -361,11 +361,11 @@ final class SettingsViewModelSaveSettingsTests: XCTestCase {
 
         let restored = GoogleIntegration()
         restored.isEnabled = true
-        restored.refreshToken = "rt"
         restored.spreadsheetId = "sheet"
         restored.googleUserId = "user@example.com"
 
         let googleRepository = RotatingGoogleIntegrationRepository(integrations: [placeholder, restored])
+        googleRepository.storedRefreshToken = "rt"
         let sut = makeSUT(
             settingsRepository: settingsRepository,
             measurementsRepository: measurementsRepository,
@@ -390,17 +390,16 @@ final class SettingsViewModelSaveSettingsTests: XCTestCase {
 
         let connected = GoogleIntegration()
         connected.isEnabled = true
-        connected.refreshToken = "rt"
         connected.spreadsheetId = "sheet"
         connected.googleUserId = "user@example.com"
 
         let disconnected = GoogleIntegration()
         disconnected.isEnabled = false
-        disconnected.refreshToken = nil
         disconnected.spreadsheetId = "sheet"
         disconnected.googleUserId = "user@example.com"
 
         let googleRepository = RotatingGoogleIntegrationRepository(integrations: [connected, disconnected])
+        googleRepository.storedRefreshToken = "rt"
         let sut = makeSUT(
             settingsRepository: settingsRepository,
             measurementsRepository: measurementsRepository,
@@ -424,7 +423,6 @@ final class SettingsViewModelSaveSettingsTests: XCTestCase {
 
         let disconnected = GoogleIntegration()
         disconnected.isEnabled = false
-        disconnected.refreshToken = nil
         disconnected.spreadsheetId = nil
 
         let googleRepository = RotatingGoogleIntegrationRepository(integrations: [disconnected])
@@ -684,6 +682,7 @@ private final class RotatingGoogleIntegrationRepository: GoogleIntegrationReposi
     private var integrations: [GoogleIntegration]
     private var index: Int = 0
     private(set) var getOrCreateCallCount: Int = 0
+    var storedRefreshToken: String? = nil
 
     init(integrations: [GoogleIntegration]) {
         self.integrations = integrations
@@ -718,10 +717,18 @@ private final class RotatingGoogleIntegrationRepository: GoogleIntegrationReposi
     }
 
     func clearTokens(_ integration: GoogleIntegration) async throws {
-        integration.refreshToken = nil
         integration.spreadsheetId = nil
         integration.googleUserId = nil
         integration.isEnabled = false
+        storedRefreshToken = nil
         try await save(integration)
+    }
+
+    func getRefreshToken() async throws -> String? {
+        storedRefreshToken
+    }
+
+    func setRefreshToken(_ token: String?) async throws {
+        storedRefreshToken = token
     }
 }

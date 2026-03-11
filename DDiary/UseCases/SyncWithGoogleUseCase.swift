@@ -120,11 +120,12 @@ final class SyncWithGoogleUseCase {
         log("Starting sync")
         do {
             let integration = try await googleIntegrationRepository.getOrCreate()
-            log("Integration enabled=\(integration.isEnabled) spreadsheetId=\(integration.spreadsheetId ?? "nil") refreshToken=\(integration.refreshToken != nil)")
+            let refreshToken = try await googleIntegrationRepository.getRefreshToken()
+            log("Integration enabled=\(integration.isEnabled) spreadsheetId=\(integration.spreadsheetId ?? "nil") refreshToken=\(refreshToken != nil)")
             guard
                 integration.isEnabled,
                 let spreadsheetId = integration.spreadsheetId,
-                let refreshToken = integration.refreshToken
+                let refreshToken = refreshToken
             else {
                 log("Missing credentials or disabled; aborting")
                 await analyticsRepository.logGoogleSyncFailure(reason: "Integration disabled or missing credentials")
@@ -282,9 +283,9 @@ final class SyncWithGoogleUseCase {
 
     private func invalidateIntegrationDueToInvalidGrant(integration: GoogleIntegration) async {
         integration.isEnabled = false
-        integration.refreshToken = nil
         do {
             try await googleIntegrationRepository.update(integration)
+            try await googleIntegrationRepository.setRefreshToken(nil)
             log("Refresh token is invalid/revoked; integration disabled until reconnect")
         } catch {
             log("Failed to persist invalid token state: \(error)")
@@ -299,8 +300,9 @@ final class SyncWithGoogleUseCase {
 
     private func hasConnectedIntegration() async throws -> Bool {
         let integration = try await googleIntegrationRepository.getOrCreate()
+        let refreshToken = try await googleIntegrationRepository.getRefreshToken()
         return integration.isEnabled
             && integration.spreadsheetId != nil
-            && integration.refreshToken != nil
+            && refreshToken != nil
     }
 }

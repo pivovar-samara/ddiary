@@ -3,7 +3,7 @@ import UserNotifications
 
 @MainActor
 protocol NotificationsActionHandling: AnyObject {
-    func skip(categoryIdentifier: String) async
+    func skip(identifier: String, categoryIdentifier: String) async
     func snooze(
         originalIdentifier: String,
         minutes: Int,
@@ -222,13 +222,20 @@ final class NotificationsCoordinator: NSObject, UNUserNotificationCenterDelegate
     func handleAction(_ action: UserNotificationsRepository.HandledAction,
                       context: NotificationActionContext,
                       completionHandler: @escaping () -> Void) {
-        Task { @MainActor [actionHandler, quickEntryRouter] in
-            switch action {
-            case .enter:
+        switch action {
+        case .enter:
+            Task { @MainActor [quickEntryRouter] in
                 quickEntryRouter.routeToQuickEntry(context: context)
-            case .skip:
-                await actionHandler.skip(categoryIdentifier: context.categoryIdentifier)
-            case .snooze(let minutes):
+            }
+            completionHandler()
+        case .skip:
+            completionHandler()
+            Task { @MainActor [actionHandler] in
+                await actionHandler.skip(identifier: context.identifier, categoryIdentifier: context.categoryIdentifier)
+            }
+        case .snooze(let minutes):
+            completionHandler()
+            Task { @MainActor [actionHandler] in
                 await actionHandler.snooze(
                     originalIdentifier: context.identifier,
                     minutes: minutes,
@@ -239,7 +246,6 @@ final class NotificationsCoordinator: NSObject, UNUserNotificationCenterDelegate
                     measurementTypeRawValue: context.measurementTypeRawValue
                 )
             }
-            completionHandler()
         }
     }
 }
