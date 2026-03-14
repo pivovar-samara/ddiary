@@ -25,16 +25,12 @@ public final class RescheduleGlucoseCycleUseCase {
     }
 
     /// Advances the daily cycle target by one position if cycle mode is enabled.
-    /// Sequence: breakfast → lunch → dinner → breakfast → ... (bedtime inserted when enabled)
-    public func advanceIfEnabled() async {
+    /// Shifts the anchor back by one day so today maps to the next cycle step.
+    public func advanceIfEnabled(today: Date = Date()) async {
         do {
             let settings = try await settingsRepository.getOrCreate()
             guard settings.enableDailyCycleMode else { return }
-            let order = cycleOrder(from: settings)
-            guard !order.isEmpty else { return }
-            let current = positiveModulo(settings.currentCycleIndex, order.count)
-            let next = (current + 1) % order.count
-            settings.currentCycleIndex = next
+            shiftAnchorBackOneDay(for: settings, today: today, calendar: .current)
             try await settingsRepository.save(settings)
             await analyticsRepository.logScheduleUpdated(kind: .glucose)
         } catch {
@@ -43,13 +39,19 @@ public final class RescheduleGlucoseCycleUseCase {
     }
 
     /// Sets the current daily cycle target to a specific meal slot if cycle mode is enabled.
-    public func setTarget(_ meal: MealSlot) async {
+    /// Adjusts the anchor so that today maps to the requested slot.
+    /// Rejects slots that are not in the active cycle (e.g. `.none` when bedtime is disabled).
+    public func setTarget(_ meal: MealSlot, today: Date = Date()) async {
         do {
             let settings = try await settingsRepository.getOrCreate()
             guard settings.enableDailyCycleMode else { return }
             let order = cycleOrder(from: settings)
-            guard let idx = order.firstIndex(of: meal) else { return }
-            settings.currentCycleIndex = idx
+            guard order.contains(meal) else { return }
+            guard let targetStep = step(for: meal) else { return }
+            let calendar = Calendar.current
+            let referenceDay = calendar.startOfDay(for: today)
+            let shiftedAnchor = calendar.date(byAdding: .day, value: -targetStep.rawValue, to: referenceDay) ?? referenceDay
+            settings.dailyCycleAnchorDate = shiftedAnchor
             try await settingsRepository.save(settings)
             await analyticsRepository.logScheduleUpdated(kind: .glucose)
         } catch {
@@ -100,7 +102,6 @@ public final class RescheduleGlucoseCycleUseCase {
             let shiftedAnchor = calendar.date(byAdding: .day, value: -targetStep.rawValue, to: referenceDay) ?? referenceDay
 
             settings.dailyCycleAnchorDate = shiftedAnchor
-            settings.currentCycleIndex = targetStep.rawValue
             try await settingsRepository.save(settings)
             await analyticsRepository.logScheduleUpdated(kind: .glucose)
             return true
@@ -111,14 +112,20 @@ public final class RescheduleGlucoseCycleUseCase {
     }
 
     /// Returns the current target slot if cycle mode is enabled; otherwise nil.
-    public func currentTarget() async -> MealSlot? {
+    public func currentTarget(today: Date = Date()) async -> MealSlot? {
         do {
             let settings = try await settingsRepository.getOrCreate()
             guard settings.enableDailyCycleMode else { return nil }
-            let order = cycleOrder(from: settings)
-            guard !order.isEmpty else { return nil }
-            let idx = positiveModulo(settings.currentCycleIndex, order.count)
-            return order[idx]
+            let calendar = Calendar.current
+            let referenceDay = calendar.startOfDay(for: today)
+            let anchorDate = settings.dailyCycleAnchorDate
+                ?? GlucoseCyclePlanner.fallbackAnchorDate(
+                    currentCycleIndex: settings.currentCycleIndex,
+                    referenceDate: today,
+                    calendar: calendar
+                )
+            let currentStep = GlucoseCyclePlanner.step(on: referenceDay, anchorDate: anchorDate, calendar: calendar)
+            return cycleSlot(for: currentStep)
         } catch {
             log(error, operation: "currentTarget", policy: .suppressed)
             return nil
@@ -132,18 +139,7 @@ public final class RescheduleGlucoseCycleUseCase {
         do {
             let settings = try await settingsRepository.getOrCreate()
             guard settings.enableDailyCycleMode else { return false }
-            let calendar = Calendar.current
-            let referenceDay = calendar.startOfDay(for: today)
-            let anchorDate = settings.dailyCycleAnchorDate
-                ?? GlucoseCyclePlanner.fallbackAnchorDate(
-                    currentCycleIndex: settings.currentCycleIndex,
-                    referenceDate: today,
-                    calendar: calendar
-                )
-            let shiftedAnchor = calendar.date(byAdding: .day, value: -1, to: anchorDate) ?? anchorDate
-            settings.dailyCycleAnchorDate = shiftedAnchor
-            let updatedStep = GlucoseCyclePlanner.step(on: referenceDay, anchorDate: shiftedAnchor, calendar: calendar)
-            settings.currentCycleIndex = updatedStep.rawValue
+            shiftAnchorBackOneDay(for: settings, today: today, calendar: .current)
             try await settingsRepository.save(settings)
             return true
         } catch {
@@ -187,9 +183,16 @@ public final class RescheduleGlucoseCycleUseCase {
         }
     }
 
-    private func positiveModulo(_ value: Int, _ modulus: Int) -> Int {
-        let remainder = value % modulus
-        return remainder >= 0 ? remainder : remainder + modulus
+    /// Resolves the current anchor (falling back to the legacy index when nil) and shifts it
+    /// back by one calendar day, making today map to the next cycle step.
+    private func shiftAnchorBackOneDay(for settings: UserSettings, today: Date, calendar: Calendar) {
+        let anchorDate = settings.dailyCycleAnchorDate
+            ?? GlucoseCyclePlanner.fallbackAnchorDate(
+                currentCycleIndex: settings.currentCycleIndex,
+                referenceDate: today,
+                calendar: calendar
+            )
+        settings.dailyCycleAnchorDate = calendar.date(byAdding: .day, value: -1, to: anchorDate) ?? anchorDate
     }
 
     private func log(_ error: Error, operation: String, policy: UserSurfacePolicy) {
