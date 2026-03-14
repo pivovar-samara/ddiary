@@ -3,11 +3,23 @@ import XCTest
 
 @MainActor
 final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
+
+    // MARK: - Fixed calendar shared by all tests
+    // Using a fixed Gregorian/UTC calendar avoids flakiness caused by device locale,
+    // regional calendar settings, or DST transitions.
+    private static var utcCalendar: Calendar = {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(secondsFromGMT: 0)!
+        return cal
+    }()
+
+    // MARK: - advanceIfEnabled
+
     func test_advanceIfEnabled_movesToNextTargetAndLogsAnalytics() async throws {
         let settings = UserSettings.default()
         settings.enableDailyCycleMode = true
         settings.bedtimeSlotEnabled = false
-        let calendar = Calendar.current
+        let calendar = Self.utcCalendar
         let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 16)))
         settings.dailyCycleAnchorDate = calendar.startOfDay(for: today) // breakfast day (step 0)
 
@@ -30,7 +42,7 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
         let settings = UserSettings.default()
         settings.enableDailyCycleMode = true
         settings.bedtimeSlotEnabled = true
-        let calendar = Calendar.current
+        let calendar = Self.utcCalendar
         let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 16)))
         // Start at dinner day (step 2): anchor = today - 2 days
         settings.dailyCycleAnchorDate = calendar.date(byAdding: .day, value: -2, to: calendar.startOfDay(for: today))
@@ -51,6 +63,30 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
         XCTAssertEqual(targetAfterSecond, .breakfast) // wraps back to breakfast (step 0)
     }
 
+    func test_advanceIfEnabled_dinnerDayAlwaysAdvancesToBedtimeStep() async throws {
+        // The 4-step anchor cycle always progresses through all steps.
+        // When bedtimeSlotEnabled = false the bedtime step has no slots shown,
+        // but the cycle still passes through it (consistent with shiftTodayForward).
+        let settings = UserSettings.default()
+        settings.enableDailyCycleMode = true
+        settings.bedtimeSlotEnabled = false
+        let calendar = Self.utcCalendar
+        let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 16)))
+        // Start at dinner day (step 2)
+        settings.dailyCycleAnchorDate = calendar.date(byAdding: .day, value: -2, to: calendar.startOfDay(for: today))
+
+        let sut = RescheduleGlucoseCycleUseCase(
+            settingsRepository: SpyCycleSettingsRepository(settings: settings),
+            analyticsRepository: MockAnalyticsRepository()
+        )
+
+        await sut.advanceIfEnabled(today: today)
+        let target = await sut.currentTarget(today: today)
+        XCTAssertEqual(target, MealSlot.none) // bedtime step (step 3)
+    }
+
+    // MARK: - setTarget
+
     func test_setTarget_ignoresWhenCycleModeDisabled() async {
         let settings = UserSettings.default()
         settings.enableDailyCycleMode = false
@@ -70,13 +106,13 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
         XCTAssertTrue(analyticsRepository.scheduleUpdated.isEmpty)
     }
 
-    func test_currentTarget_fallbackFromLegacyNegativeIndex() async {
-        // currentCycleIndex = -1 is a legacy field; fallbackAnchorDate maps it to step 3 (bedtime)
+    func test_setTarget_bedtimeDisabled_rejectsBedtimeSlot() async throws {
         let settings = UserSettings.default()
         settings.enableDailyCycleMode = true
-        settings.bedtimeSlotEnabled = true
-        settings.currentCycleIndex = -1
-        // dailyCycleAnchorDate is nil so the fallback path is exercised
+        settings.bedtimeSlotEnabled = false
+        let calendar = Self.utcCalendar
+        let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 16)))
+        settings.dailyCycleAnchorDate = calendar.startOfDay(for: today)
 
         let settingsRepository = SpyCycleSettingsRepository(settings: settings)
         let analyticsRepository = MockAnalyticsRepository()
@@ -85,19 +121,43 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
             analyticsRepository: analyticsRepository
         )
 
+        await sut.setTarget(.none, today: today)
+
+        XCTAssertEqual(settings.dailyCycleAnchorDate, calendar.startOfDay(for: today)) // unchanged
+        XCTAssertEqual(settingsRepository.saveCount, 0)
+        XCTAssertTrue(analyticsRepository.scheduleUpdated.isEmpty)
+    }
+
+    // MARK: - currentTarget
+
+    func test_currentTarget_fallbackFromLegacyNegativeIndex() async {
+        // currentCycleIndex = -1 is a legacy field; fallbackAnchorDate maps it to step 3 (bedtime).
         // The math is self-referential: fallback uses today to compute anchor,
-        // then step uses today against that anchor → always yields step 3 for index -1.
+        // then step uses today against that same anchor → always yields step 3 for index -1.
+        let settings = UserSettings.default()
+        settings.enableDailyCycleMode = true
+        settings.bedtimeSlotEnabled = true
+        settings.currentCycleIndex = -1
+        // dailyCycleAnchorDate is nil so the fallback path is exercised
+
+        let sut = RescheduleGlucoseCycleUseCase(
+            settingsRepository: SpyCycleSettingsRepository(settings: settings),
+            analyticsRepository: MockAnalyticsRepository()
+        )
+
         let target = await sut.currentTarget()
 
         XCTAssertEqual(target, MealSlot.none)
     }
 
+    // MARK: - shiftTodayForward
+
     func test_shiftTodayForward_movesAnchorBackwardAndRotatesTarget() async throws {
         let settings = UserSettings.default()
         settings.enableDailyCycleMode = true
         settings.currentCycleIndex = 0
-        let calendar = Calendar.current
-        let today = calendar.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 9, minute: 0)) ?? Date()
+        let calendar = Self.utcCalendar
+        let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 9, minute: 0)))
         settings.dailyCycleAnchorDate = calendar.startOfDay(for: today)
 
         let settingsRepository = SpyCycleSettingsRepository(settings: settings)
@@ -137,31 +197,24 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
         XCTAssertEqual(settingsRepository.saveCount, 0)
     }
 
+    // MARK: - availableForwardTargetsForToday
+
     func test_availableForwardTargetsForToday_returnsCanonicalOrderExcludingCurrent() async throws {
         let settings = UserSettings.default()
         settings.enableDailyCycleMode = true
         settings.bedtimeSlotEnabled = true
-        settings.breakfastHour = 8
-        settings.breakfastMinute = 0
-        settings.lunchHour = 13
-        settings.lunchMinute = 0
-        settings.dinnerHour = 19
-        settings.dinnerMinute = 0
-        settings.bedtimeHour = 22
-        settings.bedtimeMinute = 0
-        let calendar = Calendar.current
+        settings.breakfastHour = 8;  settings.breakfastMinute = 0
+        settings.lunchHour = 13;     settings.lunchMinute = 0
+        settings.dinnerHour = 19;    settings.dinnerMinute = 0
+        settings.bedtimeHour = 22;   settings.bedtimeMinute = 0
+        let calendar = Self.utcCalendar
         let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 12, minute: 30)))
         settings.dailyCycleAnchorDate = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: today))
-        settings.currentCycleIndex = 1 // lunch
 
-        let settingsRepository = SpyCycleSettingsRepository(settings: settings)
-        let analyticsRepository = MockAnalyticsRepository()
-        let sut = RescheduleGlucoseCycleUseCase(
-            settingsRepository: settingsRepository,
-            analyticsRepository: analyticsRepository
-        )
-
-        let targets = await sut.availableForwardTargetsForToday(today: today)
+        let targets = await RescheduleGlucoseCycleUseCase(
+            settingsRepository: SpyCycleSettingsRepository(settings: settings),
+            analyticsRepository: MockAnalyticsRepository()
+        ).availableForwardTargetsForToday(today: today)
 
         XCTAssertEqual(targets, [.breakfast, .dinner, .none])
     }
@@ -170,27 +223,18 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
         let settings = UserSettings.default()
         settings.enableDailyCycleMode = true
         settings.bedtimeSlotEnabled = true
-        settings.breakfastHour = 8
-        settings.breakfastMinute = 0
-        settings.lunchHour = 13
-        settings.lunchMinute = 0
-        settings.dinnerHour = 19
-        settings.dinnerMinute = 0
-        settings.bedtimeHour = 22
-        settings.bedtimeMinute = 0
-        let calendar = Calendar.current
+        settings.breakfastHour = 8;  settings.breakfastMinute = 0
+        settings.lunchHour = 13;     settings.lunchMinute = 0
+        settings.dinnerHour = 19;    settings.dinnerMinute = 0
+        settings.bedtimeHour = 22;   settings.bedtimeMinute = 0
+        let calendar = Self.utcCalendar
         let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 18, minute: 0)))
         settings.dailyCycleAnchorDate = calendar.date(byAdding: .day, value: -2, to: calendar.startOfDay(for: today))
-        settings.currentCycleIndex = 2 // dinner
 
-        let settingsRepository = SpyCycleSettingsRepository(settings: settings)
-        let analyticsRepository = MockAnalyticsRepository()
-        let sut = RescheduleGlucoseCycleUseCase(
-            settingsRepository: settingsRepository,
-            analyticsRepository: analyticsRepository
-        )
-
-        let targets = await sut.availableForwardTargetsForToday(today: today)
+        let targets = await RescheduleGlucoseCycleUseCase(
+            settingsRepository: SpyCycleSettingsRepository(settings: settings),
+            analyticsRepository: MockAnalyticsRepository()
+        ).availableForwardTargetsForToday(today: today)
 
         XCTAssertEqual(targets, [.breakfast, .lunch, .none])
     }
@@ -198,52 +242,56 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
     func test_availableForwardTargetsForToday_bedtimeDay_includesBreakfastLunchDinner() async throws {
         let settings = UserSettings.default()
         settings.enableDailyCycleMode = true
-        settings.breakfastHour = 8
-        settings.breakfastMinute = 0
-        settings.lunchHour = 13
-        settings.lunchMinute = 0
-        settings.dinnerHour = 19
-        settings.dinnerMinute = 0
-        settings.bedtimeHour = 22
-        settings.bedtimeMinute = 0
-        let calendar = Calendar.current
+        settings.breakfastHour = 8;  settings.breakfastMinute = 0
+        settings.lunchHour = 13;     settings.lunchMinute = 0
+        settings.dinnerHour = 19;    settings.dinnerMinute = 0
+        settings.bedtimeHour = 22;   settings.bedtimeMinute = 0
+        let calendar = Self.utcCalendar
         let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 21, minute: 0)))
         settings.dailyCycleAnchorDate = calendar.date(byAdding: .day, value: -3, to: calendar.startOfDay(for: today))
-        settings.currentCycleIndex = 3 // bedtime
 
-        let settingsRepository = SpyCycleSettingsRepository(settings: settings)
-        let analyticsRepository = MockAnalyticsRepository()
-        let sut = RescheduleGlucoseCycleUseCase(
-            settingsRepository: settingsRepository,
-            analyticsRepository: analyticsRepository
-        )
-
-        let targets = await sut.availableForwardTargetsForToday(today: today)
+        let targets = await RescheduleGlucoseCycleUseCase(
+            settingsRepository: SpyCycleSettingsRepository(settings: settings),
+            analyticsRepository: MockAnalyticsRepository()
+        ).availableForwardTargetsForToday(today: today)
 
         XCTAssertEqual(targets, [.breakfast, .lunch, .dinner])
     }
 
+    func test_availableForwardTargets_dinnerDay_bedtimeDisabled_excludesBedtime() async throws {
+        let settings = UserSettings.default()
+        settings.enableDailyCycleMode = true
+        settings.bedtimeSlotEnabled = false
+        let calendar = Self.utcCalendar
+        let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 18, minute: 0)))
+        settings.dailyCycleAnchorDate = calendar.date(byAdding: .day, value: -2, to: calendar.startOfDay(for: today))
+
+        let targets = await RescheduleGlucoseCycleUseCase(
+            settingsRepository: SpyCycleSettingsRepository(settings: settings),
+            analyticsRepository: MockAnalyticsRepository()
+        ).availableForwardTargetsForToday(today: today)
+
+        XCTAssertEqual(targets, [.breakfast, .lunch])
+        XCTAssertFalse(targets.contains(.none))
+    }
+
+    // MARK: - setTodayTarget
+
     func test_setTodayTarget_updatesAnchor() async throws {
         let settings = UserSettings.default()
         settings.enableDailyCycleMode = true
-        settings.breakfastHour = 8
-        settings.breakfastMinute = 0
-        settings.lunchHour = 13
-        settings.lunchMinute = 0
-        settings.dinnerHour = 19
-        settings.dinnerMinute = 0
-        settings.bedtimeHour = 22
-        settings.bedtimeMinute = 0
-        let calendar = Calendar.current
+        settings.breakfastHour = 8;  settings.breakfastMinute = 0
+        settings.lunchHour = 13;     settings.lunchMinute = 0
+        settings.dinnerHour = 19;    settings.dinnerMinute = 0
+        settings.bedtimeHour = 22;   settings.bedtimeMinute = 0
+        let calendar = Self.utcCalendar
         let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 12, minute: 30)))
         settings.dailyCycleAnchorDate = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: today))
-        settings.currentCycleIndex = 1 // lunch
 
         let settingsRepository = SpyCycleSettingsRepository(settings: settings)
-        let analyticsRepository = MockAnalyticsRepository()
         let sut = RescheduleGlucoseCycleUseCase(
             settingsRepository: settingsRepository,
-            analyticsRepository: analyticsRepository
+            analyticsRepository: MockAnalyticsRepository()
         )
 
         let shifted = await sut.setTodayTarget(.dinner, today: today)
@@ -254,57 +302,13 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
         XCTAssertEqual(settingsRepository.saveCount, 1)
     }
 
-    // MARK: - bedtimeSlotEnabled cycle order
-
-    func test_advanceIfEnabled_dinnerDayAlwaysAdvancesToBedtimeStep() async throws {
-        // The 4-step anchor cycle always progresses through all steps.
-        // When bedtimeSlotEnabled = false the bedtime step has no slots shown,
-        // but the cycle still passes through it (consistent with shiftTodayForward).
-        let settings = UserSettings.default()
-        settings.enableDailyCycleMode = true
-        settings.bedtimeSlotEnabled = false
-        let calendar = Calendar.current
-        let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 16)))
-        // Start at dinner day (step 2)
-        settings.dailyCycleAnchorDate = calendar.date(byAdding: .day, value: -2, to: calendar.startOfDay(for: today))
-
-        let sut = RescheduleGlucoseCycleUseCase(
-            settingsRepository: SpyCycleSettingsRepository(settings: settings),
-            analyticsRepository: MockAnalyticsRepository()
-        )
-
-        await sut.advanceIfEnabled(today: today)
-        let target = await sut.currentTarget(today: today)
-        XCTAssertEqual(target, MealSlot.none) // bedtime step (step 3)
-    }
-
-    func test_availableForwardTargets_dinnerDay_bedtimeDisabled_excludesBedtime() async throws {
-        let settings = UserSettings.default()
-        settings.enableDailyCycleMode = true
-        settings.bedtimeSlotEnabled = false
-        let calendar = Calendar.current
-        let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 18, minute: 0)))
-        settings.dailyCycleAnchorDate = calendar.date(byAdding: .day, value: -2, to: calendar.startOfDay(for: today))
-        settings.currentCycleIndex = 2 // dinner
-
-        let sut = RescheduleGlucoseCycleUseCase(
-            settingsRepository: SpyCycleSettingsRepository(settings: settings),
-            analyticsRepository: MockAnalyticsRepository()
-        )
-
-        let targets = await sut.availableForwardTargetsForToday(today: today)
-        XCTAssertEqual(targets, [.breakfast, .lunch])
-        XCTAssertFalse(targets.contains(.none))
-    }
-
     func test_setTodayTarget_bedtimeDisabled_rejectsBedtimeSlot() async throws {
         let settings = UserSettings.default()
         settings.enableDailyCycleMode = true
         settings.bedtimeSlotEnabled = false
-        let calendar = Calendar.current
+        let calendar = Self.utcCalendar
         let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 12, minute: 30)))
         settings.dailyCycleAnchorDate = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: today))
-        settings.currentCycleIndex = 1 // lunch
 
         let settingsRepository = SpyCycleSettingsRepository(settings: settings)
         let sut = RescheduleGlucoseCycleUseCase(
@@ -320,24 +324,18 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
     func test_setTodayTarget_returnsFalseForCurrentSlot() async throws {
         let settings = UserSettings.default()
         settings.enableDailyCycleMode = true
-        settings.breakfastHour = 8
-        settings.breakfastMinute = 0
-        settings.lunchHour = 13
-        settings.lunchMinute = 0
-        settings.dinnerHour = 19
-        settings.dinnerMinute = 0
-        settings.bedtimeHour = 22
-        settings.bedtimeMinute = 0
-        let calendar = Calendar.current
+        settings.breakfastHour = 8;  settings.breakfastMinute = 0
+        settings.lunchHour = 13;     settings.lunchMinute = 0
+        settings.dinnerHour = 19;    settings.dinnerMinute = 0
+        settings.bedtimeHour = 22;   settings.bedtimeMinute = 0
+        let calendar = Self.utcCalendar
         let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 20, minute: 30)))
         settings.dailyCycleAnchorDate = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: today))
-        settings.currentCycleIndex = 1 // lunch
 
         let settingsRepository = SpyCycleSettingsRepository(settings: settings)
-        let analyticsRepository = MockAnalyticsRepository()
         let sut = RescheduleGlucoseCycleUseCase(
             settingsRepository: settingsRepository,
-            analyticsRepository: analyticsRepository
+            analyticsRepository: MockAnalyticsRepository()
         )
 
         let shifted = await sut.setTodayTarget(.lunch, today: today)
