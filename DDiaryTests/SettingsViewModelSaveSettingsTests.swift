@@ -511,6 +511,40 @@ final class SettingsViewModelSaveSettingsTests: XCTestCase {
         XCTAssertEqual(sut.pendingCount, 1)
     }
 
+    func test_dailyCycleSwitchTargets_excludesBedtime_whenBedtimeSlotDisabled() async throws {
+        let sut = makeSUT(
+            settingsRepository: SpySettingsRepository(),
+            measurementsRepository: MockMeasurementsRepository(),
+            schedulesUpdater: SpySchedulesUpdater()
+        )
+        let breakfastHour = Calendar.current.date(
+            from: DateComponents(year: 2026, month: 2, day: 16, hour: 9, minute: 0)
+        ) ?? Date()
+
+        sut.enableDailyCycleMode = true
+        sut.bedtimeSlotEnabled = false
+
+        let targets = sut.dailyCycleSwitchTargets(today: breakfastHour)
+        XCTAssertFalse(targets.contains(.none), "Expected .none (bedtime) to be excluded when bedtimeSlotEnabled=false")
+    }
+
+    func test_dailyCycleSwitchTargets_includesBedtime_whenBedtimeSlotEnabled() async throws {
+        let sut = makeSUT(
+            settingsRepository: SpySettingsRepository(),
+            measurementsRepository: MockMeasurementsRepository(),
+            schedulesUpdater: SpySchedulesUpdater()
+        )
+        let breakfastHour = Calendar.current.date(
+            from: DateComponents(year: 2026, month: 2, day: 16, hour: 9, minute: 0)
+        ) ?? Date()
+
+        sut.enableDailyCycleMode = true
+        sut.bedtimeSlotEnabled = true
+
+        let targets = sut.dailyCycleSwitchTargets(today: breakfastHour)
+        XCTAssertTrue(targets.contains(.none), "Expected .none (bedtime) to be present when bedtimeSlotEnabled=true")
+    }
+
     private func makeSUT(
         settingsRepository: SpySettingsRepository,
         measurementsRepository: any MeasurementsRepository,

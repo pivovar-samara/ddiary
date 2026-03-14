@@ -292,7 +292,10 @@ final class SettingsViewModel {
 
     func dailyCycleSwitchTargets(today: Date = Date()) -> [MealSlot] {
         guard enableDailyCycleMode else { return [] }
-        let order: [MealSlot] = [.breakfast, .lunch, .dinner, .none]
+        var order: [MealSlot] = [.breakfast, .lunch, .dinner, .none]
+        if !bedtimeSlotEnabled {
+            order.removeAll { $0 == .none }
+        }
         let current = dailyCycleCurrentSlot(today: today) ?? .breakfast
         return order.filter { $0 != current }
     }
