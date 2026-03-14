@@ -511,7 +511,7 @@ final class SettingsViewModelSaveSettingsTests: XCTestCase {
         XCTAssertEqual(sut.pendingCount, 1)
     }
 
-    func test_dailyCycleSwitchTargets_excludesBedtime_whenBedtimeSlotDisabled() {
+    func test_dailyCycleSwitchTargets_excludesBedtime_whenBedtimeSlotDisabled() async throws {
         let sut = makeSUT(
             settingsRepository: SpySettingsRepository(),
             measurementsRepository: MockMeasurementsRepository(),
@@ -528,7 +528,7 @@ final class SettingsViewModelSaveSettingsTests: XCTestCase {
         XCTAssertFalse(targets.contains(.none), "Expected .none (bedtime) to be excluded when bedtimeSlotEnabled=false")
     }
 
-    func test_dailyCycleSwitchTargets_includesBedtime_whenBedtimeSlotEnabled() {
+    func test_dailyCycleSwitchTargets_includesBedtime_whenBedtimeSlotEnabled() async throws {
         let sut = makeSUT(
             settingsRepository: SpySettingsRepository(),
             measurementsRepository: MockMeasurementsRepository(),
