@@ -168,7 +168,6 @@ public final class UserSettings {
 
     var enableBeforeMeal: Bool = true
     var enableAfterMeal2h: Bool = true
-    var enableBedtime: Bool = false
 
     var enableDailyCycleMode: Bool = false
     var currentCycleIndex: Int = 0
@@ -197,7 +196,6 @@ public final class UserSettings {
         bpActiveWeekdays: Set<Int>,
         enableBeforeMeal: Bool,
         enableAfterMeal2h: Bool,
-        enableBedtime: Bool,
         enableDailyCycleMode: Bool,
         currentCycleIndex: Int,
         dailyCycleAnchorDate: Date?
@@ -224,7 +222,6 @@ public final class UserSettings {
         self.bpActiveWeekdays = bpActiveWeekdays
         self.enableBeforeMeal = enableBeforeMeal
         self.enableAfterMeal2h = enableAfterMeal2h
-        self.enableBedtime = enableBedtime
         self.enableDailyCycleMode = enableDailyCycleMode
         self.currentCycleIndex = currentCycleIndex
         self.dailyCycleAnchorDate = dailyCycleAnchorDate
@@ -261,7 +258,6 @@ extension UserSettings {
             bpActiveWeekdays: Set(1...7),
             enableBeforeMeal: true,
             enableAfterMeal2h: true,
-            enableBedtime: false,
             enableDailyCycleMode: false,
             currentCycleIndex: 0,
             dailyCycleAnchorDate: nil

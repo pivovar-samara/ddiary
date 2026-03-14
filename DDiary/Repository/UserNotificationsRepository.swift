@@ -333,11 +333,10 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         dinner: DateComponents,
         enableBeforeMeal: Bool,
         enableAfterMeal2h: Bool,
-        enableBedtime: Bool,
         bedtimeTime: DateComponents?
     ) async throws {
         await cancelGlucose()
-        let bedtimeEnabled = enableBedtime && bedtimeTime != nil
+        let bedtimeEnabled = bedtimeTime != nil
         let remindersPerDay =
             (enableBeforeMeal ? 3 : 0)
             + (enableAfterMeal2h ? 3 : 0)
