@@ -4,14 +4,9 @@ import XCTest
 @MainActor
 final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
 
-    // MARK: - Fixed calendar shared by all tests
-    // Using a fixed Gregorian/UTC calendar avoids flakiness caused by device locale,
-    // regional calendar settings, or DST transitions.
-    private static var utcCalendar: Calendar = {
-        var cal = Calendar(identifier: .gregorian)
-        cal.timeZone = TimeZone(secondsFromGMT: 0)!
-        return cal
-    }()
+    // Tests use Calendar.current so that anchor setup and SUT computation both use the same
+    // timezone. All `today` values are at hour 9–21 local time (well clear of midnight) so
+    // startOfDay is unambiguous in any UTC±12 timezone.
 
     // MARK: - advanceIfEnabled
 
@@ -19,7 +14,7 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
         let settings = UserSettings.default()
         settings.enableDailyCycleMode = true
         settings.bedtimeSlotEnabled = false
-        let calendar = Self.utcCalendar
+        let calendar = Calendar.current
         let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 16)))
         settings.dailyCycleAnchorDate = calendar.startOfDay(for: today) // breakfast day (step 0)
 
@@ -42,7 +37,7 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
         let settings = UserSettings.default()
         settings.enableDailyCycleMode = true
         settings.bedtimeSlotEnabled = true
-        let calendar = Self.utcCalendar
+        let calendar = Calendar.current
         let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 16)))
         // Start at dinner day (step 2): anchor = today - 2 days
         settings.dailyCycleAnchorDate = calendar.date(byAdding: .day, value: -2, to: calendar.startOfDay(for: today))
@@ -70,7 +65,7 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
         let settings = UserSettings.default()
         settings.enableDailyCycleMode = true
         settings.bedtimeSlotEnabled = false
-        let calendar = Self.utcCalendar
+        let calendar = Calendar.current
         let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 16)))
         // Start at dinner day (step 2)
         settings.dailyCycleAnchorDate = calendar.date(byAdding: .day, value: -2, to: calendar.startOfDay(for: today))
@@ -110,7 +105,7 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
         let settings = UserSettings.default()
         settings.enableDailyCycleMode = true
         settings.bedtimeSlotEnabled = false
-        let calendar = Self.utcCalendar
+        let calendar = Calendar.current
         let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 16)))
         settings.dailyCycleAnchorDate = calendar.startOfDay(for: today)
 
@@ -156,7 +151,7 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
         let settings = UserSettings.default()
         settings.enableDailyCycleMode = true
         settings.currentCycleIndex = 0
-        let calendar = Self.utcCalendar
+        let calendar = Calendar.current
         let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 9, minute: 0)))
         settings.dailyCycleAnchorDate = calendar.startOfDay(for: today)
 
@@ -207,7 +202,7 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
         settings.lunchHour = 13;     settings.lunchMinute = 0
         settings.dinnerHour = 19;    settings.dinnerMinute = 0
         settings.bedtimeHour = 22;   settings.bedtimeMinute = 0
-        let calendar = Self.utcCalendar
+        let calendar = Calendar.current
         let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 12, minute: 30)))
         settings.dailyCycleAnchorDate = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: today))
 
@@ -227,7 +222,7 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
         settings.lunchHour = 13;     settings.lunchMinute = 0
         settings.dinnerHour = 19;    settings.dinnerMinute = 0
         settings.bedtimeHour = 22;   settings.bedtimeMinute = 0
-        let calendar = Self.utcCalendar
+        let calendar = Calendar.current
         let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 18, minute: 0)))
         settings.dailyCycleAnchorDate = calendar.date(byAdding: .day, value: -2, to: calendar.startOfDay(for: today))
 
@@ -246,7 +241,7 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
         settings.lunchHour = 13;     settings.lunchMinute = 0
         settings.dinnerHour = 19;    settings.dinnerMinute = 0
         settings.bedtimeHour = 22;   settings.bedtimeMinute = 0
-        let calendar = Self.utcCalendar
+        let calendar = Calendar.current
         let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 21, minute: 0)))
         settings.dailyCycleAnchorDate = calendar.date(byAdding: .day, value: -3, to: calendar.startOfDay(for: today))
 
@@ -262,7 +257,7 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
         let settings = UserSettings.default()
         settings.enableDailyCycleMode = true
         settings.bedtimeSlotEnabled = false
-        let calendar = Self.utcCalendar
+        let calendar = Calendar.current
         let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 18, minute: 0)))
         settings.dailyCycleAnchorDate = calendar.date(byAdding: .day, value: -2, to: calendar.startOfDay(for: today))
 
@@ -284,7 +279,7 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
         settings.lunchHour = 13;     settings.lunchMinute = 0
         settings.dinnerHour = 19;    settings.dinnerMinute = 0
         settings.bedtimeHour = 22;   settings.bedtimeMinute = 0
-        let calendar = Self.utcCalendar
+        let calendar = Calendar.current
         let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 12, minute: 30)))
         settings.dailyCycleAnchorDate = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: today))
 
@@ -306,7 +301,7 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
         let settings = UserSettings.default()
         settings.enableDailyCycleMode = true
         settings.bedtimeSlotEnabled = false
-        let calendar = Self.utcCalendar
+        let calendar = Calendar.current
         let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 12, minute: 30)))
         settings.dailyCycleAnchorDate = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: today))
 
@@ -328,7 +323,7 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
         settings.lunchHour = 13;     settings.lunchMinute = 0
         settings.dinnerHour = 19;    settings.dinnerMinute = 0
         settings.bedtimeHour = 22;   settings.bedtimeMinute = 0
-        let calendar = Self.utcCalendar
+        let calendar = Calendar.current
         let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 20, minute: 30)))
         settings.dailyCycleAnchorDate = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: today))
 
