@@ -163,12 +163,6 @@ struct SettingsView: View {
                 )
                 .disabled(bvm.enableDailyCycleMode)
                 SettingsToggleRow(
-                    title: L10n.settingsRowBedtimeToggle,
-                    isOn: $bvm.enableBedtime,
-                    toggleAccessibilityId: "settings.glucose.bedtime"
-                )
-                .disabled(bvm.enableDailyCycleMode)
-                SettingsToggleRow(
                     title: L10n.settingsRowDailyCycleMode,
                     isOn: $bvm.enableDailyCycleMode,
                     toggleAccessibilityId: "settings.glucose.dailyCycle"

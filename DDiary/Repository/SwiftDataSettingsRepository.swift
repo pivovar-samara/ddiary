@@ -130,7 +130,6 @@ private extension SwiftDataSettingsRepository {
 
         if settings.enableBeforeMeal != defaults.enableBeforeMeal { score += 1 }
         if settings.enableAfterMeal2h != defaults.enableAfterMeal2h { score += 1 }
-        if settings.enableBedtime != defaults.enableBedtime { score += 1 }
 
         if settings.enableDailyCycleMode != defaults.enableDailyCycleMode { score += 1 }
         if settings.currentCycleIndex != defaults.currentCycleIndex { score += 1 }
@@ -169,7 +168,6 @@ private extension SwiftDataSettingsRepository {
 
         target.enableBeforeMeal = source.enableBeforeMeal
         target.enableAfterMeal2h = source.enableAfterMeal2h
-        target.enableBedtime = source.enableBedtime
         target.enableDailyCycleMode = source.enableDailyCycleMode
         target.currentCycleIndex = source.currentCycleIndex
         target.dailyCycleAnchorDate = source.dailyCycleAnchorDate

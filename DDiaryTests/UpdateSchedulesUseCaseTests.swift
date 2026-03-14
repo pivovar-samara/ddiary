@@ -55,7 +55,6 @@ final class UpdateSchedulesUseCaseTests: XCTestCase {
         settings.dinnerMinute = 45
         settings.enableBeforeMeal = true
         settings.enableAfterMeal2h = false
-        settings.enableBedtime = true
         settings.bedtimeSlotEnabled = true
         settings.bedtimeHour = 22
         settings.bedtimeMinute = 30
@@ -80,7 +79,6 @@ final class UpdateSchedulesUseCaseTests: XCTestCase {
         XCTAssertEqual(notificationsRepository.glucoseDinner.hour, 19)
         XCTAssertEqual(notificationsRepository.enableBeforeMeal, true)
         XCTAssertEqual(notificationsRepository.enableAfterMeal2h, false)
-        XCTAssertEqual(notificationsRepository.enableBedtime, true)
         XCTAssertEqual(notificationsRepository.bedtimeTime?.hour, 22)
         XCTAssertEqual(notificationsRepository.bedtimeTime?.minute, 30)
         XCTAssertEqual(analyticsRepository.scheduleUpdated, [.bloodPressure, .glucose])
@@ -88,7 +86,6 @@ final class UpdateSchedulesUseCaseTests: XCTestCase {
 
     func test_scheduleFromCurrentSettings_disablesBedtimeWhenBedtimeSlotOff() async throws {
         let settings = UserSettings.default()
-        settings.enableBedtime = true
         settings.bedtimeSlotEnabled = false
         settings.bedtimeHour = 23
         settings.bedtimeMinute = 5
@@ -104,7 +101,6 @@ final class UpdateSchedulesUseCaseTests: XCTestCase {
 
         try await sut.scheduleFromCurrentSettings()
 
-        XCTAssertEqual(notificationsRepository.enableBedtime, false)
         XCTAssertNil(notificationsRepository.bedtimeTime)
     }
 
@@ -140,7 +136,6 @@ final class UpdateSchedulesUseCaseTests: XCTestCase {
         XCTAssertNotNil(settings.dailyCycleAnchorDate)
         XCTAssertEqual(notificationsRepository.enableBeforeMeal, false)
         XCTAssertEqual(notificationsRepository.enableAfterMeal2h, false)
-        XCTAssertEqual(notificationsRepository.enableBedtime, false)
     }
 
     func test_scheduleFromCurrentSettings_whenSettingsLoadFails_doesNotLogAnalytics() async {
@@ -201,7 +196,6 @@ private final class SpyNotificationsRepository: NotificationsRepository, @unchec
     private(set) var glucoseDinner = DateComponents()
     private(set) var enableBeforeMeal = false
     private(set) var enableAfterMeal2h = false
-    private(set) var enableBedtime = false
     private(set) var bedtimeTime: DateComponents?
     private(set) var rescheduleGlucoseCycleCallCount = 0
     private(set) var glucoseCycleConfiguration: GlucoseCycleConfiguration?
@@ -244,7 +238,6 @@ private final class SpyNotificationsRepository: NotificationsRepository, @unchec
         dinner: DateComponents,
         enableBeforeMeal: Bool,
         enableAfterMeal2h: Bool,
-        enableBedtime: Bool,
         bedtimeTime: DateComponents?
     ) async throws {
         glucoseBreakfast = breakfast
@@ -252,7 +245,6 @@ private final class SpyNotificationsRepository: NotificationsRepository, @unchec
         glucoseDinner = dinner
         self.enableBeforeMeal = enableBeforeMeal
         self.enableAfterMeal2h = enableAfterMeal2h
-        self.enableBedtime = enableBedtime
         self.bedtimeTime = bedtimeTime
     }
 

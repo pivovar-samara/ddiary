@@ -150,7 +150,6 @@ public protocol NotificationsRepository: Sendable {
         dinner: DateComponents,
         enableBeforeMeal: Bool,
         enableAfterMeal2h: Bool,
-        enableBedtime: Bool,
         bedtimeTime: DateComponents?
     ) async throws
 
@@ -239,16 +238,14 @@ public extension NotificationsRepository {
                 numberOfDays: 28
             )
         } else {
-            // Use the user-configured bedtime time when the slot and reminders are enabled.
-            let bedtimeEnabled = settings.enableBedtime && settings.bedtimeSlotEnabled
-            let bedtimeTime: DateComponents? = bedtimeEnabled ? bedtime : nil
+            // Use the user-configured bedtime time when the slot is enabled.
+            let bedtimeTime: DateComponents? = settings.bedtimeSlotEnabled ? bedtime : nil
             try await rescheduleGlucose(
                 breakfast: breakfast,
                 lunch: lunch,
                 dinner: dinner,
                 enableBeforeMeal: settings.enableBeforeMeal,
                 enableAfterMeal2h: settings.enableAfterMeal2h,
-                enableBedtime: bedtimeEnabled,
                 bedtimeTime: bedtimeTime
             )
         }

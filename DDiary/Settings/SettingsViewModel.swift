@@ -73,7 +73,6 @@ final class SettingsViewModel {
     // Glucose reminder toggles
     var enableBeforeMeal: Bool = true
     var enableAfterMeal2h: Bool = true
-    var enableBedtime: Bool = false
     var enableDailyCycleMode: Bool = false {
         didSet {
             guard oldValue != enableDailyCycleMode else { return }
@@ -187,7 +186,6 @@ final class SettingsViewModel {
 
             enableBeforeMeal = settings.enableBeforeMeal
             enableAfterMeal2h = settings.enableAfterMeal2h
-            enableBedtime = settings.enableBedtime
             currentCycleIndex = settings.currentCycleIndex
             dailyCycleAnchorDate = settings.dailyCycleAnchorDate
             enableDailyCycleMode = settings.enableDailyCycleMode
@@ -241,7 +239,6 @@ final class SettingsViewModel {
             weekdaysSignature,
             "\(enableBeforeMeal)",
             "\(enableAfterMeal2h)",
-            "\(enableBedtime)",
             "\(enableDailyCycleMode)",
             "\(bpSystolicMin)",
             "\(bpSystolicMax)",
@@ -365,7 +362,6 @@ final class SettingsViewModel {
 
             settings.enableBeforeMeal = enableBeforeMeal
             settings.enableAfterMeal2h = enableAfterMeal2h
-            settings.enableBedtime = enableBedtime
             settings.enableDailyCycleMode = enableDailyCycleMode
             if enableDailyCycleMode {
                 settings.currentCycleIndex = currentCycleIndex

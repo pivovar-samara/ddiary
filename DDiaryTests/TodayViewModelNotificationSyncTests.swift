@@ -344,7 +344,6 @@ private final class SpyNotificationsRepository: NotificationsRepository, @unchec
         dinner: DateComponents,
         enableBeforeMeal: Bool,
         enableAfterMeal2h: Bool,
-        enableBedtime: Bool,
         bedtimeTime: DateComponents?
     ) async throws {}
 

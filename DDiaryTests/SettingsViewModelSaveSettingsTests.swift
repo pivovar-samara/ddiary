@@ -156,7 +156,6 @@ final class SettingsViewModelSaveSettingsTests: XCTestCase {
         sut.enableDailyCycleMode = true
         sut.enableBeforeMeal = true
         sut.enableAfterMeal2h = false
-        sut.enableBedtime = true
         sut.bedtimeSlotEnabled = true
 
         await sut.saveSettings()
@@ -164,7 +163,6 @@ final class SettingsViewModelSaveSettingsTests: XCTestCase {
         XCTAssertEqual(settingsRepository.saveCount, 1)
         XCTAssertEqual(updater.callCount, 1)
         XCTAssertEqual(settingsRepository.savedSettings?.enableDailyCycleMode, true)
-        XCTAssertEqual(settingsRepository.savedSettings?.enableBedtime, true)
         XCTAssertEqual(settingsRepository.savedSettings?.bedtimeSlotEnabled, true)
         XCTAssertEqual(settingsRepository.savedSettings?.enableAfterMeal2h, false)
     }

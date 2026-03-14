@@ -180,7 +180,6 @@ final class UserNotificationsRepositoryTests: XCTestCase {
             dinner: DateComponents(hour: 19, minute: 0),
             enableBeforeMeal: true,
             enableAfterMeal2h: false,
-            enableBedtime: true,
             bedtimeTime: DateComponents(hour: 22, minute: 15)
         )
 
@@ -236,7 +235,6 @@ final class UserNotificationsRepositoryTests: XCTestCase {
             dinner: DateComponents(hour: 19, minute: 0),
             enableBeforeMeal: true,
             enableAfterMeal2h: true,
-            enableBedtime: true,
             bedtimeTime: DateComponents(hour: 22, minute: 15)
         )
 
