@@ -170,6 +170,8 @@ public final class UserSettings {
     var enableAfterMeal2h: Bool = true
 
     var enableDailyCycleMode: Bool = false
+    /// Legacy migration aid. `dailyCycleAnchorDate` is the source of truth; this field is only
+    /// read by `GlucoseCyclePlanner.fallbackAnchorDate` when `dailyCycleAnchorDate` is nil.
     var currentCycleIndex: Int = 0
     var dailyCycleAnchorDate: Date?
 
