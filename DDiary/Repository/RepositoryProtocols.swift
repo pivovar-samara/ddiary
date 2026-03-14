@@ -144,6 +144,8 @@ public protocol NotificationsRepository: Sendable {
     func cancelGlucose() async
 
     /// Reschedule glucose notifications by cancelling existing ones and scheduling the provided set.
+    /// - Note: Bedtime reminders are disabled by passing `nil` for `bedtimeTime`.
+    ///         Passing a non-`nil` value enables bedtime reminders at the specified time.
     func rescheduleGlucose(
         breakfast: DateComponents,
         lunch: DateComponents,
