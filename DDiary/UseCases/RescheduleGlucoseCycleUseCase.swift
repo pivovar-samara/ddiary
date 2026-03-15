@@ -164,7 +164,13 @@ public final class RescheduleGlucoseCycleUseCase {
                 overrides: settings.cycleOverrides,
                 calendar: calendar
             )
-            let nextStepIndex = (currentStep.rawValue + 1) % GlucoseCycleStep.allCases.count
+            let order = cycleOrder(from: settings)
+            guard !order.isEmpty else { return false }
+            let currentSlot = cycleSlot(for: currentStep)
+            guard let currentIndex = order.firstIndex(of: currentSlot) else { return false }
+            let nextSlot = order[(currentIndex + 1) % order.count]
+            guard let nextStep = step(for: nextSlot) else { return false }
+            let nextStepIndex = nextStep.rawValue
             let key = GlucoseCyclePlanner.dateKey(for: today, calendar: calendar)
             var overrides = GlucoseCyclePlanner.pruneOverrides(
                 settings.cycleOverrides, today: today, calendar: calendar

@@ -264,8 +264,10 @@ public extension NotificationsRepository {
         await cancelAll()
     }
 
-    /// Default implementation: falls back to `cancelAll()`.
-    /// Concrete types (e.g. `UserNotificationsRepository`) override this to preserve one-offs.
+    /// Default implementation: simply calls `cancelAll()` and therefore does **not**
+    /// preserve any existing notification requests (including snoozed, shifted, or one-off).
+    /// Preservation of such requests is only guaranteed for concrete types
+    /// (e.g. `UserNotificationsRepository`) that override this method with a custom behavior.
     func cancelAllExceptOneOffRequests() async {
         await cancelAll()
     }

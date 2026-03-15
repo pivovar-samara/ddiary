@@ -422,7 +422,8 @@ final class SettingsViewModel {
         let currentStep = GlucoseCyclePlanner.step(
             on: referenceDay, anchorDate: anchor, overrides: cycleOverrides, calendar: calendar
         )
-        let nextStepIndex = (currentStep.rawValue + 1) % GlucoseCycleStep.allCases.count
+        let nextSlot = dailyCycleNextSlot(today: today)
+        let nextStepIndex = cycleStep(for: nextSlot)?.rawValue ?? currentStep.rawValue
         let key = GlucoseCyclePlanner.dateKey(for: today, calendar: calendar)
         cycleOverrides = GlucoseCyclePlanner.pruneOverrides(cycleOverrides, today: today, calendar: calendar)
         cycleOverrides[key] = nextStepIndex
