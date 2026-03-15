@@ -13,19 +13,23 @@ public struct GlucoseCycleConfiguration: Sendable, Equatable {
     public let lunch: DateComponents
     public let dinner: DateComponents
     public let bedtime: DateComponents
+    /// Per-day step overrides keyed by "yyyy-MM-dd" from `GlucoseCyclePlanner.dateKey(for:calendar:)`.
+    public let overrides: [String: Int]
 
     public init(
         anchorDate: Date,
         breakfast: DateComponents,
         lunch: DateComponents,
         dinner: DateComponents,
-        bedtime: DateComponents
+        bedtime: DateComponents,
+        overrides: [String: Int] = [:]
     ) {
         self.anchorDate = anchorDate
         self.breakfast = breakfast
         self.lunch = lunch
         self.dinner = dinner
         self.bedtime = bedtime
+        self.overrides = overrides
     }
 }
 
@@ -42,6 +46,33 @@ public struct GlucoseCycleReminder: Sendable, Equatable {
 }
 
 enum GlucoseCyclePlanner {
+
+    // MARK: - Date key helpers
+
+    /// Returns the canonical "yyyy-MM-dd" key for a date. Used as the key in `cycleOverrides`.
+    static func dateKey(for date: Date, calendar: Calendar = .current) -> String {
+        let comps = calendar.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", comps.year ?? 0, comps.month ?? 0, comps.day ?? 0)
+    }
+
+    /// Removes override entries older than `keepingDays` days before `today`.
+    static func pruneOverrides(
+        _ overrides: [String: Int],
+        today: Date,
+        keepingDays days: Int = 30,
+        calendar: Calendar = .current
+    ) -> [String: Int] {
+        guard let cutoff = calendar.date(
+            byAdding: .day, value: -days, to: calendar.startOfDay(for: today)
+        ) else { return overrides }
+        return overrides.filter { key, _ in
+            guard let date = date(fromKey: key, calendar: calendar) else { return false }
+            return date >= cutoff
+        }
+    }
+
+    // MARK: - Fallback anchor (legacy migration)
+
     static func fallbackAnchorDate(
         currentCycleIndex: Int,
         referenceDate: Date = Date(),
@@ -52,11 +83,21 @@ enum GlucoseCyclePlanner {
         return calendar.date(byAdding: .day, value: -normalized, to: dayStart) ?? dayStart
     }
 
+    // MARK: - Step computation
+
+    /// Returns the cycle step for `day`, consulting `overrides` before falling back to the
+    /// anchor-based computation. This is the primary entry point for all step lookups.
     static func step(
         on day: Date,
         anchorDate: Date,
+        overrides: [String: Int] = [:],
         calendar: Calendar = .current
     ) -> GlucoseCycleStep {
+        let key = dateKey(for: day, calendar: calendar)
+        if let overrideIndex = overrides[key] {
+            let index = positiveModulo(overrideIndex, GlucoseCycleStep.allCases.count)
+            return GlucoseCycleStep(rawValue: index) ?? .breakfastDay
+        }
         let start = calendar.startOfDay(for: day)
         let anchor = calendar.startOfDay(for: anchorDate)
         let dayDelta = calendar.dateComponents([.day], from: anchor, to: start).day ?? 0
@@ -64,12 +105,19 @@ enum GlucoseCyclePlanner {
         return GlucoseCycleStep(rawValue: index) ?? .breakfastDay
     }
 
+    // MARK: - Reminder generation
+
     static func reminders(
         on day: Date,
         configuration: GlucoseCycleConfiguration,
         calendar: Calendar = .current
     ) -> [GlucoseCycleReminder] {
-        let step = step(on: day, anchorDate: configuration.anchorDate, calendar: calendar)
+        let step = step(
+            on: day,
+            anchorDate: configuration.anchorDate,
+            overrides: configuration.overrides,
+            calendar: calendar
+        )
         switch step {
         case .breakfastDay:
             return beforeAndAfterReminders(
@@ -98,6 +146,8 @@ enum GlucoseCyclePlanner {
         }
     }
 
+    // MARK: - Private helpers
+
     private static func beforeAndAfterReminders(
         on day: Date,
         mealSlot: MealSlot,
@@ -120,6 +170,18 @@ enum GlucoseCyclePlanner {
         dayComponents.minute = components.minute
         dayComponents.second = components.second ?? 0
         return calendar.date(from: dayComponents)
+    }
+
+    private static func date(fromKey key: String, calendar: Calendar) -> Date? {
+        let parts = key.split(separator: "-")
+        guard parts.count == 3,
+              let year = Int(parts[0]), let month = Int(parts[1]), let day = Int(parts[2])
+        else { return nil }
+        var comps = DateComponents()
+        comps.year = year
+        comps.month = month
+        comps.day = day
+        return calendar.date(from: comps)
     }
 
     private static func positiveModulo(_ value: Int, _ modulus: Int) -> Int {

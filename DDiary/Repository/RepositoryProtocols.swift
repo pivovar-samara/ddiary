@@ -237,7 +237,8 @@ public extension NotificationsRepository {
                 breakfast: breakfast,
                 lunch: lunch,
                 dinner: dinner,
-                bedtime: bedtime
+                bedtime: bedtime,
+                overrides: settings.cycleOverrides
             )
             try await rescheduleGlucoseCycle(
                 configuration: configuration,
