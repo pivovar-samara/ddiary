@@ -2,6 +2,8 @@ import XCTest
 import UserNotifications
 @testable import DDiary
 
+// @MainActor: FakeNotificationCenter is main-actor-confined.
+// Tests must run serially on the main actor to avoid data races on its mutable state.
 @MainActor
 final class UserNotificationsRepositoryTests: XCTestCase {
     func test_parseAction_treatsDefaultTapAsEnter() {
@@ -696,6 +698,81 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         let reminders = await repository.scheduledReminders(on: today)
 
         XCTAssertTrue(reminders.isEmpty)
+    }
+
+    // MARK: - cancelAllExceptOneOffRequests
+
+    func test_cancelAllExceptOneOffRequests_removesRegularNotificationsAndPreservesSnoozeAndShifted() async {
+        let center = FakeNotificationCenter()
+        let calendar = Calendar.current
+        // IDs are built via the same helpers used by the rest of this test suite so that
+        // a format change propagates automatically and the tests don't silently pass with
+        // stale strings. Detection relies on `.snooze.` / `.shifted.` substrings, which
+        // both helpers embed by construction.
+        let bpDay = calendar.date(from: DateComponents(year: 2099, month: 6, day: 1)) ?? Date()
+        let glucoseDay = bpDay
+
+        let bpID = cycleID(
+            prefix: UserNotificationsRepository.IDs.bpPrefix,
+            day: bpDay, hour: 9, minute: 0, calendar: calendar
+        )
+        let glucoseID = cycleID(
+            prefix: UserNotificationsRepository.IDs.glucoseBeforePrefix,
+            day: glucoseDay, hour: 8, minute: 0, calendar: calendar
+        )
+        let snoozeID = bpID + ".snooze.15"
+        let shiftedDate = calendar.date(
+            from: DateComponents(year: 2099, month: 6, day: 1, hour: 10, minute: 30)
+        ) ?? Date()
+        let shiftedID = shiftedAfterID(mealSlot: .breakfast, day: shiftedDate, calendar: calendar)
+
+        let futureDate = calendar.date(
+            from: DateComponents(year: 2099, month: 6, day: 1, hour: 9, minute: 0)
+        ) ?? Date()
+        for id in [bpID, glucoseID, snoozeID, shiftedID] {
+            center.pendingRequests[id] = makeRequest(
+                id: id,
+                date: futureDate,
+                categoryIdentifier: UserNotificationsRepository.IDs.bpCategory,
+                title: L10n.notificationBPTitle
+            )
+        }
+        center.deliveredIdentifiers = ["ddiary.bp.delivered"]
+
+        let repository = UserNotificationsRepository(center: center)
+        await repository.cancelAllExceptOneOffRequests()
+
+        XCTAssertNil(center.pendingRequests[bpID], "Regular BP notification should be removed")
+        XCTAssertNil(center.pendingRequests[glucoseID], "Regular glucose notification should be removed")
+        XCTAssertNotNil(center.pendingRequests[snoozeID], "Snoozed notification must be preserved")
+        XCTAssertNotNil(center.pendingRequests[shiftedID], "Shifted notification must be preserved")
+        XCTAssertTrue(center.deliveredIdentifiers.isEmpty, "Delivered notifications should be cleared")
+    }
+
+    func test_cancelAllExceptOneOffRequests_withNoSnoozedOrShifted_clearsAllPendingAndDelivered() async {
+        let center = FakeNotificationCenter()
+        let calendar = Calendar.current
+        let bpDay = calendar.date(from: DateComponents(year: 2099, month: 6, day: 1)) ?? Date()
+        let bpID = cycleID(
+            prefix: UserNotificationsRepository.IDs.bpPrefix,
+            day: bpDay, hour: 9, minute: 0, calendar: calendar
+        )
+        let futureDate = calendar.date(
+            from: DateComponents(year: 2099, month: 6, day: 1, hour: 9, minute: 0)
+        ) ?? Date()
+        center.pendingRequests[bpID] = makeRequest(
+            id: bpID,
+            date: futureDate,
+            categoryIdentifier: UserNotificationsRepository.IDs.bpCategory,
+            title: L10n.notificationBPTitle
+        )
+        center.deliveredIdentifiers = ["ddiary.bp.delivered"]
+
+        let repository = UserNotificationsRepository(center: center)
+        await repository.cancelAllExceptOneOffRequests()
+
+        XCTAssertTrue(center.pendingRequests.isEmpty)
+        XCTAssertTrue(center.deliveredIdentifiers.isEmpty)
     }
 
     private func makeRequest(id: String) -> UNNotificationRequest {

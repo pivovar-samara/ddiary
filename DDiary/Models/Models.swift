@@ -173,7 +173,12 @@ public final class UserSettings {
     /// Legacy migration aid. `dailyCycleAnchorDate` is the source of truth; this field is only
     /// read by `GlucoseCyclePlanner.fallbackAnchorDate` when `dailyCycleAnchorDate` is nil.
     var currentCycleIndex: Int = 0
+    /// Set once when cycle mode is first enabled. Never mutated during normal operation.
+    /// The current slot is derived: `GlucoseCyclePlanner.step(on:anchorDate:overrides:)`.
     var dailyCycleAnchorDate: Date?
+    /// Per-day step overrides keyed by "yyyy-MM-dd". Written when the user explicitly shifts
+    /// today's slot via `shiftTodayForward` / `setTodayTarget`. Pruned to ~30 days.
+    var cycleOverrides: [String: Int] = [:]
 
     init(
         id: UUID = UserSettings.singletonRecordID,
@@ -200,7 +205,8 @@ public final class UserSettings {
         enableAfterMeal2h: Bool,
         enableDailyCycleMode: Bool,
         currentCycleIndex: Int,
-        dailyCycleAnchorDate: Date?
+        dailyCycleAnchorDate: Date?,
+        cycleOverrides: [String: Int] = [:]
     ) {
         self.id = id
         self.singletonKey = singletonKey
@@ -227,6 +233,7 @@ public final class UserSettings {
         self.enableDailyCycleMode = enableDailyCycleMode
         self.currentCycleIndex = currentCycleIndex
         self.dailyCycleAnchorDate = dailyCycleAnchorDate
+        self.cycleOverrides = cycleOverrides
     }
 }
 

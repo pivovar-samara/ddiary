@@ -201,6 +201,11 @@ public protocol NotificationsRepository: Sendable {
 
     /// Cancel all scheduled notifications (BP and Glucose).
     func cancelAll() async
+
+    /// Cancel all scheduled notifications except user-triggered one-offs (snooze/shifted).
+    /// Preserves pending requests whose identifiers contain `.snooze.` or `.shifted.`.
+    /// Delivered notifications are always cleared regardless of identifier.
+    func cancelAllExceptOneOffRequests() async
 }
 
 // MARK: - Convenience APIs from UserSettings (MainActor-only)
@@ -232,7 +237,8 @@ public extension NotificationsRepository {
                 breakfast: breakfast,
                 lunch: lunch,
                 dinner: dinner,
-                bedtime: bedtime
+                bedtime: bedtime,
+                overrides: settings.cycleOverrides
             )
             try await rescheduleGlucoseCycle(
                 configuration: configuration,
@@ -255,6 +261,14 @@ public extension NotificationsRepository {
 
     /// Convenience: Cancel all pending notifications (BP and Glucose).
     func cancelAllNotifications() async {
+        await cancelAll()
+    }
+
+    /// Default implementation: simply calls `cancelAll()` and therefore does **not**
+    /// preserve any existing notification requests (including snoozed, shifted, or one-off).
+    /// Preservation of such requests is only guaranteed for concrete types
+    /// (e.g. `UserNotificationsRepository`) that override this method with a custom behavior.
+    func cancelAllExceptOneOffRequests() async {
         await cancelAll()
     }
 
@@ -300,9 +314,10 @@ public extension NotificationsRepository {
     }
 
     /// Convenience: Cancel everything and schedule both BP and Glucose from settings.
+    /// Preserves pending user-triggered one-offs (snooze/shifted) across the reschedule.
     /// Call this after saving settings or after first authorization is granted.
     func scheduleAllNotifications(settings: UserSettings) async throws {
-        await cancelAll()
+        await cancelAllExceptOneOffRequests()
         try await scheduleBPNotifications(settings: settings)
         try await scheduleGlucoseNotifications(settings: settings)
     }

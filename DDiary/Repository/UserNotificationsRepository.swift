@@ -385,6 +385,13 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         center.removeAllDeliveredNotifications()
     }
 
+    func cancelAllExceptOneOffRequests() async {
+        let allPendingIDs = await center.pendingRequestIdentifiers()
+        let toRemove = allPendingIDs.filter { !shouldPreservePendingRequestOnStartup($0) }
+        center.removePendingNotificationRequests(withIdentifiers: toRemove)
+        center.removeAllDeliveredNotifications()
+    }
+
     // MARK: - One-off helpers (snooze / cancel by id)
     /// Schedule a one-off notification at the specified date with provided content.
     /// This does not repeat and is useful for action-driven follow-up reminders.

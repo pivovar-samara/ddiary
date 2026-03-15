@@ -101,7 +101,8 @@ public final class GetTodayOverviewUseCase {
                 breakfast: DateComponents(hour: settings.breakfastHour, minute: settings.breakfastMinute),
                 lunch: DateComponents(hour: settings.lunchHour, minute: settings.lunchMinute),
                 dinner: DateComponents(hour: settings.dinnerHour, minute: settings.dinnerMinute),
-                bedtime: DateComponents(hour: settings.bedtimeHour, minute: settings.bedtimeMinute)
+                bedtime: DateComponents(hour: settings.bedtimeHour, minute: settings.bedtimeMinute),
+                overrides: settings.cycleOverrides
             )
             let reminders = GlucoseCyclePlanner.reminders(on: today, configuration: cycleConfig, calendar: calendar)
             glucosePlanned = reminders.map { reminder in

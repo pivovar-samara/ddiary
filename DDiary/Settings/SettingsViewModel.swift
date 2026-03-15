@@ -81,6 +81,9 @@ final class SettingsViewModel {
     }
     private var currentCycleIndex: Int = 0
     private var dailyCycleAnchorDate: Date? = nil
+    /// Per-day step overrides, mirroring `UserSettings.cycleOverrides`. Written by
+    /// `applyDailyCycleTarget` / `switchDailyCycleTargetForward`; never mutates the anchor.
+    private var cycleOverrides: [String: Int] = [:]
     private(set) var dailyCycleDisplaySlot: MealSlot? = nil
 
     var dailyCycleCurrentSlotTitle: String {
@@ -118,7 +121,7 @@ final class SettingsViewModel {
     private var googleSyncLifecycleObserver: NSObjectProtocol?
     private var measurementsDidChangeObserver: NSObjectProtocol?
     private var syncStatusRefreshDebounceTask: Task<Void, Never>?
-    private var autoSaveDebounceTask: Task<Void, Never>?
+    private(set) var autoSaveDebounceTask: Task<Void, Never>?
     private var hasFinishedInitialLoad: Bool = false
     private var isSavingSettings: Bool = false
     private var hasQueuedSaveRequest: Bool = false
@@ -188,6 +191,7 @@ final class SettingsViewModel {
             enableAfterMeal2h = settings.enableAfterMeal2h
             currentCycleIndex = settings.currentCycleIndex
             dailyCycleAnchorDate = settings.dailyCycleAnchorDate
+            cycleOverrides = settings.cycleOverrides
             enableDailyCycleMode = settings.enableDailyCycleMode
             syncDailyCycleDisplaySlot()
 
@@ -320,9 +324,9 @@ final class SettingsViewModel {
         defer { isSwitchingCycleTarget = false }
 
         let calendar = Calendar.current
-        let referenceDay = calendar.startOfDay(for: today)
-        dailyCycleAnchorDate = calendar.date(byAdding: .day, value: -targetStep.rawValue, to: referenceDay) ?? referenceDay
-        currentCycleIndex = targetStep.rawValue
+        let key = GlucoseCyclePlanner.dateKey(for: today, calendar: calendar)
+        cycleOverrides = GlucoseCyclePlanner.pruneOverrides(cycleOverrides, today: today, calendar: calendar)
+        cycleOverrides[key] = targetStep.rawValue
         dailyCycleDisplaySlot = mealSlot
         await enqueueSettingsSave()
     }
@@ -365,14 +369,18 @@ final class SettingsViewModel {
             settings.enableDailyCycleMode = enableDailyCycleMode
             if enableDailyCycleMode {
                 settings.currentCycleIndex = currentCycleIndex
+                // Set anchor once when first enabled; never overwrite an existing anchor.
                 if dailyCycleAnchorDate == nil {
                     dailyCycleAnchorDate = GlucoseCyclePlanner.fallbackAnchorDate(
                         currentCycleIndex: currentCycleIndex
                     )
                 }
                 settings.dailyCycleAnchorDate = dailyCycleAnchorDate
+                settings.cycleOverrides = cycleOverrides
             } else {
                 settings.dailyCycleAnchorDate = nil
+                settings.cycleOverrides = [:]
+                cycleOverrides = [:]
             }
 
             settings.bpSystolicMin = bpSystolicMin
@@ -405,15 +413,20 @@ final class SettingsViewModel {
         guard enableDailyCycleMode else { return }
         let calendar = Calendar.current
         let referenceDay = calendar.startOfDay(for: today)
-        let anchorDate = dailyCycleAnchorDate
+        let anchor = dailyCycleAnchorDate
             ?? GlucoseCyclePlanner.fallbackAnchorDate(
                 currentCycleIndex: currentCycleIndex,
                 referenceDate: today,
                 calendar: calendar
             )
-        let shiftedAnchor = calendar.date(byAdding: .day, value: -1, to: anchorDate) ?? anchorDate
-        dailyCycleAnchorDate = shiftedAnchor
-        currentCycleIndex = GlucoseCyclePlanner.step(on: referenceDay, anchorDate: shiftedAnchor, calendar: calendar).rawValue
+        let currentStep = GlucoseCyclePlanner.step(
+            on: referenceDay, anchorDate: anchor, overrides: cycleOverrides, calendar: calendar
+        )
+        let nextSlot = dailyCycleNextSlot(today: today)
+        let nextStepIndex = cycleStep(for: nextSlot)?.rawValue ?? currentStep.rawValue
+        let key = GlucoseCyclePlanner.dateKey(for: today, calendar: calendar)
+        cycleOverrides = GlucoseCyclePlanner.pruneOverrides(cycleOverrides, today: today, calendar: calendar)
+        cycleOverrides[key] = nextStepIndex
         syncDailyCycleDisplaySlot(today: today)
     }
 
@@ -425,6 +438,7 @@ final class SettingsViewModel {
             let settings = try await resolveSettingsModel()
             settings.enableDailyCycleMode = true
             settings.currentCycleIndex = currentCycleIndex
+            // Set anchor once if not yet initialised; never overwrite an existing anchor.
             if dailyCycleAnchorDate == nil {
                 dailyCycleAnchorDate = GlucoseCyclePlanner.fallbackAnchorDate(
                     currentCycleIndex: currentCycleIndex,
@@ -433,6 +447,7 @@ final class SettingsViewModel {
                 )
             }
             settings.dailyCycleAnchorDate = dailyCycleAnchorDate
+            settings.cycleOverrides = cycleOverrides
 
             try await settingsRepository.save(settings)
             errorMessage = nil
@@ -745,12 +760,17 @@ final class SettingsViewModel {
                 referenceDate: today,
                 calendar: calendar
             )
-        let step = GlucoseCyclePlanner.step(on: today, anchorDate: anchor, calendar: calendar)
+        let step = GlucoseCyclePlanner.step(
+            on: today, anchorDate: anchor, overrides: cycleOverrides, calendar: calendar
+        )
         return cycleSlot(for: step)
     }
 
     func dailyCycleNextSlot(today: Date = Date()) -> MealSlot {
-        let order: [MealSlot] = [.breakfast, .lunch, .dinner, .none]
+        var order: [MealSlot] = [.breakfast, .lunch, .dinner]
+        if bedtimeSlotEnabled {
+            order.append(.none)
+        }
         let current = dailyCycleCurrentSlot(today: today) ?? .breakfast
         guard let currentIndex = order.firstIndex(of: current) else { return .lunch }
         let nextIndex = (currentIndex + 1) % order.count
