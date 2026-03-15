@@ -166,7 +166,7 @@ public final class RescheduleGlucoseCycleUseCase {
             )
             let order = cycleOrder(from: settings)
             guard !order.isEmpty else { return false }
-            let currentSlot = cycleSlot(for: currentStep)
+            let currentSlot = cycleSlot(for: currentStep, settings: settings)
             guard let currentIndex = order.firstIndex(of: currentSlot) else { return false }
             let nextSlot = order[(currentIndex + 1) % order.count]
             guard let nextStep = step(for: nextSlot) else { return false }
@@ -195,7 +195,7 @@ public final class RescheduleGlucoseCycleUseCase {
         return order
     }
 
-    private func cycleSlot(for step: GlucoseCycleStep) -> MealSlot {
+    private func cycleSlot(for step: GlucoseCycleStep, settings: UserSettings? = nil) -> MealSlot {
         switch step {
         case .breakfastDay:
             return .breakfast
@@ -204,6 +204,10 @@ public final class RescheduleGlucoseCycleUseCase {
         case .dinnerDay:
             return .dinner
         case .bedtimeDay:
+            // When bedtime is disabled the planner still uses a 4-step cycle, so currentStep can
+            // resolve to .bedtimeDay even though the slot isn't in the active order.  Normalise to
+            // .breakfast (index 3 % 3 == 0) so the shift never gets stuck on a hidden step.
+            if let settings, !settings.bedtimeSlotEnabled { return .breakfast }
             return .none
         }
     }

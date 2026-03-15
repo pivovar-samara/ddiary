@@ -198,7 +198,9 @@ final class SettingsViewModelSaveSettingsTests: XCTestCase {
         await sut.loadSettings()
         sut.bpSystolicMin = 123
         sut.scheduleAutoSave()
-        try await Task.sleep(nanoseconds: 400_000_000)
+        // Await the debounce task directly so the test doesn't rely on wall-clock timing,
+        // which is unreliable on loaded CI machines.
+        if let task = sut.autoSaveDebounceTask { await task.value }
 
         XCTAssertEqual(settingsRepository.saveCount, 1)
         XCTAssertEqual(settingsRepository.savedSettings?.bpSystolicMin, 123)

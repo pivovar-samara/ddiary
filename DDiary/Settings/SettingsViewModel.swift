@@ -121,7 +121,7 @@ final class SettingsViewModel {
     private var googleSyncLifecycleObserver: NSObjectProtocol?
     private var measurementsDidChangeObserver: NSObjectProtocol?
     private var syncStatusRefreshDebounceTask: Task<Void, Never>?
-    private var autoSaveDebounceTask: Task<Void, Never>?
+    private(set) var autoSaveDebounceTask: Task<Void, Never>?
     private var hasFinishedInitialLoad: Bool = false
     private var isSavingSettings: Bool = false
     private var hasQueuedSaveRequest: Bool = false

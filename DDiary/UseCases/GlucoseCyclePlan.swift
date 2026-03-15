@@ -52,7 +52,16 @@ enum GlucoseCyclePlanner {
     /// Returns the canonical "yyyy-MM-dd" key for a date. Used as the key in `cycleOverrides`.
     static func dateKey(for date: Date, calendar: Calendar = .current) -> String {
         let comps = calendar.dateComponents([.year, .month, .day], from: date)
-        return String(format: "%04d-%02d-%02d", comps.year ?? 0, comps.month ?? 0, comps.day ?? 0)
+        guard let year = comps.year, let month = comps.month, let day = comps.day else {
+            // Should never happen for a valid Date; assertionFailure catches it during development.
+            assertionFailure("GlucoseCyclePlanner.dateKey: missing components for \(date)")
+            let formatter = DateFormatter()
+            formatter.calendar = calendar
+            formatter.timeZone = calendar.timeZone
+            formatter.dateFormat = "yyyy-MM-dd"
+            return formatter.string(from: date)
+        }
+        return String(format: "%04d-%02d-%02d", year, month, day)
     }
 
     /// Removes override entries older than `keepingDays` days before `today`.
