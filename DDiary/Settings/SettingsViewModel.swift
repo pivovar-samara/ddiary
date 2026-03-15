@@ -766,7 +766,10 @@ final class SettingsViewModel {
     }
 
     func dailyCycleNextSlot(today: Date = Date()) -> MealSlot {
-        let order: [MealSlot] = [.breakfast, .lunch, .dinner, .none]
+        var order: [MealSlot] = [.breakfast, .lunch, .dinner]
+        if bedtimeSlotEnabled {
+            order.append(.none)
+        }
         let current = dailyCycleCurrentSlot(today: today) ?? .breakfast
         guard let currentIndex = order.firstIndex(of: current) else { return .lunch }
         let nextIndex = (currentIndex + 1) % order.count

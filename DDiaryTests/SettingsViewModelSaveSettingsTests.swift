@@ -550,6 +550,56 @@ final class SettingsViewModelSaveSettingsTests: XCTestCase {
         XCTAssertTrue(targets.contains(.none), "Expected .none (bedtime) to be present when bedtimeSlotEnabled=true")
     }
 
+    func test_dailyCycleNextSlot_returnsBreakfast_whenBedtimeDisabledAndCurrentIsDinner() async throws {
+        let sut = makeSUT(
+            settingsRepository: SpySettingsRepository(),
+            measurementsRepository: MockMeasurementsRepository(),
+            schedulesUpdater: SpySchedulesUpdater()
+        )
+        let fixedToday = Calendar.current.date(
+            from: DateComponents(year: 2026, month: 2, day: 16, hour: 9, minute: 0)
+        ) ?? Date()
+
+        await sut.loadSettings()
+        sut.enableDailyCycleMode = true
+        sut.bedtimeSlotEnabled = false
+        // Advance twice: breakfast → lunch → dinner
+        sut.switchDailyCycleTargetForward(today: fixedToday)
+        sut.switchDailyCycleTargetForward(today: fixedToday)
+
+        XCTAssertEqual(sut.dailyCycleCurrentSlot(today: fixedToday), .dinner)
+        XCTAssertEqual(
+            sut.dailyCycleNextSlot(today: fixedToday),
+            .breakfast,
+            "When bedtime is disabled and current slot is dinner, next should wrap to breakfast"
+        )
+    }
+
+    func test_dailyCycleNextSlot_returnsBedtime_whenBedtimeEnabledAndCurrentIsDinner() async throws {
+        let sut = makeSUT(
+            settingsRepository: SpySettingsRepository(),
+            measurementsRepository: MockMeasurementsRepository(),
+            schedulesUpdater: SpySchedulesUpdater()
+        )
+        let fixedToday = Calendar.current.date(
+            from: DateComponents(year: 2026, month: 2, day: 16, hour: 9, minute: 0)
+        ) ?? Date()
+
+        await sut.loadSettings()
+        sut.enableDailyCycleMode = true
+        sut.bedtimeSlotEnabled = true
+        // Advance twice: breakfast → lunch → dinner
+        sut.switchDailyCycleTargetForward(today: fixedToday)
+        sut.switchDailyCycleTargetForward(today: fixedToday)
+
+        XCTAssertEqual(sut.dailyCycleCurrentSlot(today: fixedToday), .dinner)
+        XCTAssertEqual(
+            sut.dailyCycleNextSlot(today: fixedToday),
+            .none,
+            "When bedtime is enabled and current slot is dinner, next should be bedtime (.none)"
+        )
+    }
+
     private func makeSUT(
         settingsRepository: SpySettingsRepository,
         measurementsRepository: any MeasurementsRepository,
