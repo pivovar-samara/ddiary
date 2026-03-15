@@ -201,6 +201,11 @@ public protocol NotificationsRepository: Sendable {
 
     /// Cancel all scheduled notifications (BP and Glucose).
     func cancelAll() async
+
+    /// Cancel all scheduled notifications except user-triggered one-offs (snooze/shifted).
+    /// Preserves pending requests whose identifiers contain `.snooze.` or `.shifted.`.
+    /// Delivered notifications are always cleared regardless of identifier.
+    func cancelAllExceptOneOffRequests() async
 }
 
 // MARK: - Convenience APIs from UserSettings (MainActor-only)
@@ -258,6 +263,12 @@ public extension NotificationsRepository {
         await cancelAll()
     }
 
+    /// Default implementation: falls back to `cancelAll()`.
+    /// Concrete types (e.g. `UserNotificationsRepository`) override this to preserve one-offs.
+    func cancelAllExceptOneOffRequests() async {
+        await cancelAll()
+    }
+
     /// When a before-meal measurement is logged off schedule, shift today's paired
     /// after-meal (2h) reminder from the original planned time to the new +2h time.
     func rescheduleShiftedAfterMeal2hNotification(
@@ -300,9 +311,10 @@ public extension NotificationsRepository {
     }
 
     /// Convenience: Cancel everything and schedule both BP and Glucose from settings.
+    /// Preserves pending user-triggered one-offs (snooze/shifted) across the reschedule.
     /// Call this after saving settings or after first authorization is granted.
     func scheduleAllNotifications(settings: UserSettings) async throws {
-        await cancelAll()
+        await cancelAllExceptOneOffRequests()
         try await scheduleBPNotifications(settings: settings)
         try await scheduleGlucoseNotifications(settings: settings)
     }

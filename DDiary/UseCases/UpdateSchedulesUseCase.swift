@@ -9,6 +9,7 @@ public protocol SchedulesUpdating {
 @MainActor
 public final class UpdateSchedulesUseCase: SchedulesUpdating {
     private enum UserSurfacePolicy: String {
+        // Reserved for future surface policies (e.g. alert, toast).
         case suppressed
     }
 
@@ -19,10 +20,8 @@ public final class UpdateSchedulesUseCase: SchedulesUpdating {
         subsystem: Bundle.main.bundleIdentifier ?? "DDiary",
         category: "UpdateSchedulesUseCase"
     )
-    private var isUITesting: Bool {
-        ProcessInfo.processInfo.arguments.contains("UITESTING")
-        || ProcessInfo.processInfo.environment["UITESTING"] == "1"
-    }
+    // Read once at init — ProcessInfo is immutable after process launch.
+    private let isUITesting: Bool
 
     public init(
         settingsRepository: any SettingsRepository,
@@ -32,6 +31,8 @@ public final class UpdateSchedulesUseCase: SchedulesUpdating {
         self.settingsRepository = settingsRepository
         self.notificationsRepository = notificationsRepository
         self.analyticsRepository = analyticsRepository
+        self.isUITesting = ProcessInfo.processInfo.arguments.contains("UITESTING")
+            || ProcessInfo.processInfo.environment["UITESTING"] == "1"
     }
 
     /// Request authorization (if needed) and schedule all notifications from the current settings.
@@ -41,8 +42,6 @@ public final class UpdateSchedulesUseCase: SchedulesUpdating {
         do {
             let granted = try await notificationsRepository.requestAuthorization()
             guard granted else { return }
-            let hasPendingOneOffRequests = await notificationsRepository.hasPendingNotificationRequests()
-            guard !hasPendingOneOffRequests else { return }
             let settings = try await settingsRepository.getOrCreate()
             try await notificationsRepository.scheduleAllNotifications(settings: settings)
         } catch {

@@ -1,14 +1,15 @@
 import XCTest
 @testable import DDiary
 
+// @MainActor: SpyNotificationsRepository and FixedSettingsRepository are main-actor-confined.
+// Tests must run serially on the main actor to avoid data races on their mutable spy state.
 @MainActor
 final class UpdateSchedulesUseCaseTests: XCTestCase {
-    func test_requestAuthorizationAndSchedule_whenGrantedAndNoPending_reschedulesFromCurrentSettings() async {
+    func test_requestAuthorizationAndSchedule_whenGranted_reschedulesFromCurrentSettings() async {
         let settings = UserSettings.default()
         let settingsRepository = FixedSettingsRepository(settings: settings)
         let notificationsRepository = SpyNotificationsRepository()
         notificationsRepository.requestAuthorizationResult = true
-        notificationsRepository.hasPendingNotificationRequestsResult = false
         let analyticsRepository = MockAnalyticsRepository()
         let sut = UpdateSchedulesUseCase(
             settingsRepository: settingsRepository,
@@ -19,16 +20,16 @@ final class UpdateSchedulesUseCaseTests: XCTestCase {
         await sut.requestAuthorizationAndSchedule()
 
         XCTAssertEqual(notificationsRepository.requestAuthorizationCallCount, 1)
-        XCTAssertEqual(notificationsRepository.hasPendingNotificationRequestsCallCount, 1)
-        XCTAssertEqual(notificationsRepository.cancelAllCount, 1)
+        XCTAssertEqual(notificationsRepository.cancelAllExceptOneOffRequestsCount, 1)
     }
 
-    func test_requestAuthorizationAndSchedule_whenGrantedAndPending_keepsCurrentSchedule() async {
+    func test_requestAuthorizationAndSchedule_withSnoozedPending_usesPreservingCancel() async {
+        // scheduleAllNotifications must call cancelAllExceptOneOffRequests (not cancelAll),
+        // so that any pending snooze/shifted notifications survive the startup reschedule.
         let settings = UserSettings.default()
         let settingsRepository = FixedSettingsRepository(settings: settings)
         let notificationsRepository = SpyNotificationsRepository()
         notificationsRepository.requestAuthorizationResult = true
-        notificationsRepository.hasPendingNotificationRequestsResult = true
         let analyticsRepository = MockAnalyticsRepository()
         let sut = UpdateSchedulesUseCase(
             settingsRepository: settingsRepository,
@@ -38,15 +39,34 @@ final class UpdateSchedulesUseCaseTests: XCTestCase {
 
         await sut.requestAuthorizationAndSchedule()
 
-        XCTAssertEqual(notificationsRepository.requestAuthorizationCallCount, 1)
-        XCTAssertEqual(notificationsRepository.hasPendingNotificationRequestsCallCount, 1)
-        XCTAssertEqual(notificationsRepository.cancelAllCount, 0)
+        XCTAssertEqual(notificationsRepository.cancelAllExceptOneOffRequestsCount, 1,
+            "scheduleAllNotifications must use the snooze-preserving cancel path")
+        XCTAssertEqual(notificationsRepository.cancelAllCount, 0,
+            "cancelAll must not be called directly — it would destroy snoozed notifications")
     }
 
-    func test_scheduleFromCurrentSettings_reschedulesBPAndGlucose_andLogsAnalytics() async throws {
+    func test_scheduleFromCurrentSettings_reschedulesBloodPressure_withCorrectTimesAndWeekdays() async throws {
         let settings = UserSettings.default()
         settings.bpTimes = [540, 1260]
         settings.bpActiveWeekdays = [2, 4]
+
+        let settingsRepository = FixedSettingsRepository(settings: settings)
+        let notificationsRepository = SpyNotificationsRepository()
+        let sut = UpdateSchedulesUseCase(
+            settingsRepository: settingsRepository,
+            notificationsRepository: notificationsRepository,
+            analyticsRepository: MockAnalyticsRepository()
+        )
+
+        try await sut.scheduleFromCurrentSettings()
+
+        XCTAssertEqual(notificationsRepository.cancelAllExceptOneOffRequestsCount, 1)
+        XCTAssertEqual(notificationsRepository.bpTimes, [540, 1260])
+        XCTAssertEqual(notificationsRepository.bpActiveWeekdays, [2, 4])
+    }
+
+    func test_scheduleFromCurrentSettings_reschedulesGlucose_withCorrectMealTimesAndFlags() async throws {
+        let settings = UserSettings.default()
         settings.breakfastHour = 8
         settings.breakfastMinute = 15
         settings.lunchHour = 13
@@ -61,18 +81,14 @@ final class UpdateSchedulesUseCaseTests: XCTestCase {
 
         let settingsRepository = FixedSettingsRepository(settings: settings)
         let notificationsRepository = SpyNotificationsRepository()
-        let analyticsRepository = MockAnalyticsRepository()
         let sut = UpdateSchedulesUseCase(
             settingsRepository: settingsRepository,
             notificationsRepository: notificationsRepository,
-            analyticsRepository: analyticsRepository
+            analyticsRepository: MockAnalyticsRepository()
         )
 
         try await sut.scheduleFromCurrentSettings()
 
-        XCTAssertEqual(notificationsRepository.cancelAllCount, 1)
-        XCTAssertEqual(notificationsRepository.bpTimes, [540, 1260])
-        XCTAssertEqual(notificationsRepository.bpActiveWeekdays, [2, 4])
         XCTAssertEqual(notificationsRepository.glucoseBreakfast.hour, 8)
         XCTAssertEqual(notificationsRepository.glucoseBreakfast.minute, 15)
         XCTAssertEqual(notificationsRepository.glucoseLunch.hour, 13)
@@ -81,6 +97,19 @@ final class UpdateSchedulesUseCaseTests: XCTestCase {
         XCTAssertEqual(notificationsRepository.enableAfterMeal2h, false)
         XCTAssertEqual(notificationsRepository.bedtimeTime?.hour, 22)
         XCTAssertEqual(notificationsRepository.bedtimeTime?.minute, 30)
+    }
+
+    func test_scheduleFromCurrentSettings_logsAnalyticsForBothKinds() async throws {
+        let settingsRepository = FixedSettingsRepository(settings: UserSettings.default())
+        let analyticsRepository = MockAnalyticsRepository()
+        let sut = UpdateSchedulesUseCase(
+            settingsRepository: settingsRepository,
+            notificationsRepository: SpyNotificationsRepository(),
+            analyticsRepository: analyticsRepository
+        )
+
+        try await sut.scheduleFromCurrentSettings()
+
         XCTAssertEqual(analyticsRepository.scheduleUpdated, [.bloodPressure, .glucose])
     }
 
@@ -119,6 +148,9 @@ final class UpdateSchedulesUseCaseTests: XCTestCase {
 
         let settingsRepository = FixedSettingsRepository(settings: settings)
         let notificationsRepository = SpyNotificationsRepository()
+        // Pre-set to true so the assertions below are meaningful (not vacuous).
+        notificationsRepository.enableBeforeMeal = true
+        notificationsRepository.enableAfterMeal2h = true
         let analyticsRepository = MockAnalyticsRepository()
         let sut = UpdateSchedulesUseCase(
             settingsRepository: settingsRepository,
@@ -134,8 +166,11 @@ final class UpdateSchedulesUseCaseTests: XCTestCase {
         XCTAssertEqual(notificationsRepository.glucoseCycleConfiguration?.bedtime.minute, 15)
         XCTAssertEqual(notificationsRepository.glucoseCycleNumberOfDays, 28)
         XCTAssertNotNil(settings.dailyCycleAnchorDate)
-        XCTAssertEqual(notificationsRepository.enableBeforeMeal, false)
-        XCTAssertEqual(notificationsRepository.enableAfterMeal2h, false)
+        // rescheduleGlucose must NOT have been called — cycle mode bypasses the standard path.
+        XCTAssertEqual(notificationsRepository.enableBeforeMeal, true,
+            "rescheduleGlucose was called unexpectedly — it must not run in cycle mode")
+        XCTAssertEqual(notificationsRepository.enableAfterMeal2h, true,
+            "rescheduleGlucose was called unexpectedly — it must not run in cycle mode")
     }
 
     func test_scheduleFromCurrentSettings_whenSettingsLoadFails_doesNotLogAnalytics() async {
@@ -152,7 +187,7 @@ final class UpdateSchedulesUseCaseTests: XCTestCase {
 
         await XCTAssertThrowsErrorAsync(try await sut.scheduleFromCurrentSettings())
 
-        XCTAssertEqual(notificationsRepository.cancelAllCount, 0)
+        XCTAssertEqual(notificationsRepository.cancelAllExceptOneOffRequestsCount, 0)
         XCTAssertTrue(analyticsRepository.scheduleUpdated.isEmpty)
         XCTAssertEqual(analyticsRepository.scheduleUpdateFailed.count, 2)
     }
@@ -183,19 +218,23 @@ private final class FixedSettingsRepository: SettingsRepository {
     }
 }
 
-private final class SpyNotificationsRepository: NotificationsRepository, @unchecked Sendable {
+// @MainActor: all mutable state is confined to the main actor.
+// Replacing @unchecked Sendable — actor isolation provides the same Sendable guarantee
+// without suppressing the data-race checker.
+@MainActor
+private final class SpyNotificationsRepository: NotificationsRepository {
     var requestAuthorizationResult = true
-    var hasPendingNotificationRequestsResult = false
     private(set) var requestAuthorizationCallCount = 0
-    private(set) var hasPendingNotificationRequestsCallCount = 0
     private(set) var cancelAllCount = 0
+    private(set) var cancelAllExceptOneOffRequestsCount = 0
     private(set) var bpTimes: [Int] = []
     private(set) var bpActiveWeekdays: Set<Int> = []
     private(set) var glucoseBreakfast = DateComponents()
     private(set) var glucoseLunch = DateComponents()
     private(set) var glucoseDinner = DateComponents()
-    private(set) var enableBeforeMeal = false
-    private(set) var enableAfterMeal2h = false
+    // Mutable (not private(set)) so tests can pre-set values before the act step.
+    var enableBeforeMeal = false
+    var enableAfterMeal2h = false
     private(set) var bedtimeTime: DateComponents?
     private(set) var rescheduleGlucoseCycleCallCount = 0
     private(set) var glucoseCycleConfiguration: GlucoseCycleConfiguration?
@@ -207,10 +246,7 @@ private final class SpyNotificationsRepository: NotificationsRepository, @unchec
         return requestAuthorizationResult
     }
 
-    func hasPendingNotificationRequests() async -> Bool {
-        hasPendingNotificationRequestsCallCount += 1
-        return hasPendingNotificationRequestsResult
-    }
+    func hasPendingNotificationRequests() async -> Bool { false }
 
     func scheduleBloodPressure(times: [Int], activeWeekdays: Set<Int>) async throws {
         bpTimes = times
@@ -288,5 +324,9 @@ private final class SpyNotificationsRepository: NotificationsRepository, @unchec
 
     func cancelAll() async {
         cancelAllCount += 1
+    }
+
+    func cancelAllExceptOneOffRequests() async {
+        cancelAllExceptOneOffRequestsCount += 1
     }
 }
