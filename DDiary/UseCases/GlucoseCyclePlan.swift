@@ -184,7 +184,8 @@ enum GlucoseCyclePlanner {
     private static func date(fromKey key: String, calendar: Calendar) -> Date? {
         let parts = key.split(separator: "-")
         guard parts.count == 3,
-              let year = Int(parts[0]), let month = Int(parts[1]), let day = Int(parts[2])
+              let year = Int(parts[0]), let month = Int(parts[1]), let day = Int(parts[2]),
+              year > 0, (1...12).contains(month), (1...31).contains(day)
         else { return nil }
         var comps = DateComponents()
         comps.year = year

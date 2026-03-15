@@ -1,6 +1,7 @@
 import XCTest
 @testable import DDiary
 
+@MainActor
 final class GlucoseCyclePlannerTests: XCTestCase {
 
     // MARK: - dateKey
