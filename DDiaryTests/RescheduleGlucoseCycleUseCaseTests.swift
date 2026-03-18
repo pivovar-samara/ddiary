@@ -115,6 +115,34 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
         XCTAssertEqual(target, .dinner)
     }
 
+    func test_setTarget_doesNotSaveWhenSlotIsAlreadyCurrent() async throws {
+        // Calling setTarget with the slot that is already current should be a no-op:
+        // the computed anchor and cleaned overrides are identical to the existing state,
+        // so no SwiftData write or analytics event should be emitted.
+        let settings = UserSettings.default()
+        settings.enableDailyCycleMode = true
+        settings.bedtimeSlotEnabled = true
+        let calendar = Calendar.current
+        let today = try XCTUnwrap(gregorian.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 10)))
+        // anchor = today - 1 → lunchDay (step 1)
+        let existingAnchor = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: today))
+        settings.dailyCycleAnchorDate = existingAnchor
+
+        let settingsRepository = SpyCycleSettingsRepository(settings: settings)
+        let analyticsRepository = MockAnalyticsRepository()
+        let sut = RescheduleGlucoseCycleUseCase(
+            settingsRepository: settingsRepository,
+            analyticsRepository: analyticsRepository
+        )
+
+        await sut.setTarget(.lunch, today: today) // .lunch is already current
+
+        XCTAssertEqual(settingsRepository.saveCount, 0, "No save when slot is already current")
+        XCTAssertTrue(analyticsRepository.scheduleUpdated.isEmpty, "No analytics when slot is already current")
+        // Settings must be unchanged.
+        XCTAssertEqual(settings.dailyCycleAnchorDate, existingAnchor)
+    }
+
     func test_setTarget_clearsStaleTodayOverride() async throws {
         // A pre-existing override for today must be erased so it cannot shadow the new anchor
         // in GlucoseCyclePlanner.step(), which checks overrides before the anchor.
