@@ -216,14 +216,12 @@ public final class RescheduleGlucoseCycleUseCase {
     /// 1. Sets `dailyCycleAnchorDate` so `today` resolves to `step` and subsequent days
     ///    follow naturally from it.
     /// 2. Prunes `cycleOverrides` entries older than 30 days.
-    /// 3. Drops all overrides for today **and** future dates so none can shadow the new anchor.
+    /// 3. Drops all overrides for today **and** future dates so none can shadow the new anchor,
+    ///    using `GlucoseCyclePlanner.dropFutureAndTodayOverrides` for correct `Date`-based
+    ///    comparison rather than relying on string ordering of the "yyyy-MM-dd" keys.
     ///
     /// `calendar` must be the same instance the caller already used for any `step(on:)` lookup
     /// in the same operation, ensuring anchor computation and step derivation stay consistent.
-    ///
-    /// "yyyy-MM-dd" keys produced by `GlucoseCyclePlanner.dateKey` are lexicographically
-    /// sortable as calendar dates (zero-padded ISO format), so `key < todayKey` is a
-    /// correct and cheap past-only filter.
     private func applyAnchorUpdate(
         to settings: UserSettings,
         step: GlucoseCycleStep,
@@ -231,14 +229,19 @@ public final class RescheduleGlucoseCycleUseCase {
         calendar: Calendar
     ) {
         let startOfToday = calendar.startOfDay(for: today)
-        settings.dailyCycleAnchorDate = calendar.date(
-            byAdding: .day, value: -step.rawValue, to: startOfToday
-        ) ?? startOfToday
-        let todayKey = GlucoseCyclePlanner.dateKey(for: today, calendar: calendar)
+        if let anchorDate = calendar.date(byAdding: .day, value: -step.rawValue, to: startOfToday) {
+            settings.dailyCycleAnchorDate = anchorDate
+        } else {
+            assertionFailure("applyAnchorUpdate: calendar.date(byAdding:) returned nil — this should never happen for a valid date")
+            logger.error("applyAnchorUpdate failed to compute anchor date for step \(step.rawValue, privacy: .public); falling back to startOfToday")
+            settings.dailyCycleAnchorDate = startOfToday
+        }
         let pruned = GlucoseCyclePlanner.pruneOverrides(
             settings.cycleOverrides, today: today, calendar: calendar
         )
-        settings.cycleOverrides = pruned.filter { key, _ in key < todayKey }
+        settings.cycleOverrides = GlucoseCyclePlanner.dropFutureAndTodayOverrides(
+            pruned, today: today, calendar: calendar
+        )
     }
 
     private func log(_ error: Error, operation: String, policy: UserSurfacePolicy) {
