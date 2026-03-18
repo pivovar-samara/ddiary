@@ -46,7 +46,8 @@ public final class RescheduleGlucoseCycleUseCase {
             let order = cycleOrder(from: settings)
             guard order.contains(meal) else { return }
             guard let targetStep = step(for: meal) else { return }
-            applyAnchorUpdate(to: settings, step: targetStep, today: today)
+            let calendar = Calendar.current
+            applyAnchorUpdate(to: settings, step: targetStep, today: today, calendar: calendar)
             try await settingsRepository.save(settings)
             await analyticsRepository.logScheduleUpdated(kind: .glucose)
         } catch {
@@ -98,7 +99,8 @@ public final class RescheduleGlucoseCycleUseCase {
             guard availableTargets.contains(meal) else { return false }
 
             guard let targetStep = step(for: meal) else { return false }
-            applyAnchorUpdate(to: settings, step: targetStep, today: today)
+            let calendar = Calendar.current
+            applyAnchorUpdate(to: settings, step: targetStep, today: today, calendar: calendar)
             try await settingsRepository.save(settings)
             await analyticsRepository.logScheduleUpdated(kind: .glucose)
             return true
@@ -161,7 +163,7 @@ public final class RescheduleGlucoseCycleUseCase {
             guard let currentIndex = order.firstIndex(of: currentSlot) else { return false }
             let nextSlot = order[(currentIndex + 1) % order.count]
             guard let nextStep = step(for: nextSlot) else { return false }
-            applyAnchorUpdate(to: settings, step: nextStep, today: today)
+            applyAnchorUpdate(to: settings, step: nextStep, today: today, calendar: calendar)
             try await settingsRepository.save(settings)
             return true
         } catch {
@@ -216,11 +218,18 @@ public final class RescheduleGlucoseCycleUseCase {
     /// 2. Prunes `cycleOverrides` entries older than 30 days.
     /// 3. Drops all overrides for today **and** future dates so none can shadow the new anchor.
     ///
+    /// `calendar` must be the same instance the caller already used for any `step(on:)` lookup
+    /// in the same operation, ensuring anchor computation and step derivation stay consistent.
+    ///
     /// "yyyy-MM-dd" keys produced by `GlucoseCyclePlanner.dateKey` are lexicographically
     /// sortable as calendar dates (zero-padded ISO format), so `key < todayKey` is a
     /// correct and cheap past-only filter.
-    private func applyAnchorUpdate(to settings: UserSettings, step: GlucoseCycleStep, today: Date) {
-        let calendar = Calendar.current
+    private func applyAnchorUpdate(
+        to settings: UserSettings,
+        step: GlucoseCycleStep,
+        today: Date,
+        calendar: Calendar
+    ) {
         let startOfToday = calendar.startOfDay(for: today)
         settings.dailyCycleAnchorDate = calendar.date(
             byAdding: .day, value: -step.rawValue, to: startOfToday

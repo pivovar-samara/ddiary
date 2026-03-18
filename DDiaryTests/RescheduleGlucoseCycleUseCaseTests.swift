@@ -108,7 +108,34 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
         XCTAssertEqual(target, .dinner)
     }
 
-    func test_setTarget_clearsTodayAndFutureOverrides() async throws {
+    func test_setTarget_clearsStaleTodayOverride() async throws {
+        // A pre-existing override for today must be erased so it cannot shadow the new anchor
+        // in GlucoseCyclePlanner.step(), which checks overrides before the anchor.
+        let settings = UserSettings.default()
+        settings.enableDailyCycleMode = true
+        settings.bedtimeSlotEnabled = true
+        let calendar = Calendar.current
+        let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 10)))
+        settings.dailyCycleAnchorDate = calendar.startOfDay(for: today) // breakfast day
+        let todayKey = GlucoseCyclePlanner.dateKey(for: today, calendar: calendar)
+        // Plant a stale today override that disagrees with the reschedule target (lunch).
+        settings.cycleOverrides[todayKey] = GlucoseCycleStep.dinnerDay.rawValue
+
+        let sut = RescheduleGlucoseCycleUseCase(
+            settingsRepository: SpyCycleSettingsRepository(settings: settings),
+            analyticsRepository: MockAnalyticsRepository()
+        )
+
+        await sut.setTarget(.lunch, today: today)
+
+        // The old today override must be gone; only the updated anchor drives the step.
+        XCTAssertNil(settings.cycleOverrides[todayKey], "Stale today override must be cleared")
+        // currentTarget must reflect the new anchor-derived step, not the old stale override.
+        let target = await sut.currentTarget(today: today)
+        XCTAssertEqual(target, .lunch)
+    }
+
+    func test_setTarget_clearsFutureOverrides() async throws {
         // A pre-existing override for tomorrow must be erased so it cannot shadow the new anchor.
         let settings = UserSettings.default()
         settings.enableDailyCycleMode = true
@@ -129,7 +156,7 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
         await sut.setTarget(.dinner, today: today)
 
         XCTAssertNil(settings.cycleOverrides[tomorrowKey], "Future override must be cleared on anchor update")
-        // Tomorrow should follow the new anchor (dinner = step 2 → tomorrow = step 3 = bedtime),
+        // Tomorrow should follow the new anchor (dinner → tomorrow = bedtime),
         // not be pinned by the now-deleted stale override.
         let tomorrowTarget = await sut.currentTarget(today: tomorrow)
         XCTAssertEqual(tomorrowTarget, MealSlot.none) // bedtime follows dinner
