@@ -4,9 +4,13 @@ import XCTest
 @MainActor
 final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
 
-    // Tests use Calendar.current so that anchor setup and SUT computation both use the same
-    // timezone. All `today` values are at hour 9–21 local time (well clear of midnight) so
-    // startOfDay is unambiguous in any UTC±12 timezone.
+    // Calendar strategy: the SUT captures `Calendar.current` at call time for all startOfDay
+    // and dateKey computations. Using a different calendar (e.g. UTC) in test setup would
+    // produce expected anchor values that diverge from SUT output on non-UTC machines.
+    // Therefore tests also use `Calendar.current` so setup and SUT share the same timezone.
+    // All `today` dates are placed at hours 9–21 local time so that startOfDay is
+    // unambiguous across all UTC offsets (no midnight boundary ambiguity).
+    // To make tests fully timezone-independent, inject a Calendar into the SUT (future work).
 
     // MARK: - advanceIfEnabled (no-op)
 
@@ -96,6 +100,9 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
         // Anchor updated so today = dinnerDay (step 2): anchor = today - 2 days
         let expectedAnchor = calendar.date(byAdding: .day, value: -2, to: calendar.startOfDay(for: today))
         XCTAssertEqual(settings.dailyCycleAnchorDate, expectedAnchor)
+        // No per-day override must remain for today — anchor is the sole source of truth.
+        let todayKey = GlucoseCyclePlanner.dateKey(for: today, calendar: calendar)
+        XCTAssertNil(settings.cycleOverrides[todayKey])
         XCTAssertEqual(settingsRepository.saveCount, 1)
         let target = await sut.currentTarget(today: today)
         XCTAssertEqual(target, .dinner)
@@ -170,6 +177,9 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
         // Anchor updated so today = lunchDay (step 1): anchor = today - 1 day.
         let expectedAnchor = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: today))
         XCTAssertEqual(settings.dailyCycleAnchorDate, expectedAnchor)
+        // No per-day override must remain for today — anchor is the sole source of truth.
+        let todayKey = GlucoseCyclePlanner.dateKey(for: today, calendar: calendar)
+        XCTAssertNil(settings.cycleOverrides[todayKey])
         XCTAssertEqual(settingsRepository.saveCount, 1)
         let target = await sut.currentTarget(today: today)
         XCTAssertEqual(target, .lunch)
@@ -319,6 +329,9 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
         // Anchor updated so today = dinnerDay (step 2): anchor = today - 2 days.
         let expectedAnchor = calendar.date(byAdding: .day, value: -2, to: calendar.startOfDay(for: today))
         XCTAssertEqual(settings.dailyCycleAnchorDate, expectedAnchor)
+        // No per-day override must remain for today — anchor is the sole source of truth.
+        let todayKey = GlucoseCyclePlanner.dateKey(for: today, calendar: calendar)
+        XCTAssertNil(settings.cycleOverrides[todayKey])
         XCTAssertEqual(settingsRepository.saveCount, 1)
     }
 

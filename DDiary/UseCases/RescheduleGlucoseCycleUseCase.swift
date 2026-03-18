@@ -47,9 +47,13 @@ public final class RescheduleGlucoseCycleUseCase {
             guard let targetStep = step(for: meal) else { return }
             let calendar = Calendar.current
             settings.dailyCycleAnchorDate = updatedAnchorDate(for: targetStep, today: today, calendar: calendar)
-            settings.cycleOverrides = GlucoseCyclePlanner.pruneOverrides(
+            var overrides = GlucoseCyclePlanner.pruneOverrides(
                 settings.cycleOverrides, today: today, calendar: calendar
             )
+            // Anchor is now the source of truth. Remove any stale per-day override for today
+            // so it cannot shadow the new anchor when GlucoseCyclePlanner.step() is called.
+            overrides.removeValue(forKey: GlucoseCyclePlanner.dateKey(for: today, calendar: calendar))
+            settings.cycleOverrides = overrides
             try await settingsRepository.save(settings)
             await analyticsRepository.logScheduleUpdated(kind: .glucose)
         } catch {
@@ -103,9 +107,11 @@ public final class RescheduleGlucoseCycleUseCase {
             guard let targetStep = step(for: meal) else { return false }
             let calendar = Calendar.current
             settings.dailyCycleAnchorDate = updatedAnchorDate(for: targetStep, today: today, calendar: calendar)
-            settings.cycleOverrides = GlucoseCyclePlanner.pruneOverrides(
+            var overrides = GlucoseCyclePlanner.pruneOverrides(
                 settings.cycleOverrides, today: today, calendar: calendar
             )
+            overrides.removeValue(forKey: GlucoseCyclePlanner.dateKey(for: today, calendar: calendar))
+            settings.cycleOverrides = overrides
             try await settingsRepository.save(settings)
             await analyticsRepository.logScheduleUpdated(kind: .glucose)
             return true
@@ -141,8 +147,8 @@ public final class RescheduleGlucoseCycleUseCase {
         }
     }
 
-    /// Advances today's cycle step by +1 by writing a per-day override.
-    /// breakfast -> lunch -> dinner -> bedtime -> breakfast.
+    /// Advances today's cycle step by +1 and updates the anchor so all subsequent days
+    /// continue from the new position: breakfast → lunch → dinner → bedtime → breakfast.
     /// Returns `true` if the shift was applied.
     public func shiftTodayForward(today: Date = Date()) async -> Bool {
         do {
@@ -169,9 +175,11 @@ public final class RescheduleGlucoseCycleUseCase {
             let nextSlot = order[(currentIndex + 1) % order.count]
             guard let nextStep = step(for: nextSlot) else { return false }
             settings.dailyCycleAnchorDate = updatedAnchorDate(for: nextStep, today: today, calendar: calendar)
-            settings.cycleOverrides = GlucoseCyclePlanner.pruneOverrides(
+            var overrides = GlucoseCyclePlanner.pruneOverrides(
                 settings.cycleOverrides, today: today, calendar: calendar
             )
+            overrides.removeValue(forKey: GlucoseCyclePlanner.dateKey(for: today, calendar: calendar))
+            settings.cycleOverrides = overrides
             try await settingsRepository.save(settings)
             return true
         } catch {
