@@ -108,6 +108,33 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
         XCTAssertEqual(target, .dinner)
     }
 
+    func test_setTarget_clearsTodayAndFutureOverrides() async throws {
+        // A pre-existing override for tomorrow must be erased so it cannot shadow the new anchor.
+        let settings = UserSettings.default()
+        settings.enableDailyCycleMode = true
+        settings.bedtimeSlotEnabled = true
+        let calendar = Calendar.current
+        let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 10)))
+        settings.dailyCycleAnchorDate = calendar.startOfDay(for: today) // breakfast day
+        let tomorrow = try XCTUnwrap(calendar.date(byAdding: .day, value: 1, to: today))
+        let tomorrowKey = GlucoseCyclePlanner.dateKey(for: tomorrow, calendar: calendar)
+        // Plant a stale future override (e.g. bedtime for tomorrow).
+        settings.cycleOverrides[tomorrowKey] = GlucoseCycleStep.bedtimeDay.rawValue
+
+        let sut = RescheduleGlucoseCycleUseCase(
+            settingsRepository: SpyCycleSettingsRepository(settings: settings),
+            analyticsRepository: MockAnalyticsRepository()
+        )
+
+        await sut.setTarget(.dinner, today: today)
+
+        XCTAssertNil(settings.cycleOverrides[tomorrowKey], "Future override must be cleared on anchor update")
+        // Tomorrow should follow the new anchor (dinner = step 2 → tomorrow = step 3 = bedtime),
+        // not be pinned by the now-deleted stale override.
+        let tomorrowTarget = await sut.currentTarget(today: tomorrow)
+        XCTAssertEqual(tomorrowTarget, MealSlot.none) // bedtime follows dinner
+    }
+
     func test_setTarget_rescheduleTodayFromBedtimeToLunch_tomorrowIsDinner() async throws {
         // Regression: rescheduling today must propagate to subsequent days.
         let settings = UserSettings.default()
