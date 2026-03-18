@@ -77,7 +77,7 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
         XCTAssertTrue(analyticsRepository.scheduleUpdated.isEmpty)
     }
 
-    func test_setTarget_writesOverrideForToday() async throws {
+    func test_setTarget_updatesAnchorForToday() async throws {
         let settings = UserSettings.default()
         settings.enableDailyCycleMode = true
         settings.bedtimeSlotEnabled = true
@@ -93,11 +93,37 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
 
         await sut.setTarget(.dinner, today: today)
 
-        let key = GlucoseCyclePlanner.dateKey(for: today, calendar: calendar)
-        XCTAssertEqual(settings.cycleOverrides[key], GlucoseCycleStep.dinnerDay.rawValue)
+        // Anchor updated so today = dinnerDay (step 2): anchor = today - 2 days
+        let expectedAnchor = calendar.date(byAdding: .day, value: -2, to: calendar.startOfDay(for: today))
+        XCTAssertEqual(settings.dailyCycleAnchorDate, expectedAnchor)
         XCTAssertEqual(settingsRepository.saveCount, 1)
         let target = await sut.currentTarget(today: today)
         XCTAssertEqual(target, .dinner)
+    }
+
+    func test_setTarget_rescheduleTodayFromBedtimeToLunch_tomorrowIsDinner() async throws {
+        // Regression: rescheduling today must propagate to subsequent days.
+        let settings = UserSettings.default()
+        settings.enableDailyCycleMode = true
+        settings.bedtimeSlotEnabled = true
+        let calendar = Calendar.current
+        let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 21)))
+        // anchor = today - 3 days → bedtime day (step 3)
+        settings.dailyCycleAnchorDate = calendar.date(byAdding: .day, value: -3, to: calendar.startOfDay(for: today))
+
+        let sut = RescheduleGlucoseCycleUseCase(
+            settingsRepository: SpyCycleSettingsRepository(settings: settings),
+            analyticsRepository: MockAnalyticsRepository()
+        )
+
+        await sut.setTarget(.lunch, today: today)
+
+        let tomorrow = try XCTUnwrap(calendar.date(byAdding: .day, value: 1, to: today))
+        let tomorrowTarget = await sut.currentTarget(today: tomorrow)
+        XCTAssertEqual(tomorrowTarget, .dinner)
+        let dayAfter = try XCTUnwrap(calendar.date(byAdding: .day, value: 2, to: today))
+        let dayAfterTarget = await sut.currentTarget(today: dayAfter)
+        XCTAssertEqual(dayAfterTarget, MealSlot.none) // bedtime
     }
 
     // MARK: - currentTarget
@@ -124,7 +150,7 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
 
     // MARK: - shiftTodayForward
 
-    func test_shiftTodayForward_writesOverrideAndRotatesTarget() async throws {
+    func test_shiftTodayForward_updatesAnchorAndRotatesTarget() async throws {
         let settings = UserSettings.default()
         settings.enableDailyCycleMode = true
         settings.currentCycleIndex = 0
@@ -141,11 +167,9 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
         let shifted = await sut.shiftTodayForward(today: today)
 
         XCTAssertTrue(shifted)
-        // Anchor must NOT have been mutated.
-        XCTAssertEqual(settings.dailyCycleAnchorDate, calendar.startOfDay(for: today))
-        // Override for today must be lunch (step 1).
-        let key = GlucoseCyclePlanner.dateKey(for: today, calendar: calendar)
-        XCTAssertEqual(settings.cycleOverrides[key], GlucoseCycleStep.lunchDay.rawValue)
+        // Anchor updated so today = lunchDay (step 1): anchor = today - 1 day.
+        let expectedAnchor = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: today))
+        XCTAssertEqual(settings.dailyCycleAnchorDate, expectedAnchor)
         XCTAssertEqual(settingsRepository.saveCount, 1)
         let target = await sut.currentTarget(today: today)
         XCTAssertEqual(target, .lunch)
@@ -271,7 +295,7 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
 
     // MARK: - setTodayTarget
 
-    func test_setTodayTarget_writesOverride() async throws {
+    func test_setTodayTarget_updatesAnchor() async throws {
         let settings = UserSettings.default()
         settings.enableDailyCycleMode = true
         settings.breakfastHour = 8;  settings.breakfastMinute = 0
@@ -292,12 +316,33 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
         let shifted = await sut.setTodayTarget(.dinner, today: today)
 
         XCTAssertTrue(shifted)
-        let key = GlucoseCyclePlanner.dateKey(for: today, calendar: calendar)
-        XCTAssertEqual(settings.cycleOverrides[key], GlucoseCycleStep.dinnerDay.rawValue)
-        // Anchor must NOT have changed.
-        let expectedAnchor = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: today))
+        // Anchor updated so today = dinnerDay (step 2): anchor = today - 2 days.
+        let expectedAnchor = calendar.date(byAdding: .day, value: -2, to: calendar.startOfDay(for: today))
         XCTAssertEqual(settings.dailyCycleAnchorDate, expectedAnchor)
         XCTAssertEqual(settingsRepository.saveCount, 1)
+    }
+
+    func test_setTodayTarget_rescheduleTodayFromLunchToDinner_tomorrowIsBedtime() async throws {
+        // Regression: rescheduling today must propagate to subsequent days.
+        let settings = UserSettings.default()
+        settings.enableDailyCycleMode = true
+        settings.bedtimeSlotEnabled = true
+        let calendar = Calendar.current
+        let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 12, minute: 30)))
+        // lunch day (step 1): anchor = today - 1
+        settings.dailyCycleAnchorDate = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: today))
+
+        let sut = RescheduleGlucoseCycleUseCase(
+            settingsRepository: SpyCycleSettingsRepository(settings: settings),
+            analyticsRepository: MockAnalyticsRepository()
+        )
+
+        let shifted = await sut.setTodayTarget(.dinner, today: today)
+        XCTAssertTrue(shifted)
+
+        let tomorrow = try XCTUnwrap(calendar.date(byAdding: .day, value: 1, to: today))
+        let tomorrowTarget = await sut.currentTarget(today: tomorrow)
+        XCTAssertEqual(tomorrowTarget, MealSlot.none) // bedtime follows dinner
     }
 
     func test_setTodayTarget_bedtimeDisabled_rejectsBedtimeSlot() async throws {

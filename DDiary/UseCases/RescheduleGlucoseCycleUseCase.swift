@@ -4,11 +4,11 @@ import OSLog
 /// Minimal cycle-mode helper for glucose measurements.
 /// Keeps all mutations on the main actor because it touches SwiftData via SettingsRepository.
 ///
-/// **Design invariant:** `dailyCycleAnchorDate` is written only once (when cycle mode is first
-/// enabled) and never mutated again. The current slot is derived deterministically:
-///   `GlucoseCyclePlanner.step(on: today, anchorDate: anchor, overrides: cycleOverrides)`
-/// Intra-day slot changes are stored as per-day entries in `UserSettings.cycleOverrides`
-/// keyed by "yyyy-MM-dd". This eliminates CloudKit last-write-wins conflicts.
+/// **Design:** `dailyCycleAnchorDate` is set when cycle mode is first enabled. When the user
+/// reschedules today's slot, the anchor is updated to `startOfDay(today) - newStep.rawValue days`
+/// so that all subsequent days automatically follow the new sequence. The `cycleOverrides`
+/// dictionary is pruned on each mutation but no longer written to for today's slot; the anchor
+/// is the single source of truth for the cycle position.
 @MainActor
 public final class RescheduleGlucoseCycleUseCase {
     private enum UserSurfacePolicy: String {
@@ -35,7 +35,8 @@ public final class RescheduleGlucoseCycleUseCase {
     public func advanceIfEnabled(today: Date = Date()) async {}
 
     /// Sets the current daily cycle target to a specific meal slot if cycle mode is enabled.
-    /// Writes a per-day override so only today is affected; the anchor is never mutated.
+    /// Updates the anchor date so that today equals the chosen slot and all subsequent days
+    /// continue naturally from it.
     /// Rejects slots that are not in the active cycle (e.g. `.none` when bedtime is disabled).
     public func setTarget(_ meal: MealSlot, today: Date = Date()) async {
         do {
@@ -45,12 +46,10 @@ public final class RescheduleGlucoseCycleUseCase {
             guard order.contains(meal) else { return }
             guard let targetStep = step(for: meal) else { return }
             let calendar = Calendar.current
-            let key = GlucoseCyclePlanner.dateKey(for: today, calendar: calendar)
-            var overrides = GlucoseCyclePlanner.pruneOverrides(
+            settings.dailyCycleAnchorDate = updatedAnchorDate(for: targetStep, today: today, calendar: calendar)
+            settings.cycleOverrides = GlucoseCyclePlanner.pruneOverrides(
                 settings.cycleOverrides, today: today, calendar: calendar
             )
-            overrides[key] = targetStep.rawValue
-            settings.cycleOverrides = overrides
             try await settingsRepository.save(settings)
             await analyticsRepository.logScheduleUpdated(kind: .glucose)
         } catch {
@@ -89,8 +88,9 @@ public final class RescheduleGlucoseCycleUseCase {
         }
     }
 
-    /// Sets today's cycle target to a chosen slot by writing a per-day override.
-    /// Returns `true` when the target was applied.
+    /// Sets today's cycle target to a chosen slot.
+    /// Updates the anchor date so that today equals the chosen slot and all subsequent days
+    /// continue naturally from it. Returns `true` when the target was applied.
     public func setTodayTarget(_ meal: MealSlot, today: Date = Date()) async -> Bool {
         do {
             let settings = try await settingsRepository.getOrCreate()
@@ -102,12 +102,10 @@ public final class RescheduleGlucoseCycleUseCase {
 
             guard let targetStep = step(for: meal) else { return false }
             let calendar = Calendar.current
-            let key = GlucoseCyclePlanner.dateKey(for: today, calendar: calendar)
-            var overrides = GlucoseCyclePlanner.pruneOverrides(
+            settings.dailyCycleAnchorDate = updatedAnchorDate(for: targetStep, today: today, calendar: calendar)
+            settings.cycleOverrides = GlucoseCyclePlanner.pruneOverrides(
                 settings.cycleOverrides, today: today, calendar: calendar
             )
-            overrides[key] = targetStep.rawValue
-            settings.cycleOverrides = overrides
             try await settingsRepository.save(settings)
             await analyticsRepository.logScheduleUpdated(kind: .glucose)
             return true
@@ -170,13 +168,10 @@ public final class RescheduleGlucoseCycleUseCase {
             guard let currentIndex = order.firstIndex(of: currentSlot) else { return false }
             let nextSlot = order[(currentIndex + 1) % order.count]
             guard let nextStep = step(for: nextSlot) else { return false }
-            let nextStepIndex = nextStep.rawValue
-            let key = GlucoseCyclePlanner.dateKey(for: today, calendar: calendar)
-            var overrides = GlucoseCyclePlanner.pruneOverrides(
+            settings.dailyCycleAnchorDate = updatedAnchorDate(for: nextStep, today: today, calendar: calendar)
+            settings.cycleOverrides = GlucoseCyclePlanner.pruneOverrides(
                 settings.cycleOverrides, today: today, calendar: calendar
             )
-            overrides[key] = nextStepIndex
-            settings.cycleOverrides = overrides
             try await settingsRepository.save(settings)
             return true
         } catch {
@@ -223,6 +218,13 @@ public final class RescheduleGlucoseCycleUseCase {
         case .none:
             return .bedtimeDay
         }
+    }
+
+    /// Returns an anchor date such that `GlucoseCyclePlanner.step(on: today, anchorDate:)`
+    /// yields `step`, and tomorrow yields the next step in the cycle.
+    private func updatedAnchorDate(for step: GlucoseCycleStep, today: Date, calendar: Calendar) -> Date {
+        let startOfToday = calendar.startOfDay(for: today)
+        return calendar.date(byAdding: .day, value: -step.rawValue, to: startOfToday) ?? startOfToday
     }
 
     private func log(_ error: Error, operation: String, policy: UserSurfacePolicy) {
