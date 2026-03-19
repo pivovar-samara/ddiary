@@ -93,7 +93,6 @@ public final class RescheduleGlucoseCycleUseCase {
         do {
             let settings = try await settingsRepository.getOrCreate()
             guard settings.enableDailyCycleMode else { return false }
-            guard step(for: meal) != nil else { return false }
 
             let availableTargets = await availableForwardTargetsForToday(today: today)
             guard availableTargets.contains(meal) else { return false }
