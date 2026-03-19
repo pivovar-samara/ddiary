@@ -229,12 +229,11 @@ final class NotificationsCoordinator: NSObject, UNUserNotificationCenterDelegate
             }
             completionHandler()
         case .skip:
-            completionHandler()
             Task { @MainActor [actionHandler] in
                 await actionHandler.skip(identifier: context.identifier, categoryIdentifier: context.categoryIdentifier)
+                completionHandler()
             }
         case .snooze(let minutes):
-            completionHandler()
             Task { @MainActor [actionHandler] in
                 await actionHandler.snooze(
                     originalIdentifier: context.identifier,
@@ -245,6 +244,7 @@ final class NotificationsCoordinator: NSObject, UNUserNotificationCenterDelegate
                     mealSlotRawValue: context.mealSlotRawValue,
                     measurementTypeRawValue: context.measurementTypeRawValue
                 )
+                completionHandler()
             }
         }
     }
