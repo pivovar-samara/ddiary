@@ -64,6 +64,30 @@ enum GlucoseCyclePlanner {
         return String(format: "%04d-%02d-%02d", year, month, day)
     }
 
+    /// Returns a copy of `overrides` with all entries whose key date is on or after `today` removed.
+    /// Each key is parsed back to a `Date` for calendar-aware comparison so correctness does not
+    /// depend on the string representation being lexicographically ordered.
+    ///
+    /// Entries whose key cannot be parsed are **kept** (treated as past/unknown) so malformed
+    /// keys produced by older clients or future migrations are never silently discarded.
+    /// An `assertionFailure` fires in debug builds to surface unexpected keys early.
+    static func dropFutureAndTodayOverrides(
+        _ overrides: [String: Int],
+        today: Date,
+        calendar: Calendar = .current
+    ) -> [String: Int] {
+        let startOfToday = calendar.startOfDay(for: today)
+        return overrides.filter { key, _ in
+            guard let keyDate = date(fromKey: key, calendar: calendar) else {
+                // Keep entries with unparseable keys — we don't know their date, so we
+                // cannot classify them as future. Fire in debug to surface bad data early.
+                assertionFailure("GlucoseCyclePlanner.dropFutureAndTodayOverrides: unable to parse override key '\(key)'")
+                return true
+            }
+            return calendar.startOfDay(for: keyDate) < startOfToday
+        }
+    }
+
     /// Removes override entries older than `keepingDays` days before `today`.
     static func pruneOverrides(
         _ overrides: [String: Int],

@@ -4,9 +4,20 @@ import XCTest
 @MainActor
 final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
 
-    // Tests use Calendar.current so that anchor setup and SUT computation both use the same
-    // timezone. All `today` values are at hour 9–21 local time (well clear of midnight) so
-    // startOfDay is unambiguous in any UTC±12 timezone.
+    // Calendar strategy:
+    // - `gregorian` (fixed Gregorian calendar) is used **only** to construct `Date` values from
+    //   year/month/day literals (e.g. 2026-02-16). `Calendar.current` can be non-Gregorian on
+    //   some devices, which would misinterpret those literals as Hebrew/Islamic/etc. dates.
+    // - `Calendar.current` is used for `startOfDay`, `date(byAdding:)`, and `dateKey` operations
+    //   that must match what the SUT produces, since the SUT captures `Calendar.current` at
+    //   call time for those computations.
+    // - All `today` values are placed at hours 9–21 local time so `startOfDay` is unambiguous
+    //   across all UTC offsets (no midnight boundary ambiguity).
+
+    /// Fixed Gregorian calendar used exclusively for constructing test dates from
+    /// year/month/day literals. Never used for `startOfDay` or `dateKey` — those must
+    /// match the SUT's `Calendar.current`.
+    private let gregorian = Calendar(identifier: .gregorian)
 
     // MARK: - advanceIfEnabled (no-op)
 
@@ -14,7 +25,7 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
         let settings = UserSettings.default()
         settings.enableDailyCycleMode = true
         let calendar = Calendar.current
-        let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 16)))
+        let today = try XCTUnwrap(gregorian.date(from: DateComponents(year: 2026, month: 2, day: 16)))
         settings.dailyCycleAnchorDate = calendar.startOfDay(for: today)
         let originalAnchor = settings.dailyCycleAnchorDate
 
@@ -60,7 +71,7 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
         settings.enableDailyCycleMode = true
         settings.bedtimeSlotEnabled = false
         let calendar = Calendar.current
-        let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 16)))
+        let today = try XCTUnwrap(gregorian.date(from: DateComponents(year: 2026, month: 2, day: 16)))
         settings.dailyCycleAnchorDate = calendar.startOfDay(for: today)
 
         let settingsRepository = SpyCycleSettingsRepository(settings: settings)
@@ -77,12 +88,12 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
         XCTAssertTrue(analyticsRepository.scheduleUpdated.isEmpty)
     }
 
-    func test_setTarget_writesOverrideForToday() async throws {
+    func test_setTarget_updatesAnchorForToday() async throws {
         let settings = UserSettings.default()
         settings.enableDailyCycleMode = true
         settings.bedtimeSlotEnabled = true
         let calendar = Calendar.current
-        let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 10)))
+        let today = try XCTUnwrap(gregorian.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 10)))
         settings.dailyCycleAnchorDate = calendar.startOfDay(for: today) // breakfast day
 
         let settingsRepository = SpyCycleSettingsRepository(settings: settings)
@@ -93,11 +104,122 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
 
         await sut.setTarget(.dinner, today: today)
 
-        let key = GlucoseCyclePlanner.dateKey(for: today, calendar: calendar)
-        XCTAssertEqual(settings.cycleOverrides[key], GlucoseCycleStep.dinnerDay.rawValue)
+        // Anchor updated so today = dinnerDay (step 2): anchor = today - 2 days
+        let expectedAnchor = calendar.date(byAdding: .day, value: -2, to: calendar.startOfDay(for: today))
+        XCTAssertEqual(settings.dailyCycleAnchorDate, expectedAnchor)
+        // No per-day override must remain for today — anchor is the sole source of truth.
+        let todayKey = GlucoseCyclePlanner.dateKey(for: today, calendar: calendar)
+        XCTAssertNil(settings.cycleOverrides[todayKey])
         XCTAssertEqual(settingsRepository.saveCount, 1)
         let target = await sut.currentTarget(today: today)
         XCTAssertEqual(target, .dinner)
+    }
+
+    func test_setTarget_doesNotSaveWhenSlotIsAlreadyCurrent() async throws {
+        // Calling setTarget with the slot that is already current should be a no-op:
+        // the computed anchor and cleaned overrides are identical to the existing state,
+        // so no SwiftData write or analytics event should be emitted.
+        let settings = UserSettings.default()
+        settings.enableDailyCycleMode = true
+        settings.bedtimeSlotEnabled = true
+        let calendar = Calendar.current
+        let today = try XCTUnwrap(gregorian.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 10)))
+        // anchor = today - 1 → lunchDay (step 1)
+        let existingAnchor = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: today))
+        settings.dailyCycleAnchorDate = existingAnchor
+
+        let settingsRepository = SpyCycleSettingsRepository(settings: settings)
+        let analyticsRepository = MockAnalyticsRepository()
+        let sut = RescheduleGlucoseCycleUseCase(
+            settingsRepository: settingsRepository,
+            analyticsRepository: analyticsRepository
+        )
+
+        await sut.setTarget(.lunch, today: today) // .lunch is already current
+
+        XCTAssertEqual(settingsRepository.saveCount, 0, "No save when slot is already current")
+        XCTAssertTrue(analyticsRepository.scheduleUpdated.isEmpty, "No analytics when slot is already current")
+        // Settings must be unchanged.
+        XCTAssertEqual(settings.dailyCycleAnchorDate, existingAnchor)
+    }
+
+    func test_setTarget_clearsStaleTodayOverride() async throws {
+        // A pre-existing override for today must be erased so it cannot shadow the new anchor
+        // in GlucoseCyclePlanner.step(), which checks overrides before the anchor.
+        let settings = UserSettings.default()
+        settings.enableDailyCycleMode = true
+        settings.bedtimeSlotEnabled = true
+        let calendar = Calendar.current
+        let today = try XCTUnwrap(gregorian.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 10)))
+        settings.dailyCycleAnchorDate = calendar.startOfDay(for: today) // breakfast day
+        let todayKey = GlucoseCyclePlanner.dateKey(for: today, calendar: calendar)
+        // Plant a stale today override that disagrees with the reschedule target (lunch).
+        settings.cycleOverrides[todayKey] = GlucoseCycleStep.dinnerDay.rawValue
+
+        let sut = RescheduleGlucoseCycleUseCase(
+            settingsRepository: SpyCycleSettingsRepository(settings: settings),
+            analyticsRepository: MockAnalyticsRepository()
+        )
+
+        await sut.setTarget(.lunch, today: today)
+
+        // The old today override must be gone; only the updated anchor drives the step.
+        XCTAssertNil(settings.cycleOverrides[todayKey], "Stale today override must be cleared")
+        // currentTarget must reflect the new anchor-derived step, not the old stale override.
+        let target = await sut.currentTarget(today: today)
+        XCTAssertEqual(target, .lunch)
+    }
+
+    func test_setTarget_clearsFutureOverrides() async throws {
+        // A pre-existing override for tomorrow must be erased so it cannot shadow the new anchor.
+        let settings = UserSettings.default()
+        settings.enableDailyCycleMode = true
+        settings.bedtimeSlotEnabled = true
+        let calendar = Calendar.current
+        let today = try XCTUnwrap(gregorian.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 10)))
+        settings.dailyCycleAnchorDate = calendar.startOfDay(for: today) // breakfast day
+        let tomorrow = try XCTUnwrap(calendar.date(byAdding: .day, value: 1, to: today))
+        let tomorrowKey = GlucoseCyclePlanner.dateKey(for: tomorrow, calendar: calendar)
+        // Plant a stale future override (e.g. bedtime for tomorrow).
+        settings.cycleOverrides[tomorrowKey] = GlucoseCycleStep.bedtimeDay.rawValue
+
+        let sut = RescheduleGlucoseCycleUseCase(
+            settingsRepository: SpyCycleSettingsRepository(settings: settings),
+            analyticsRepository: MockAnalyticsRepository()
+        )
+
+        await sut.setTarget(.dinner, today: today)
+
+        XCTAssertNil(settings.cycleOverrides[tomorrowKey], "Future override must be cleared on anchor update")
+        // Tomorrow should follow the new anchor (dinner → tomorrow = bedtime),
+        // not be pinned by the now-deleted stale override.
+        let tomorrowTarget = await sut.currentTarget(today: tomorrow)
+        XCTAssertEqual(tomorrowTarget, MealSlot.none) // bedtime follows dinner
+    }
+
+    func test_setTarget_rescheduleTodayFromBedtimeToLunch_tomorrowIsDinner() async throws {
+        // Regression: rescheduling today must propagate to subsequent days.
+        let settings = UserSettings.default()
+        settings.enableDailyCycleMode = true
+        settings.bedtimeSlotEnabled = true
+        let calendar = Calendar.current
+        let today = try XCTUnwrap(gregorian.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 21)))
+        // anchor = today - 3 days → bedtime day (step 3)
+        settings.dailyCycleAnchorDate = calendar.date(byAdding: .day, value: -3, to: calendar.startOfDay(for: today))
+
+        let sut = RescheduleGlucoseCycleUseCase(
+            settingsRepository: SpyCycleSettingsRepository(settings: settings),
+            analyticsRepository: MockAnalyticsRepository()
+        )
+
+        await sut.setTarget(.lunch, today: today)
+
+        let tomorrow = try XCTUnwrap(calendar.date(byAdding: .day, value: 1, to: today))
+        let tomorrowTarget = await sut.currentTarget(today: tomorrow)
+        XCTAssertEqual(tomorrowTarget, .dinner)
+        let dayAfter = try XCTUnwrap(calendar.date(byAdding: .day, value: 2, to: today))
+        let dayAfterTarget = await sut.currentTarget(today: dayAfter)
+        XCTAssertEqual(dayAfterTarget, MealSlot.none) // bedtime
     }
 
     // MARK: - currentTarget
@@ -124,12 +246,12 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
 
     // MARK: - shiftTodayForward
 
-    func test_shiftTodayForward_writesOverrideAndRotatesTarget() async throws {
+    func test_shiftTodayForward_updatesAnchorAndRotatesTarget() async throws {
         let settings = UserSettings.default()
         settings.enableDailyCycleMode = true
         settings.currentCycleIndex = 0
         let calendar = Calendar.current
-        let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 9, minute: 0)))
+        let today = try XCTUnwrap(gregorian.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 9, minute: 0)))
         settings.dailyCycleAnchorDate = calendar.startOfDay(for: today) // breakfast day
 
         let settingsRepository = SpyCycleSettingsRepository(settings: settings)
@@ -141,11 +263,12 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
         let shifted = await sut.shiftTodayForward(today: today)
 
         XCTAssertTrue(shifted)
-        // Anchor must NOT have been mutated.
-        XCTAssertEqual(settings.dailyCycleAnchorDate, calendar.startOfDay(for: today))
-        // Override for today must be lunch (step 1).
-        let key = GlucoseCyclePlanner.dateKey(for: today, calendar: calendar)
-        XCTAssertEqual(settings.cycleOverrides[key], GlucoseCycleStep.lunchDay.rawValue)
+        // Anchor updated so today = lunchDay (step 1): anchor = today - 1 day.
+        let expectedAnchor = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: today))
+        XCTAssertEqual(settings.dailyCycleAnchorDate, expectedAnchor)
+        // No per-day override must remain for today — anchor is the sole source of truth.
+        let todayKey = GlucoseCyclePlanner.dateKey(for: today, calendar: calendar)
+        XCTAssertNil(settings.cycleOverrides[todayKey])
         XCTAssertEqual(settingsRepository.saveCount, 1)
         let target = await sut.currentTarget(today: today)
         XCTAssertEqual(target, .lunch)
@@ -156,7 +279,7 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
         settings.enableDailyCycleMode = true
         settings.bedtimeSlotEnabled = true
         let calendar = Calendar.current
-        let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 9)))
+        let today = try XCTUnwrap(gregorian.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 9)))
         // anchor = today - 3 days → bedtime day (step 3)
         settings.dailyCycleAnchorDate = calendar.date(byAdding: .day, value: -3, to: calendar.startOfDay(for: today))
 
@@ -202,7 +325,7 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
         settings.dinnerHour = 19;    settings.dinnerMinute = 0
         settings.bedtimeHour = 22;   settings.bedtimeMinute = 0
         let calendar = Calendar.current
-        let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 12, minute: 30)))
+        let today = try XCTUnwrap(gregorian.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 12, minute: 30)))
         settings.dailyCycleAnchorDate = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: today))
 
         let targets = await RescheduleGlucoseCycleUseCase(
@@ -222,7 +345,7 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
         settings.dinnerHour = 19;    settings.dinnerMinute = 0
         settings.bedtimeHour = 22;   settings.bedtimeMinute = 0
         let calendar = Calendar.current
-        let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 18, minute: 0)))
+        let today = try XCTUnwrap(gregorian.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 18, minute: 0)))
         settings.dailyCycleAnchorDate = calendar.date(byAdding: .day, value: -2, to: calendar.startOfDay(for: today))
 
         let targets = await RescheduleGlucoseCycleUseCase(
@@ -241,7 +364,7 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
         settings.dinnerHour = 19;    settings.dinnerMinute = 0
         settings.bedtimeHour = 22;   settings.bedtimeMinute = 0
         let calendar = Calendar.current
-        let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 21, minute: 0)))
+        let today = try XCTUnwrap(gregorian.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 21, minute: 0)))
         settings.dailyCycleAnchorDate = calendar.date(byAdding: .day, value: -3, to: calendar.startOfDay(for: today))
 
         let targets = await RescheduleGlucoseCycleUseCase(
@@ -257,7 +380,7 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
         settings.enableDailyCycleMode = true
         settings.bedtimeSlotEnabled = false
         let calendar = Calendar.current
-        let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 18, minute: 0)))
+        let today = try XCTUnwrap(gregorian.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 18, minute: 0)))
         settings.dailyCycleAnchorDate = calendar.date(byAdding: .day, value: -2, to: calendar.startOfDay(for: today))
 
         let targets = await RescheduleGlucoseCycleUseCase(
@@ -271,7 +394,7 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
 
     // MARK: - setTodayTarget
 
-    func test_setTodayTarget_writesOverride() async throws {
+    func test_setTodayTarget_updatesAnchor() async throws {
         let settings = UserSettings.default()
         settings.enableDailyCycleMode = true
         settings.breakfastHour = 8;  settings.breakfastMinute = 0
@@ -279,7 +402,7 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
         settings.dinnerHour = 19;    settings.dinnerMinute = 0
         settings.bedtimeHour = 22;   settings.bedtimeMinute = 0
         let calendar = Calendar.current
-        let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 12, minute: 30)))
+        let today = try XCTUnwrap(gregorian.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 12, minute: 30)))
         // lunch day (step 1): anchor = today - 1
         settings.dailyCycleAnchorDate = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: today))
 
@@ -292,12 +415,36 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
         let shifted = await sut.setTodayTarget(.dinner, today: today)
 
         XCTAssertTrue(shifted)
-        let key = GlucoseCyclePlanner.dateKey(for: today, calendar: calendar)
-        XCTAssertEqual(settings.cycleOverrides[key], GlucoseCycleStep.dinnerDay.rawValue)
-        // Anchor must NOT have changed.
-        let expectedAnchor = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: today))
+        // Anchor updated so today = dinnerDay (step 2): anchor = today - 2 days.
+        let expectedAnchor = calendar.date(byAdding: .day, value: -2, to: calendar.startOfDay(for: today))
         XCTAssertEqual(settings.dailyCycleAnchorDate, expectedAnchor)
+        // No per-day override must remain for today — anchor is the sole source of truth.
+        let todayKey = GlucoseCyclePlanner.dateKey(for: today, calendar: calendar)
+        XCTAssertNil(settings.cycleOverrides[todayKey])
         XCTAssertEqual(settingsRepository.saveCount, 1)
+    }
+
+    func test_setTodayTarget_rescheduleTodayFromLunchToDinner_tomorrowIsBedtime() async throws {
+        // Regression: rescheduling today must propagate to subsequent days.
+        let settings = UserSettings.default()
+        settings.enableDailyCycleMode = true
+        settings.bedtimeSlotEnabled = true
+        let calendar = Calendar.current
+        let today = try XCTUnwrap(gregorian.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 12, minute: 30)))
+        // lunch day (step 1): anchor = today - 1
+        settings.dailyCycleAnchorDate = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: today))
+
+        let sut = RescheduleGlucoseCycleUseCase(
+            settingsRepository: SpyCycleSettingsRepository(settings: settings),
+            analyticsRepository: MockAnalyticsRepository()
+        )
+
+        let shifted = await sut.setTodayTarget(.dinner, today: today)
+        XCTAssertTrue(shifted)
+
+        let tomorrow = try XCTUnwrap(calendar.date(byAdding: .day, value: 1, to: today))
+        let tomorrowTarget = await sut.currentTarget(today: tomorrow)
+        XCTAssertEqual(tomorrowTarget, MealSlot.none) // bedtime follows dinner
     }
 
     func test_setTodayTarget_bedtimeDisabled_rejectsBedtimeSlot() async throws {
@@ -305,7 +452,7 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
         settings.enableDailyCycleMode = true
         settings.bedtimeSlotEnabled = false
         let calendar = Calendar.current
-        let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 12, minute: 30)))
+        let today = try XCTUnwrap(gregorian.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 12, minute: 30)))
         settings.dailyCycleAnchorDate = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: today))
 
         let settingsRepository = SpyCycleSettingsRepository(settings: settings)
@@ -327,7 +474,7 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
         settings.dinnerHour = 19;    settings.dinnerMinute = 0
         settings.bedtimeHour = 22;   settings.bedtimeMinute = 0
         let calendar = Calendar.current
-        let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 20, minute: 30)))
+        let today = try XCTUnwrap(gregorian.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 20, minute: 30)))
         // lunch day (step 1): anchor = today - 1
         settings.dailyCycleAnchorDate = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: today))
 
