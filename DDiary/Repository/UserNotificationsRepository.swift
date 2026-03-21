@@ -291,7 +291,7 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
     }
 
     func rescheduleBloodPressure(times: [Int], activeWeekdays: Set<Int>) async throws {
-        await cancelBloodPressure()
+        await removeAll(withPrefixes: [IDs.bpPrefix], preservingOneOff: true)
         try await scheduleBloodPressure(times: times, activeWeekdays: activeWeekdays)
     }
 
@@ -335,7 +335,10 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         enableAfterMeal2h: Bool,
         bedtimeTime: DateComponents?
     ) async throws {
-        await cancelGlucose()
+        await removeAll(
+            withPrefixes: [IDs.glucoseBeforePrefix, IDs.glucoseAfterPrefix, IDs.glucoseBedtimePrefix],
+            preservingOneOff: true
+        )
         let bedtimeEnabled = bedtimeTime != nil
         let remindersPerDay =
             (enableBeforeMeal ? 3 : 0)
@@ -372,7 +375,10 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         startDate: Date,
         numberOfDays: Int
     ) async throws {
-        await cancelGlucose()
+        await removeAll(
+            withPrefixes: [IDs.glucoseBeforePrefix, IDs.glucoseAfterPrefix, IDs.glucoseBedtimePrefix],
+            preservingOneOff: true
+        )
         try await scheduleGlucoseCycle(
             configuration: configuration,
             startDate: startDate,
@@ -1029,9 +1035,12 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         return Array(unique.values)
     }
 
-    private func removeAll(withPrefixes prefixes: [String]) async {
+    private func removeAll(withPrefixes prefixes: [String], preservingOneOff: Bool = false) async {
         let pendingIDs = await center.pendingRequestIdentifiers()
-            .filter { id in prefixes.contains(where: { id.hasPrefix($0) }) }
+            .filter { id in
+                prefixes.contains(where: { id.hasPrefix($0) })
+                    && !(preservingOneOff && shouldPreservePendingRequestOnStartup(id))
+            }
         let deliveredIDs = await center.deliveredNotificationIdentifiers()
             .filter { id in prefixes.contains(where: { id.hasPrefix($0) }) }
         center.removePendingNotificationRequests(withIdentifiers: pendingIDs)
