@@ -548,6 +548,46 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         XCTAssertEqual(trigger?.dateComponents.minute, 20)
     }
 
+    func test_rescheduleGlucoseCycle_preservesSnoozedNotification() async throws {
+        let center = FakeNotificationCenter()
+        let repository = UserNotificationsRepository(center: center)
+        let calendar = Calendar.current
+        let startDate = calendar.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 7, minute: 30)) ?? Date()
+
+        // Pre-existing snoozed notification that must survive the reschedule.
+        let snoozedID = "ddiary.glucose.before.d20260216.1300.snooze.30"
+        center.pendingRequests[snoozedID] = makeRequest(id: snoozedID)
+
+        let configuration = GlucoseCycleConfiguration(
+            anchorDate: calendar.startOfDay(for: startDate),
+            breakfast: DateComponents(hour: 8, minute: 0),
+            lunch: DateComponents(hour: 13, minute: 0),
+            dinner: DateComponents(hour: 19, minute: 0),
+            bedtime: DateComponents(hour: 22, minute: 15)
+        )
+
+        try await repository.rescheduleGlucoseCycle(
+            configuration: configuration,
+            startDate: startDate,
+            numberOfDays: 4
+        )
+
+        XCTAssertNotNil(center.pendingRequests[snoozedID], "snoozed notification must survive rescheduleGlucoseCycle")
+    }
+
+    func test_rescheduleBloodPressure_preservesSnoozedNotification() async throws {
+        let center = FakeNotificationCenter()
+        let repository = UserNotificationsRepository(center: center)
+
+        // Pre-existing snoozed BP notification.
+        let snoozedID = "ddiary.bp.d20260216.0900.snooze.15"
+        center.pendingRequests[snoozedID] = makeRequest(id: snoozedID)
+
+        try await repository.rescheduleBloodPressure(times: [540], activeWeekdays: Set(1...7))
+
+        XCTAssertNotNil(center.pendingRequests[snoozedID], "snoozed notification must survive rescheduleBloodPressure")
+    }
+
     func test_rescheduleShiftedAfterMeal2hNotification_cancelsOriginalAndSchedulesShiftedOneOff() async {
         let center = FakeNotificationCenter()
         let repository = UserNotificationsRepository(center: center)

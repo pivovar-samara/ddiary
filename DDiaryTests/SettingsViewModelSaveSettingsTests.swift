@@ -252,17 +252,17 @@ final class SettingsViewModelSaveSettingsTests: XCTestCase {
         await sut.saveSettings()
 
         let saved = try XCTUnwrap(settingsRepository.savedSettings)
-        // Anchor is set once (to the fallback date); it must NOT be the old shifted value.
+        // Anchor is updated so that today resolves to the next step (lunch, step 1).
         let savedAnchor = try XCTUnwrap(saved.dailyCycleAnchorDate)
-        let shiftedAnchor = Calendar.current.date(
+        let expectedAnchor = Calendar.current.date(
             byAdding: .day,
-            value: -1,
+            value: -GlucoseCycleStep.lunchDay.rawValue,
             to: Calendar.current.startOfDay(for: fixedToday)
         )
-        XCTAssertNotEqual(savedAnchor, shiftedAnchor, "anchor must not be shifted")
-        // Override for today → lunch (step 1).
+        XCTAssertEqual(savedAnchor, expectedAnchor, "anchor must be updated so today = lunch")
+        // Today and future overrides are cleared — no override for today.
         let key = GlucoseCyclePlanner.dateKey(for: fixedToday, calendar: .current)
-        XCTAssertEqual(saved.cycleOverrides[key], GlucoseCycleStep.lunchDay.rawValue)
+        XCTAssertNil(saved.cycleOverrides[key])
     }
 
     func test_applyDailyCycleTargetForward_persistsImmediatelyAndPostsSettingsDidSave() async throws {
@@ -294,15 +294,23 @@ final class SettingsViewModelSaveSettingsTests: XCTestCase {
         await sut.applyDailyCycleTargetForward(today: fixedToday)
 
         let saved = try XCTUnwrap(settingsRepository.savedSettings)
-        // Override for today → lunch (step 1).
+        // Anchor is updated so that today resolves to lunch (step 1).
+        let savedAnchor = try XCTUnwrap(saved.dailyCycleAnchorDate)
+        let expectedAnchor = Calendar.current.date(
+            byAdding: .day,
+            value: -GlucoseCycleStep.lunchDay.rawValue,
+            to: Calendar.current.startOfDay(for: fixedToday)
+        )
+        XCTAssertEqual(savedAnchor, expectedAnchor, "anchor must be updated so today = lunch")
+        // No override for today — anchor drives the step.
         let key = GlucoseCyclePlanner.dateKey(for: fixedToday, calendar: .current)
-        XCTAssertEqual(saved.cycleOverrides[key], GlucoseCycleStep.lunchDay.rawValue)
+        XCTAssertNil(saved.cycleOverrides[key])
         XCTAssertEqual(settingsRepository.saveCount, 1)
         XCTAssertEqual(updater.callCount, 1)
         XCTAssertTrue(didPostSettingsDidSave)
     }
 
-    func test_applyDailyCycleTarget_writesOverrideForToday_doesNotMutateAnchor() async throws {
+    func test_applyDailyCycleTarget_updatesAnchorSoFutureDaysContinueNaturally() async throws {
         let settingsRepository = SpySettingsRepository()
         let updater = SpySchedulesUpdater()
         let measurementsRepository = MockMeasurementsRepository()
@@ -326,16 +334,33 @@ final class SettingsViewModelSaveSettingsTests: XCTestCase {
         XCTAssertEqual(settingsRepository.saveCount, 1)
         XCTAssertEqual(updater.callCount, 1)
         XCTAssertEqual(sut.dailyCycleCurrentSlotTitle, L10n.settingsRowDinner)
-        // Override written for today → dinner (step 2).
-        let key = GlucoseCyclePlanner.dateKey(for: fixedToday, calendar: .current)
-        XCTAssertEqual(saved.cycleOverrides[key], GlucoseCycleStep.dinnerDay.rawValue)
-        // Anchor must NOT have been set to the old "today - dinnerStep" value.
-        let shiftedAnchor = Calendar.current.date(
+        // Anchor updated so today resolves to dinner (step 2).
+        let calendar = Calendar.current
+        let expectedAnchor = calendar.date(
             byAdding: .day,
-            value: -2,
-            to: Calendar.current.startOfDay(for: fixedToday)
+            value: -GlucoseCycleStep.dinnerDay.rawValue,
+            to: calendar.startOfDay(for: fixedToday)
         )
-        XCTAssertNotEqual(saved.dailyCycleAnchorDate, shiftedAnchor, "anchor must not be mutated by applyDailyCycleTarget")
+        XCTAssertEqual(saved.dailyCycleAnchorDate, expectedAnchor, "anchor must be updated so today = dinner")
+        // No override for today — anchor drives the step.
+        let key = GlucoseCyclePlanner.dateKey(for: fixedToday, calendar: calendar)
+        XCTAssertNil(saved.cycleOverrides[key])
+        // Future days continue naturally: day+1 = bedtime, day+2 = breakfast, day+3 = lunch.
+        let day1 = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: fixedToday))!
+        let day2 = calendar.date(byAdding: .day, value: 2, to: calendar.startOfDay(for: fixedToday))!
+        let day3 = calendar.date(byAdding: .day, value: 3, to: calendar.startOfDay(for: fixedToday))!
+        XCTAssertEqual(
+            GlucoseCyclePlanner.step(on: day1, anchorDate: expectedAnchor!, overrides: saved.cycleOverrides, calendar: calendar),
+            .bedtimeDay
+        )
+        XCTAssertEqual(
+            GlucoseCyclePlanner.step(on: day2, anchorDate: expectedAnchor!, overrides: saved.cycleOverrides, calendar: calendar),
+            .breakfastDay
+        )
+        XCTAssertEqual(
+            GlucoseCyclePlanner.step(on: day3, anchorDate: expectedAnchor!, overrides: saved.cycleOverrides, calendar: calendar),
+            .lunchDay
+        )
     }
 
     func test_glucoseThresholdHelpers_convertValuesAndRangesForMgdl() async throws {

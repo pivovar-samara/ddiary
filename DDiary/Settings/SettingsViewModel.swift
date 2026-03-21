@@ -324,9 +324,12 @@ final class SettingsViewModel {
         defer { isSwitchingCycleTarget = false }
 
         let calendar = Calendar.current
-        let key = GlucoseCyclePlanner.dateKey(for: today, calendar: calendar)
-        cycleOverrides = GlucoseCyclePlanner.pruneOverrides(cycleOverrides, today: today, calendar: calendar)
-        cycleOverrides[key] = targetStep.rawValue
+        let startOfToday = calendar.startOfDay(for: today)
+        if let newAnchor = calendar.date(byAdding: .day, value: -targetStep.rawValue, to: startOfToday) {
+            dailyCycleAnchorDate = newAnchor
+        }
+        let pruned = GlucoseCyclePlanner.pruneOverrides(cycleOverrides, today: today, calendar: calendar)
+        cycleOverrides = GlucoseCyclePlanner.dropFutureAndTodayOverrides(pruned, today: today, calendar: calendar)
         dailyCycleDisplaySlot = mealSlot
         await enqueueSettingsSave()
     }
@@ -412,21 +415,14 @@ final class SettingsViewModel {
     func switchDailyCycleTargetForward(today: Date = Date()) {
         guard enableDailyCycleMode else { return }
         let calendar = Calendar.current
-        let referenceDay = calendar.startOfDay(for: today)
-        let anchor = dailyCycleAnchorDate
-            ?? GlucoseCyclePlanner.fallbackAnchorDate(
-                currentCycleIndex: currentCycleIndex,
-                referenceDate: today,
-                calendar: calendar
-            )
-        let currentStep = GlucoseCyclePlanner.step(
-            on: referenceDay, anchorDate: anchor, overrides: cycleOverrides, calendar: calendar
-        )
         let nextSlot = dailyCycleNextSlot(today: today)
-        let nextStepIndex = cycleStep(for: nextSlot)?.rawValue ?? currentStep.rawValue
-        let key = GlucoseCyclePlanner.dateKey(for: today, calendar: calendar)
-        cycleOverrides = GlucoseCyclePlanner.pruneOverrides(cycleOverrides, today: today, calendar: calendar)
-        cycleOverrides[key] = nextStepIndex
+        guard let nextStep = cycleStep(for: nextSlot) else { return }
+        let startOfToday = calendar.startOfDay(for: today)
+        if let newAnchor = calendar.date(byAdding: .day, value: -nextStep.rawValue, to: startOfToday) {
+            dailyCycleAnchorDate = newAnchor
+        }
+        let pruned = GlucoseCyclePlanner.pruneOverrides(cycleOverrides, today: today, calendar: calendar)
+        cycleOverrides = GlucoseCyclePlanner.dropFutureAndTodayOverrides(pruned, today: today, calendar: calendar)
         syncDailyCycleDisplaySlot(today: today)
     }
 
