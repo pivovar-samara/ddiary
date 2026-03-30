@@ -104,13 +104,13 @@ public struct LiveGoogleSheetsClient: GoogleSheetsClient, Sendable {
         createReq.httpBody = try JSONEncoder().encode(createBody)
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: createReq)
+            let (data, response) = try await GoogleURLSession.shared.data(for: createReq)
             guard let http = response as? HTTPURLResponse else { throw GoogleSheetsClientError.invalidResponse }
             if http.statusCode == 401 {
                 // Retry once after refreshing access token again
                 let refreshed = try await accessToken(using: refreshToken)
                 createReq.setValue("Bearer \(refreshed.token)", forHTTPHeaderField: "Authorization")
-                let (data2, response2) = try await URLSession.shared.data(for: createReq)
+                let (data2, response2) = try await GoogleURLSession.shared.data(for: createReq)
                 guard let http2 = response2 as? HTTPURLResponse, (200..<300).contains(http2.statusCode) else {
                     let body = String(data: data2, encoding: .utf8)
                     throw GoogleSheetsClientError.httpError(statusCode: (response2 as? HTTPURLResponse)?.statusCode ?? -1, body: body)
@@ -251,7 +251,7 @@ private extension LiveGoogleSheetsClient {
     }
 
     func perform(_ request: URLRequest) async throws {
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await GoogleURLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw GoogleSheetsClientError.invalidResponse }
         guard (200..<300).contains(http.statusCode) else {
             let bodyString = String(data: data, encoding: .utf8)
@@ -261,7 +261,7 @@ private extension LiveGoogleSheetsClient {
     }
 
     func fetchData(_ request: URLRequest) async throws -> Data {
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await GoogleURLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw GoogleSheetsClientError.invalidResponse }
         guard (200..<300).contains(http.statusCode) else {
             let bodyString = String(data: data, encoding: .utf8)
@@ -295,7 +295,7 @@ private extension LiveGoogleSheetsClient {
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         request.httpBody = formURLEncoded(params).data(using: .utf8)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await GoogleURLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             let body = String(data: data, encoding: .utf8)
             throw GoogleSheetsClientError.httpError(statusCode: (response as? HTTPURLResponse)?.statusCode ?? -1, body: body)
@@ -517,7 +517,7 @@ private extension LiveGoogleSheetsClient {
         struct AddSheetBody: Encodable { struct Request: Encodable { struct AddSheet: Encodable { struct Properties: Encodable { let title: String }; let properties: Properties }; let addSheet: AddSheet? }; let requests: [Request] }
         let body = AddSheetBody(requests: [.init(addSheet: .init(properties: .init(title: title)))])
         batchReq.httpBody = try JSONEncoder().encode(body)
-        let (bdata, bresp) = try await URLSession.shared.data(for: batchReq)
+        let (bdata, bresp) = try await GoogleURLSession.shared.data(for: batchReq)
         guard let bhttp = bresp as? HTTPURLResponse, (200..<300).contains(bhttp.statusCode) else {
             let bodyStr = String(data: bdata, encoding: .utf8)
             throw GoogleSheetsClientError.httpError(statusCode: (bresp as? HTTPURLResponse)?.statusCode ?? -1, body: bodyStr)

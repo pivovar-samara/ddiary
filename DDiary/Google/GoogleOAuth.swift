@@ -242,7 +242,7 @@ public enum GoogleOAuth {
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         request.httpBody = formURLEncoded(params).data(using: .utf8)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await GoogleURLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             let body = String(data: data, encoding: .utf8)
             throw OAuthError.tokenExchangeFailed(status: (response as? HTTPURLResponse)?.statusCode ?? -1, body: body)
