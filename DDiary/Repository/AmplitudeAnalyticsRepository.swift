@@ -16,11 +16,13 @@ public struct ConsoleAmplitudeClient: AmplitudeClient {
     public init() {}
 
     public func log(event: String, properties: [String: Any]?) {
+        #if DEBUG
         if let properties {
             print("[Amplitude] \(event) props=\(properties)")
         } else {
             print("[Amplitude] \(event)")
         }
+        #endif
     }
 }
 
