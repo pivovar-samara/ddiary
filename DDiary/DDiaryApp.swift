@@ -39,7 +39,7 @@ enum AppLaunchState {
 
 @MainActor
 struct AppBootstrapper {
-    typealias ModelContainerFactory = (_ schema: Schema, _ configurations: [ModelConfiguration]) throws -> ModelContainer
+    typealias ModelContainerFactory = (_ schema: Schema, _ migrationPlan: (any SchemaMigrationPlan.Type)?, _ configurations: [ModelConfiguration]) throws -> ModelContainer
     typealias AppContainerFactory = (_ modelContainer: ModelContainer) -> AppContainer
 
     private static let logger = Logger(
@@ -56,16 +56,11 @@ struct AppBootstrapper {
         prettyDataAppContainerFactory: AppContainerFactory = { modelContainer in
             AppContainer.prettyData(modelContainer: modelContainer)
         },
-        modelContainerFactory: ModelContainerFactory = { schema, configurations in
-            try ModelContainer(for: schema, configurations: configurations)
+        modelContainerFactory: ModelContainerFactory = { schema, migrationPlan, configurations in
+            try ModelContainer(for: schema, migrationPlan: migrationPlan, configurations: configurations)
         }
     ) -> AppLaunchState {
-        let fullSchema = Schema([
-            BPMeasurement.self,
-            GlucoseMeasurement.self,
-            UserSettings.self,
-            GoogleIntegration.self,
-        ])
+        let fullSchema = Schema(versionedSchema: DDiarySchemaV1.self)
 
         if isUITesting || usesPrettyData {
             do {
@@ -133,7 +128,7 @@ struct AppBootstrapper {
         seedPrettyData: Bool = false,
         modelContainerFactory: ModelContainerFactory
     ) throws -> AppLaunchState {
-        let sharedModelContainer = try modelContainerFactory(fullSchema, [configuration])
+        let sharedModelContainer = try modelContainerFactory(fullSchema, DDiaryMigrationPlan.self, [configuration])
         if seedPrettyData {
             try PrettyDataSeeder.seed(.showcase, into: sharedModelContainer)
         }

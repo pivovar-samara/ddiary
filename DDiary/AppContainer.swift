@@ -217,12 +217,8 @@ struct AppContainer {
     
     static var preview: AppContainer {
         let modelContainer = try! ModelContainer(
-            for: Schema([
-                BPMeasurement.self,
-                GlucoseMeasurement.self,
-                UserSettings.self,
-                GoogleIntegration.self,
-            ]),
+            for: Schema(versionedSchema: DDiarySchemaV1.self),
+            migrationPlan: DDiaryMigrationPlan.self,
             configurations: [ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)]
         )
         try! PrettyDataSeeder.seed(.showcase, into: modelContainer)

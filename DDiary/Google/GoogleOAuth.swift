@@ -51,18 +51,18 @@ public enum GoogleOAuthConfig {
         }
         return "ddiary"
     }
-    public static let sheetsScope = "https://www.googleapis.com/auth/spreadsheets"
     public static let driveFileScope = "https://www.googleapis.com/auth/drive.file"
 
     /// Space-separated scopes requested in a single consent screen.
     /// Installed-app OAuth does not support incremental authorization.
     ///
-    /// Keep identity scopes optional; backup requires Sheets and Drive file access.
-    public static var scope: String = [sheetsScope, driveFileScope].joined(separator: " ")
+    /// `drive.file` grants full Sheets API access to app-created files,
+    /// so the broader `spreadsheets` scope is not needed.
+    public static var scope: String = driveFileScope
 
     /// Scopes that must be granted for sync to function.
     /// Optional identity scopes (openid/email/profile) must not block connection.
-    public static var requiredScopes: Set<String> { [sheetsScope, driveFileScope] }
+    public static var requiredScopes: Set<String> { [driveFileScope] }
 
     private static func sanitizedInfoValue(forKey key: String) -> String? {
         guard let raw = Bundle.main.object(forInfoDictionaryKey: key) as? String else {
@@ -242,7 +242,7 @@ public enum GoogleOAuth {
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         request.httpBody = formURLEncoded(params).data(using: .utf8)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await GoogleURLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             let body = String(data: data, encoding: .utf8)
             throw OAuthError.tokenExchangeFailed(status: (response as? HTTPURLResponse)?.statusCode ?? -1, body: body)
