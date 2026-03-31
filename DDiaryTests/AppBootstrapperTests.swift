@@ -145,7 +145,7 @@ final class AppBootstrapperTests: XCTestCase {
             usesPrettyData: true,
             appContainerFactory: { _ in Self.previewAppContainer },
             prettyDataAppContainerFactory: { _ in Self.previewAppContainer },
-            modelContainerFactory: { schema, configurations in
+            modelContainerFactory: { schema, _, configurations in
                 invocationCount += 1
                 capturedConfigurations = configurations
                 return try Self.makeModelContainer(schema: schema)
