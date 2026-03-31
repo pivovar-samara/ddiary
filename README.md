@@ -190,13 +190,14 @@ Fields (current implementation):
 
 Represents Google Sheets configuration. Stored as SwiftData model and synced via CloudKit so multiple devices share the same integration.
 
-Fields:
+Fields (SwiftData):
 
 - `id: UUID`
 - `spreadsheetId: String?`
 - `googleUserId: String?`
-- `refreshToken: String?`
 - `isEnabled: Bool`
+
+The OAuth **refresh token** is stored in the **iOS Keychain** (via `KeychainTokenStorage`), not in SwiftData/CloudKit, to avoid syncing sensitive credentials across devices.
 
 Access to `GoogleIntegration` should be coordinated through a repository on the main actor; tokens are passed into background `Task`s for networking.
 
@@ -471,13 +472,13 @@ Encoding: UTF-8, delimiter: `,` (comma).
 ### 7.1 Authentication
 
 - Use OAuth via `ASWebAuthenticationSession`.
-- Required scope: read/write access to Google Sheets for a single spreadsheet.
+- Required scope: `https://www.googleapis.com/auth/drive.file` — grants full Sheets API access to app-created spreadsheets without requiring the broader `spreadsheets` scope.
 - Store:
-  - `refreshToken` (persisted in `GoogleIntegration`).
-  - `googleUserId` if available.
-  - `spreadsheetId`.
+  - `refreshToken` — persisted in the **iOS Keychain** (via `KeychainTokenStorage`), not in SwiftData/CloudKit.
+  - `googleUserId` if available — in `GoogleIntegration` SwiftData model.
+  - `spreadsheetId` — in `GoogleIntegration` SwiftData model.
 
-These fields live in `GoogleIntegration` and are synced across devices via SwiftData+CloudKit.
+`GoogleIntegration` (minus the refresh token) is synced across devices via SwiftData+CloudKit.
 
 ### 7.2 Spreadsheet Structure
 
