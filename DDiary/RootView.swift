@@ -61,12 +61,14 @@ struct RootView: View {
                 }
 
 #if DEBUG
+                if !container.isPrettyDataMode {
                 NavigationStack {
                     DebugView().navigationTitle(L10n.screenDebugTitle)
                 }
                 .tag(RootTab.debug)
                 .tabItem {
                     Label(L10n.tabDebug, systemImage: "ladybug")
+                }
                 }
 #endif
             }

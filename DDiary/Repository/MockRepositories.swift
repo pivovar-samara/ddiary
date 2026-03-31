@@ -118,3 +118,104 @@ final class MockGoogleIntegrationRepository: GoogleIntegrationRepository {
         refreshToken = token
     }
 }
+
+// MARK: - Demo Infrastructure
+
+@MainActor
+final class InMemoryTokenStorage: TokenStorage {
+    private var store: [String: String] = [:]
+
+    func read(key: String) -> String? {
+        store[key]
+    }
+
+    func write(_ token: String, key: String) throws {
+        store[key] = token
+    }
+
+    func delete(key: String) throws {
+        store.removeValue(forKey: key)
+    }
+}
+
+struct SilentNotificationsRepository: NotificationsRepository, Sendable {
+    func requestAuthorization() async throws -> Bool { false }
+    func hasPendingNotificationRequests() async -> Bool { false }
+    func scheduleBloodPressure(times _: [Int], activeWeekdays _: Set<Int>) async throws {}
+    func cancelBloodPressure() async {}
+    func rescheduleBloodPressure(times _: [Int], activeWeekdays _: Set<Int>) async throws {}
+    func scheduleGlucoseBeforeMeal(
+        breakfast _: DateComponents,
+        lunch _: DateComponents,
+        dinner _: DateComponents,
+        isEnabled _: Bool
+    ) async throws {}
+    func scheduleGlucoseAfterMeal2h(
+        breakfast _: DateComponents,
+        lunch _: DateComponents,
+        dinner _: DateComponents,
+        isEnabled _: Bool
+    ) async throws {}
+    func scheduleGlucoseBedtime(isEnabled _: Bool, time _: DateComponents?) async throws {}
+    func cancelGlucose() async {}
+    func rescheduleGlucose(
+        breakfast _: DateComponents,
+        lunch _: DateComponents,
+        dinner _: DateComponents,
+        enableBeforeMeal _: Bool,
+        enableAfterMeal2h _: Bool,
+        bedtimeTime _: DateComponents?
+    ) async throws {}
+    func rescheduleGlucoseCycle(
+        configuration _: GlucoseCycleConfiguration,
+        startDate _: Date,
+        numberOfDays _: Int
+    ) async throws {}
+    func scheduleOneOff(
+        at _: Date,
+        identifier _: String,
+        title _: String,
+        body _: String,
+        categoryIdentifier _: String,
+        userInfo _: [AnyHashable: Any]
+    ) async {}
+    func snooze(
+        originalIdentifier _: String,
+        minutes _: Int,
+        title _: String,
+        body _: String,
+        categoryIdentifier _: String,
+        mealSlotRawValue _: String?,
+        measurementTypeRawValue _: String?
+    ) async {}
+    func cancel(withIdentifier _: String) async {}
+    func cancelPlannedBloodPressureNotification(at _: Date) async {}
+    func cancelPlannedGlucoseNotification(measurementType _: GlucoseMeasurementType, at _: Date) async {}
+    func scheduledReminders(on _: Date) async -> [ScheduledReminder] { [] }
+    func cancelAll() async {}
+    func cancelAllExceptOneOffRequests() async {}
+}
+
+struct NoopAnalyticsRepository: AnalyticsRepository, Sendable {
+    func logAppOpen() async {}
+    func logMeasurementLogged(kind _: AnalyticsMeasurementKind) async {}
+    func logMeasurementSaveFailed(kind _: AnalyticsMeasurementKind, reason _: String?) async {}
+    func logScheduleUpdated(kind _: AnalyticsScheduleKind) async {}
+    func logScheduleUpdateFailed(kind _: AnalyticsScheduleKind, reason _: String?) async {}
+    func logExportCSV() async {}
+    func logGoogleSyncSuccess() async {}
+    func logGoogleSyncFailure(reason _: String?) async {}
+    func logGoogleSyncFinished(successCount _: Int, failureCount _: Int) async {}
+    func logGoogleEnabled() async {}
+    func logGoogleDisabled() async {}
+}
+
+struct DisabledGoogleSheetsClient: GoogleSheetsClient, Sendable {
+    func appendBloodPressureRow(_ row: GoogleSheetsBPRow, credentials _: GoogleSheetsCredentials) async throws {
+        _ = row
+    }
+
+    func appendGlucoseRow(_ row: GoogleSheetsGlucoseRow, credentials _: GoogleSheetsCredentials) async throws {
+        _ = row
+    }
+}

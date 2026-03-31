@@ -50,7 +50,9 @@ struct AppContainer {
         subsystem: Bundle.main.bundleIdentifier ?? "DDiary",
         category: "AppContainer"
     )
+    private static let prettyDataRefreshToken = "pretty-data-refresh-token"
 
+    let isPrettyDataMode: Bool
     let measurementsRepository: any MeasurementsRepository
     let settingsRepository: any SettingsRepository
     let googleIntegrationRepository: any GoogleIntegrationRepository
@@ -70,18 +72,30 @@ struct AppContainer {
     let exportCSVUseCase: ExportCSVUseCase
     let syncWithGoogleUseCase: SyncWithGoogleUseCase
 
-    init(modelContext: ModelContext) {
+    init(
+        modelContext: ModelContext,
+        notificationsRepository: any NotificationsRepository = UserNotificationsRepository(),
+        analyticsRepository: any AnalyticsRepository = AmplitudeAnalyticsRepository(),
+        googleSheetsClient: any GoogleSheetsClient = LiveGoogleSheetsClient(),
+        tokenStorage: any TokenStorage = KeychainTokenStorage(),
+        configureGoogleTokenPersistence: Bool = true,
+        isPrettyDataMode: Bool = false
+    ) {
         let measurementsRepository = SwiftDataMeasurementsRepository(modelContext: modelContext)
         let settingsRepository = SwiftDataSettingsRepository(modelContext: modelContext)
-        let googleIntegrationRepository = SwiftDataGoogleIntegrationRepository(modelContext: modelContext)
-        let notificationsRepository = UserNotificationsRepository()
-        let analyticsRepository = AmplitudeAnalyticsRepository()
-        let googleSheetsClient = LiveGoogleSheetsClient()
+        let googleIntegrationRepository = SwiftDataGoogleIntegrationRepository(
+            modelContext: modelContext,
+            tokenStorage: tokenStorage
+        )
 
         // Configure Google token persistence bridge: token center -> NotificationCenter -> MainActor repo
-        LiveGoogleSheetsClientConfig.configureTokenPersistence(onRefreshTokenUpdated: { newRT in
-            NotificationCenter.default.post(name: .googleRefreshTokenUpdated, object: nil, userInfo: ["refreshToken": newRT])
-        })
+        if configureGoogleTokenPersistence {
+            LiveGoogleSheetsClientConfig.configureTokenPersistence(onRefreshTokenUpdated: { newRT in
+                NotificationCenter.default.post(name: .googleRefreshTokenUpdated, object: nil, userInfo: ["refreshToken": newRT])
+            })
+        } else {
+            LiveGoogleSheetsClientConfig.configureTokenPersistence(onRefreshTokenUpdated: nil)
+        }
 
         // Use a managed observer that replaces prior registrations to avoid duplicate side effects.
         Self.refreshTokenObserverRegistry.install(onTokenUpdated: { [googleIntegrationRepository] newRT in
@@ -95,6 +109,7 @@ struct AppContainer {
             }
         })
 
+        self.isPrettyDataMode = isPrettyDataMode
         self.measurementsRepository = measurementsRepository
         self.settingsRepository = settingsRepository
         self.googleIntegrationRepository = googleIntegrationRepository
@@ -184,6 +199,21 @@ struct AppContainer {
     init(modelContainer: ModelContainer) {
         self.init(modelContext: ModelContext(modelContainer))
     }
+
+    static func prettyData(modelContainer: ModelContainer) -> AppContainer {
+        let tokenStorage = InMemoryTokenStorage()
+        try? tokenStorage.write(Self.prettyDataRefreshToken, key: "ddiary.google.oauth.refreshToken")
+
+        return AppContainer(
+            modelContext: ModelContext(modelContainer),
+            notificationsRepository: SilentNotificationsRepository(),
+            analyticsRepository: NoopAnalyticsRepository(),
+            googleSheetsClient: DisabledGoogleSheetsClient(),
+            tokenStorage: tokenStorage,
+            configureGoogleTokenPersistence: false,
+            isPrettyDataMode: true
+        )
+    }
     
     static var preview: AppContainer {
         let modelContainer = try! ModelContainer(
@@ -191,7 +221,8 @@ struct AppContainer {
             migrationPlan: DDiaryMigrationPlan.self,
             configurations: [ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)]
         )
-        return AppContainer(modelContainer: modelContainer)
+        try! PrettyDataSeeder.seed(.showcase, into: modelContainer)
+        return AppContainer.prettyData(modelContainer: modelContainer)
     }
 
     private static func log(_ error: Error, operation: String, policy: UserSurfacePolicy) {

@@ -136,6 +136,33 @@ final class AppBootstrapperTests: XCTestCase {
         XCTAssertTrue(cloudKitDatabaseDescription(for: capturedConfigurations[0]).contains("none"))
     }
 
+    func test_makeLaunchState_usesSingleInMemoryConfiguration_whenPrettyDataModeEnabled() throws {
+        var capturedConfigurations: [ModelConfiguration] = []
+        var invocationCount = 0
+
+        let state = AppBootstrapper.makeLaunchState(
+            isUITesting: false,
+            usesPrettyData: true,
+            appContainerFactory: { _ in Self.previewAppContainer },
+            prettyDataAppContainerFactory: { _ in Self.previewAppContainer },
+            modelContainerFactory: { schema, configurations in
+                invocationCount += 1
+                capturedConfigurations = configurations
+                return try Self.makeModelContainer(schema: schema)
+            }
+        )
+
+        guard case let .ready(_, _, launchNotice) = state else {
+            return XCTFail("Expected ready launch state in pretty-data mode")
+        }
+
+        XCTAssertEqual(invocationCount, 1)
+        XCTAssertNil(launchNotice)
+        XCTAssertEqual(capturedConfigurations.count, 1)
+        XCTAssertTrue(capturedConfigurations[0].isStoredInMemoryOnly)
+        XCTAssertTrue(cloudKitDatabaseDescription(for: capturedConfigurations[0]).contains("none"))
+    }
+
     private static func makeModelContainer(schema: Schema) throws -> ModelContainer {
         try ModelContainer(
             for: schema,
