@@ -10,7 +10,7 @@ final class AppBootstrapperTests: XCTestCase {
         let state = AppBootstrapper.makeLaunchState(
             isUITesting: false,
             appContainerFactory: { _ in Self.previewAppContainer },
-            modelContainerFactory: { schema, configurations in
+            modelContainerFactory: { schema, _, configurations in
                 capturedConfigurations = configurations
                 return try Self.makeModelContainer(schema: schema)
             }
@@ -45,7 +45,7 @@ final class AppBootstrapperTests: XCTestCase {
         let state = AppBootstrapper.makeLaunchState(
             isUITesting: false,
             appContainerFactory: { _ in Self.previewAppContainer },
-            modelContainerFactory: { schema, configurations in
+            modelContainerFactory: { schema, _, configurations in
                 invocationCount += 1
                 capturedConfigurations.append(contentsOf: configurations)
 
@@ -90,7 +90,7 @@ final class AppBootstrapperTests: XCTestCase {
         let state = AppBootstrapper.makeLaunchState(
             isUITesting: false,
             appContainerFactory: { _ in Self.previewAppContainer },
-            modelContainerFactory: { _, _ in
+            modelContainerFactory: { _, _, _ in
                 invocationCount += 1
 
                 switch invocationCount {
@@ -118,7 +118,7 @@ final class AppBootstrapperTests: XCTestCase {
         let state = AppBootstrapper.makeLaunchState(
             isUITesting: true,
             appContainerFactory: { _ in Self.previewAppContainer },
-            modelContainerFactory: { schema, configurations in
+            modelContainerFactory: { schema, _, configurations in
                 invocationCount += 1
                 capturedConfigurations = configurations
                 return try Self.makeModelContainer(schema: schema)
