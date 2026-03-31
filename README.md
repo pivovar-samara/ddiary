@@ -29,6 +29,29 @@ DIA-ry is a local-first iOS and iPadOS app for tracking blood pressure and blood
 
 Note: the user-facing app name is `DIA-ry`, while technical project identifiers (repository, Xcode target/scheme, bundle prefix) still use `DDiary`.
 
+### Screenshot / pretty-data mode
+
+For screenshots and UI demos, launch the app with:
+
+- launch argument: `PRETTY_DATA`
+- or environment variable: `PRETTY_DATA=1`
+
+This mode:
+
+- uses an in-memory SwiftData store
+- skips CloudKit
+- hides the Debug tab
+- suppresses notification scheduling and permission prompts
+- disables live analytics and Google traffic
+- seeds realistic demo data for Today, History, and Settings
+
+Seeded showcase data includes:
+
+- realistic BP and glucose thresholds and schedules
+- 14 days of history
+- one Google-sync pending measurement
+- a connected Google integration state for Settings screenshots
+
 ## Community
 
 - Contributing guide: [CONTRIBUTING.md](CONTRIBUTING.md)

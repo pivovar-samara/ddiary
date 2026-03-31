@@ -49,8 +49,12 @@ struct AppBootstrapper {
 
     static func makeLaunchState(
         isUITesting: Bool,
+        usesPrettyData: Bool = false,
         appContainerFactory: AppContainerFactory = { modelContainer in
             AppContainer(modelContainer: modelContainer)
+        },
+        prettyDataAppContainerFactory: AppContainerFactory = { modelContainer in
+            AppContainer.prettyData(modelContainer: modelContainer)
         },
         modelContainerFactory: ModelContainerFactory = { schema, configurations in
             try ModelContainer(for: schema, configurations: configurations)
@@ -63,7 +67,7 @@ struct AppBootstrapper {
             GoogleIntegration.self,
         ])
 
-        if isUITesting {
+        if isUITesting || usesPrettyData {
             do {
                 return try makeReadyLaunchState(
                     fullSchema: fullSchema,
@@ -73,7 +77,8 @@ struct AppBootstrapper {
                         cloudKitDatabase: .none
                     ),
                     launchNotice: nil,
-                    appContainerFactory: appContainerFactory,
+                    appContainerFactory: usesPrettyData ? prettyDataAppContainerFactory : appContainerFactory,
+                    seedPrettyData: usesPrettyData,
                     modelContainerFactory: modelContainerFactory
                 )
             } catch {
@@ -125,9 +130,13 @@ struct AppBootstrapper {
         configuration: ModelConfiguration,
         launchNotice: AppLaunchNotice?,
         appContainerFactory: AppContainerFactory,
+        seedPrettyData: Bool = false,
         modelContainerFactory: ModelContainerFactory
     ) throws -> AppLaunchState {
         let sharedModelContainer = try modelContainerFactory(fullSchema, [configuration])
+        if seedPrettyData {
+            try PrettyDataSeeder.seed(.showcase, into: sharedModelContainer)
+        }
         let appContainer = appContainerFactory(sharedModelContainer)
         return .ready(
             sharedModelContainer: sharedModelContainer,
@@ -142,20 +151,29 @@ struct DDiaryApp: App {
     private let launchState: AppLaunchState
     private let notificationsCoordinator: NotificationsCoordinator?
     private let isUITesting: Bool
+    private let usesPrettyData: Bool
 
     init() {
         let args = ProcessInfo.processInfo.arguments
         let env = ProcessInfo.processInfo.environment
         self.isUITesting = args.contains("UITESTING") || env["UITESTING"] == "1"
-        self.launchState = AppBootstrapper.makeLaunchState(isUITesting: isUITesting)
+        self.usesPrettyData = args.contains("PRETTY_DATA") || env["PRETTY_DATA"] == "1"
+        self.launchState = AppBootstrapper.makeLaunchState(
+            isUITesting: isUITesting,
+            usesPrettyData: usesPrettyData
+        )
 
         switch launchState {
         case let .ready(_, appContainer, _):
-            UserNotificationsRepository.registerCategories()
-            let center = UNUserNotificationCenter.current()
-            let coordinator = NotificationsCoordinator(container: appContainer)
-            center.delegate = coordinator
-            self.notificationsCoordinator = coordinator
+            if usesPrettyData {
+                self.notificationsCoordinator = nil
+            } else {
+                UserNotificationsRepository.registerCategories()
+                let center = UNUserNotificationCenter.current()
+                let coordinator = NotificationsCoordinator(container: appContainer)
+                center.delegate = coordinator
+                self.notificationsCoordinator = coordinator
+            }
             Task { @MainActor in
                 await appContainer.analyticsRepository.logAppOpen()
             }
