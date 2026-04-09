@@ -73,3 +73,14 @@ fastlane/test_output
 Configs/Secrets.xcconfig
 .cursor/
 .claude/
+
+# Certificates & keys
+*.p12
+*.cer
+*.pem
+*.mobileprovision
+*.provisionprofile
+
+# Environment files
+.env
+.env.*
