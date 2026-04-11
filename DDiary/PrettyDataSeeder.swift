@@ -259,7 +259,8 @@ private extension PrettyDataSeeder {
 
     static func localizedCopy(for locale: Locale) -> LocalizedCopy {
         let languageCode = locale.language.languageCode?.identifier ?? locale.identifier
-        if languageCode.hasPrefix("ru") {
+        switch true {
+        case languageCode.hasPrefix("ru"):
             return LocalizedCopy(
                 morningCheck: "Утреннее измерение",
                 afterWalk: "После прогулки",
@@ -269,17 +270,157 @@ private extension PrettyDataSeeder {
                 feltGoodMorning: "Утром самочувствие было хорошим",
                 queuedForSync: "В очереди на синхронизацию"
             )
+        case languageCode.hasPrefix("uk"):
+            return LocalizedCopy(
+                morningCheck: "Ранковий вимір",
+                afterWalk: "Після прогулянки",
+                busyDay: "Насичений день",
+                eveningTired: "Увечері трохи втомився",
+                lightBreakfast: "Легкий сніданок",
+                feltGoodMorning: "Вранці самопочуття було добрим",
+                queuedForSync: "В черзі на синхронізацію"
+            )
+        case languageCode.hasPrefix("de"):
+            return LocalizedCopy(
+                morningCheck: "Morgenmessung",
+                afterWalk: "Nach dem Spaziergang",
+                busyDay: "Stressiger Tag",
+                eveningTired: "Abends etwas müde",
+                lightBreakfast: "Leichtes Frühstück",
+                feltGoodMorning: "Morgens gut gefühlt",
+                queuedForSync: "Wartet auf Synchronisierung"
+            )
+        case languageCode.hasPrefix("es"):
+            return LocalizedCopy(
+                morningCheck: "Medición matutina",
+                afterWalk: "Después de caminar",
+                busyDay: "Día ajetreado",
+                eveningTired: "Un poco cansado por la noche",
+                lightBreakfast: "Desayuno ligero",
+                feltGoodMorning: "Me sentí bien esta mañana",
+                queuedForSync: "En cola para sincronizar"
+            )
+        case languageCode.hasPrefix("fr"):
+            return LocalizedCopy(
+                morningCheck: "Mesure du matin",
+                afterWalk: "Après une promenade",
+                busyDay: "Journée chargée",
+                eveningTired: "Un peu fatigué le soir",
+                lightBreakfast: "Petit-déjeuner léger",
+                feltGoodMorning: "Je me suis senti bien ce matin",
+                queuedForSync: "En attente de synchronisation"
+            )
+        case languageCode.hasPrefix("it"):
+            return LocalizedCopy(
+                morningCheck: "Misurazione mattutina",
+                afterWalk: "Dopo una passeggiata",
+                busyDay: "Giornata intensa",
+                eveningTired: "Un po' stanco la sera",
+                lightBreakfast: "Colazione leggera",
+                feltGoodMorning: "Mi sono sentito bene stamattina",
+                queuedForSync: "In coda per la sincronizzazione"
+            )
+        case languageCode.hasPrefix("pt"):
+            return LocalizedCopy(
+                morningCheck: "Medição matinal",
+                afterWalk: "Após uma caminhada",
+                busyDay: "Dia agitado",
+                eveningTired: "Um pouco cansado à noite",
+                lightBreakfast: "Café da manhã leve",
+                feltGoodMorning: "Me senti bem esta manhã",
+                queuedForSync: "Na fila para sincronizar"
+            )
+        case languageCode.hasPrefix("pl"):
+            return LocalizedCopy(
+                morningCheck: "Poranny pomiar",
+                afterWalk: "Po spacerze",
+                busyDay: "Pracowity dzień",
+                eveningTired: "Wieczorem trochę zmęczony",
+                lightBreakfast: "Lekkie śniadanie",
+                feltGoodMorning: "Rano czułem się dobrze",
+                queuedForSync: "W kolejce do synchronizacji"
+            )
+        case languageCode.hasPrefix("ar"):
+            return LocalizedCopy(
+                morningCheck: "قياس الصباح",
+                afterWalk: "بعد المشي",
+                busyDay: "يوم مشغول",
+                eveningTired: "تعبت قليلاً في المساء",
+                lightBreakfast: "إفطار خفيف",
+                feltGoodMorning: "شعرت بتحسن هذا الصباح",
+                queuedForSync: "في قائمة انتظار المزامنة"
+            )
+        case languageCode.hasPrefix("tr"):
+            return LocalizedCopy(
+                morningCheck: "Sabah ölçümü",
+                afterWalk: "Yürüyüşten sonra",
+                busyDay: "Yoğun gün",
+                eveningTired: "Akşam biraz yorgun",
+                lightBreakfast: "Hafif kahvaltı",
+                feltGoodMorning: "Bu sabah kendimi iyi hissettim",
+                queuedForSync: "Senkronizasyon kuyruğunda"
+            )
+        case languageCode.hasPrefix("sv"):
+            return LocalizedCopy(
+                morningCheck: "Morgonmätning",
+                afterWalk: "Efter en promenad",
+                busyDay: "Stressig dag",
+                eveningTired: "Lite trött på kvällen",
+                lightBreakfast: "Lätt frukost",
+                feltGoodMorning: "Mådde bra i morse",
+                queuedForSync: "Väntar på synkronisering"
+            )
+        case languageCode.hasPrefix("nl"):
+            return LocalizedCopy(
+                morningCheck: "Ochtendmeting",
+                afterWalk: "Na een wandeling",
+                busyDay: "Drukke dag",
+                eveningTired: "Wat moe 's avonds",
+                lightBreakfast: "Licht ontbijt",
+                feltGoodMorning: "Voelde me goed vanochtend",
+                queuedForSync: "Wacht op synchronisatie"
+            )
+        case languageCode.hasPrefix("ja"):
+            return LocalizedCopy(
+                morningCheck: "朝の測定",
+                afterWalk: "散歩の後",
+                busyDay: "忙しい一日",
+                eveningTired: "夕方少し疲れた",
+                lightBreakfast: "軽い朝食",
+                feltGoodMorning: "今朝は体調が良かった",
+                queuedForSync: "同期待ち"
+            )
+        case languageCode.hasPrefix("ko"):
+            return LocalizedCopy(
+                morningCheck: "아침 측정",
+                afterWalk: "산책 후",
+                busyDay: "바쁜 하루",
+                eveningTired: "저녁에 좀 피곤함",
+                lightBreakfast: "가벼운 아침 식사",
+                feltGoodMorning: "오늘 아침 컨디션 좋음",
+                queuedForSync: "동기화 대기 중"
+            )
+        case languageCode.hasPrefix("zh"):
+            return LocalizedCopy(
+                morningCheck: "早上测量",
+                afterWalk: "散步后",
+                busyDay: "忙碌的一天",
+                eveningTired: "傍晚有些疲惫",
+                lightBreakfast: "清淡早餐",
+                feltGoodMorning: "今早感觉不错",
+                queuedForSync: "等待同步"
+            )
+        default:
+            return LocalizedCopy(
+                morningCheck: "Morning check",
+                afterWalk: "After a walk",
+                busyDay: "Busy day",
+                eveningTired: "A bit tired in the evening",
+                lightBreakfast: "Light breakfast",
+                feltGoodMorning: "Felt good this morning",
+                queuedForSync: "Queued for sync"
+            )
         }
-
-        return LocalizedCopy(
-            morningCheck: "Morning check",
-            afterWalk: "After a walk",
-            busyDay: "Busy day",
-            eveningTired: "A bit tired in the evening",
-            lightBreakfast: "Light breakfast",
-            feltGoodMorning: "Felt good this morning",
-            queuedForSync: "Queued for sync"
-        )
     }
 
     static func date(on base: Date, hour: Int, minute: Int, calendar: Calendar) -> Date {
