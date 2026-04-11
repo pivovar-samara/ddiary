@@ -568,7 +568,7 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
-        content.sound = .default
+        content.sound = UNNotificationSound(named: UNNotificationSoundName("alarm-tone.caf"))
         content.categoryIdentifier = categoryIdentifier
         if !userInfo.isEmpty { content.userInfo = userInfo }
         return content

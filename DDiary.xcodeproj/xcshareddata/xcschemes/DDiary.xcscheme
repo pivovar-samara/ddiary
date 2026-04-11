@@ -98,7 +98,7 @@
       <CommandLineArguments>
          <CommandLineArgument
             argument = "PRETTY_DATA"
-            isEnabled = "YES">
+            isEnabled = "NO">
          </CommandLineArgument>
       </CommandLineArguments>
    </LaunchAction>
