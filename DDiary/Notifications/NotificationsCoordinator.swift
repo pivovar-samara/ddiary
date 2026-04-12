@@ -212,8 +212,8 @@ final class NotificationsCoordinator: NSObject, UNUserNotificationCenterDelegate
             categoryIdentifier: content.categoryIdentifier,
             title: content.title,
             body: content.body,
-            mealSlotRawValue: content.userInfo[UserNotificationsRepository.PayloadKeys.mealSlot] as? String,
-            measurementTypeRawValue: content.userInfo[UserNotificationsRepository.PayloadKeys.measurementType] as? String,
+            mealSlotRawValue: content.userInfo["mealSlot"] as? String,
+            measurementTypeRawValue: content.userInfo["measurementType"] as? String,
             deliveredDate: response.notification.date
         )
         handleAction(action, context: context, completionHandler: completionHandler)

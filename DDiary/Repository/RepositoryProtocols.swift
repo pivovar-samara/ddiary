@@ -211,19 +211,13 @@ public protocol NotificationsRepository: Sendable {
 
     /// Set the app icon badge to the given count. Pass 0 to clear the badge.
     func setBadgeCount(_ count: Int) async
-
-    /// Reassign sequential badge numbers on all non-one-off pending notifications,
-    /// sorted by fire date, so the badge increments naturally as each fires.
-    /// Call this after scheduling to keep badge numbers in sync with the queue.
-    func updateBadgesAfterScheduling() async
 }
 
 // MARK: - Badge management defaults (nonisolated)
-/// Default no-op badge implementations. Intentionally *not* in the @MainActor extension
-/// so conforming types do not inherit main-actor isolation on their matching witnesses.
+/// Default no-op badge implementation. Intentionally *not* in the @MainActor extension
+/// so conforming types do not inherit main-actor isolation on their matching witness.
 public extension NotificationsRepository {
     func setBadgeCount(_ count: Int) async {}
-    func updateBadgesAfterScheduling() async {}
 }
 
 // MARK: - Convenience APIs from UserSettings (MainActor-only)
@@ -326,8 +320,8 @@ public extension NotificationsRepository {
             body: payload.body,
             categoryIdentifier: UserNotificationsRepository.IDs.glucoseAfterCategory,
             userInfo: [
-                UserNotificationsRepository.PayloadKeys.mealSlot: mealSlot.rawValue,
-                UserNotificationsRepository.PayloadKeys.measurementType: GlucoseMeasurementType.afterMeal2h.rawValue,
+                "mealSlot": mealSlot.rawValue,
+                "measurementType": GlucoseMeasurementType.afterMeal2h.rawValue,
             ]
         )
     }
@@ -339,7 +333,6 @@ public extension NotificationsRepository {
         await cancelAllExceptOneOffRequests()
         try await scheduleBPNotifications(settings: settings)
         try await scheduleGlucoseNotifications(settings: settings)
-        await updateBadgesAfterScheduling()
     }
 
     /// Schedules a debug-only BP notification that matches production category/content.
@@ -367,8 +360,8 @@ public extension NotificationsRepository {
             body: L10n.notificationGlucoseBeforeBreakfastBody,
             categoryIdentifier: UserNotificationsRepository.IDs.glucoseBeforeCategory,
             userInfo: [
-                UserNotificationsRepository.PayloadKeys.mealSlot: MealSlot.breakfast.rawValue,
-                UserNotificationsRepository.PayloadKeys.measurementType: GlucoseMeasurementType.beforeMeal.rawValue,
+                "mealSlot": MealSlot.breakfast.rawValue,
+                "measurementType": GlucoseMeasurementType.beforeMeal.rawValue,
             ]
         )
     }

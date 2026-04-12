@@ -954,20 +954,12 @@ private final class FakeNotificationCenter: UserNotificationCentering, @unchecke
 
     func pendingNotificationRecords() async -> [PendingNotificationRecord] {
         pendingRequests.values.map { request in
-            let calendarTrigger = request.trigger as? UNCalendarNotificationTrigger
-            let userInfoStrings = request.content.userInfo.reduce(into: [String: String]()) { dict, pair in
-                if let key = pair.key as? String, let value = pair.value as? String { dict[key] = value }
-            }
+            let nextTriggerDate = (request.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate()
             return PendingNotificationRecord(
                 identifier: request.identifier,
-                nextTriggerDate: calendarTrigger?.nextTriggerDate(),
-                triggerDateComponents: calendarTrigger?.dateComponents,
-                triggerRepeats: calendarTrigger?.repeats ?? false,
+                nextTriggerDate: nextTriggerDate,
                 categoryIdentifier: request.content.categoryIdentifier,
                 title: request.content.title,
-                body: request.content.body,
-                soundName: request.content.sound != nil ? "alarm-tone.caf" : nil,
-                userInfoStrings: userInfoStrings,
                 mealSlotRawValue: request.content.userInfo[UserNotificationsRepository.PayloadKeys.mealSlot] as? String,
                 measurementTypeRawValue: request.content.userInfo[UserNotificationsRepository.PayloadKeys.measurementType] as? String
             )

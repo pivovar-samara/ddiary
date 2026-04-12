@@ -4,14 +4,8 @@ import UserNotifications
 struct PendingNotificationRecord: Sendable {
     let identifier: String
     let nextTriggerDate: Date?
-    /// Original date components from the UNCalendarNotificationTrigger, preserved for exact trigger reconstruction.
-    let triggerDateComponents: DateComponents?
-    let triggerRepeats: Bool
     let categoryIdentifier: String
     let title: String
-    let body: String
-    let soundName: String?
-    let userInfoStrings: [String: String]
     let mealSlotRawValue: String?
     let measurementTypeRawValue: String?
 }
@@ -108,22 +102,12 @@ struct LiveUserNotificationCenter: UserNotificationCentering, @unchecked Sendabl
         await withCheckedContinuation { continuation in
             center.getPendingNotificationRequests { requests in
                 let records = requests.map { request in
-                    let calendarTrigger = request.trigger as? UNCalendarNotificationTrigger
-                    let userInfoStrings = request.content.userInfo.reduce(into: [String: String]()) { dict, pair in
-                        if let key = pair.key as? String, let value = pair.value as? String {
-                            dict[key] = value
-                        }
-                    }
+                    let nextTriggerDate = (request.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate()
                     return PendingNotificationRecord(
                         identifier: request.identifier,
-                        nextTriggerDate: calendarTrigger?.nextTriggerDate(),
-                        triggerDateComponents: calendarTrigger?.dateComponents,
-                        triggerRepeats: calendarTrigger?.repeats ?? false,
+                        nextTriggerDate: nextTriggerDate,
                         categoryIdentifier: request.content.categoryIdentifier,
                         title: request.content.title,
-                        body: request.content.body,
-                        soundName: request.content.sound != nil ? "alarm-tone.caf" : nil,
-                        userInfoStrings: userInfoStrings,
                         mealSlotRawValue: request.content.userInfo["mealSlot"] as? String,
                         measurementTypeRawValue: request.content.userInfo["measurementType"] as? String
                     )
@@ -180,6 +164,13 @@ Usage notes:
 
 */
 
+/// Notification userInfo payload keys. Defined at module scope with computed properties
+/// so actor-isolation inference does not apply (computed statics are functions, not stored state).
+enum NotificationPayloadKeys {
+    static var mealSlot: String { "mealSlot" }
+    static var measurementType: String { "measurementType" }
+}
+
 struct UserNotificationsRepository: NotificationsRepository, Sendable {
     private static let maxPendingNotificationRequests = 64
     private let center: any UserNotificationCentering
@@ -220,10 +211,7 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         static let glucoseBedtimePrefix = "ddiary.glucose.bedtime."
     }
 
-    enum PayloadKeys {
-        static let mealSlot = "mealSlot"
-        static let measurementType = "measurementType"
-    }
+    typealias PayloadKeys = NotificationPayloadKeys
 
     // MARK: - Public category registration
     static func registerCategories(center: any UserNotificationCentering = LiveUserNotificationCenter()) {
@@ -414,37 +402,6 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
 
     func setBadgeCount(_ count: Int) async {
         await center.setBadgeCount(count)
-    }
-
-    func updateBadgesAfterScheduling() async {
-        let records = await center.pendingNotificationRecords()
-        let sorted = records
-            .filter { !shouldPreservePendingRequestOnStartup($0.identifier) }
-            .sorted { ($0.nextTriggerDate ?? .distantFuture) < ($1.nextTriggerDate ?? .distantFuture) }
-
-        for (index, record) in sorted.enumerated() {
-            // Use the stored original trigger components to avoid any roundtrip precision loss.
-            guard let triggerComponents = record.triggerDateComponents else { continue }
-            let trigger = UNCalendarNotificationTrigger(dateMatching: triggerComponents, repeats: record.triggerRepeats)
-
-            // Reconstruct content from Sendable record fields. PendingNotificationRecord captures all
-            // fields set by makeContent() (title, body, sound, categoryIdentifier, userInfo strings),
-            // so the reconstruction is complete for every notification type in this app.
-            let content = UNMutableNotificationContent()
-            content.title = record.title
-            content.body = record.body
-            if let soundName = record.soundName {
-                content.sound = UNNotificationSound(named: UNNotificationSoundName(soundName))
-            }
-            content.categoryIdentifier = record.categoryIdentifier
-            if !record.userInfoStrings.isEmpty {
-                content.userInfo = Dictionary(uniqueKeysWithValues: record.userInfoStrings.map { ($0.key as AnyHashable, $0.value) })
-            }
-            content.badge = NSNumber(value: index + 1)
-
-            let request = UNNotificationRequest(identifier: record.identifier, content: content, trigger: trigger)
-            _ = await center.addOrReplace(request: request)
-        }
     }
 
     func cancelAllExceptOneOffRequests() async {
