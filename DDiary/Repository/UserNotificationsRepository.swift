@@ -4,6 +4,9 @@ import UserNotifications
 struct PendingNotificationRecord: Sendable {
     let identifier: String
     let nextTriggerDate: Date?
+    /// Original date components from the UNCalendarNotificationTrigger, preserved for exact trigger reconstruction.
+    let triggerDateComponents: DateComponents?
+    let triggerRepeats: Bool
     let categoryIdentifier: String
     let title: String
     let body: String
@@ -105,6 +108,7 @@ struct LiveUserNotificationCenter: UserNotificationCentering, @unchecked Sendabl
         await withCheckedContinuation { continuation in
             center.getPendingNotificationRequests { requests in
                 let records = requests.map { request in
+                    let calendarTrigger = request.trigger as? UNCalendarNotificationTrigger
                     let userInfoStrings = request.content.userInfo.reduce(into: [String: String]()) { dict, pair in
                         if let key = pair.key as? String, let value = pair.value as? String {
                             dict[key] = value
@@ -112,14 +116,13 @@ struct LiveUserNotificationCenter: UserNotificationCentering, @unchecked Sendabl
                     }
                     return PendingNotificationRecord(
                         identifier: request.identifier,
-                        nextTriggerDate: {
-                            guard let calendarTrigger = request.trigger as? UNCalendarNotificationTrigger else { return nil }
-                            return calendarTrigger.nextTriggerDate()
-                        }(),
+                        nextTriggerDate: calendarTrigger?.nextTriggerDate(),
+                        triggerDateComponents: calendarTrigger?.dateComponents,
+                        triggerRepeats: calendarTrigger?.repeats ?? false,
                         categoryIdentifier: request.content.categoryIdentifier,
                         title: request.content.title,
                         body: request.content.body,
-                        soundName: (request.content.sound).map { _ in "alarm-tone.caf" },
+                        soundName: request.content.sound != nil ? "alarm-tone.caf" : nil,
                         userInfoStrings: userInfoStrings,
                         mealSlotRawValue: request.content.userInfo["mealSlot"] as? String,
                         measurementTypeRawValue: request.content.userInfo["measurementType"] as? String
@@ -420,7 +423,13 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
             .sorted { ($0.nextTriggerDate ?? .distantFuture) < ($1.nextTriggerDate ?? .distantFuture) }
 
         for (index, record) in sorted.enumerated() {
-            guard let fireDate = record.nextTriggerDate else { continue }
+            // Use the stored original trigger components to avoid any roundtrip precision loss.
+            guard let triggerComponents = record.triggerDateComponents else { continue }
+            let trigger = UNCalendarNotificationTrigger(dateMatching: triggerComponents, repeats: record.triggerRepeats)
+
+            // Reconstruct content from Sendable record fields. PendingNotificationRecord captures all
+            // fields set by makeContent() (title, body, sound, categoryIdentifier, userInfo strings),
+            // so the reconstruction is complete for every notification type in this app.
             let content = UNMutableNotificationContent()
             content.title = record.title
             content.body = record.body
@@ -432,8 +441,7 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
                 content.userInfo = Dictionary(uniqueKeysWithValues: record.userInfoStrings.map { ($0.key as AnyHashable, $0.value) })
             }
             content.badge = NSNumber(value: index + 1)
-            let comps = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate)
-            let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
+
             let request = UNNotificationRequest(identifier: record.identifier, content: content, trigger: trigger)
             _ = await center.addOrReplace(request: request)
         }

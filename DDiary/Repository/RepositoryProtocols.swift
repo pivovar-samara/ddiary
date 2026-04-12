@@ -218,6 +218,14 @@ public protocol NotificationsRepository: Sendable {
     func updateBadgesAfterScheduling() async
 }
 
+// MARK: - Badge management defaults (nonisolated)
+/// Default no-op badge implementations. Intentionally *not* in the @MainActor extension
+/// so conforming types do not inherit main-actor isolation on their matching witnesses.
+public extension NotificationsRepository {
+    func setBadgeCount(_ count: Int) async {}
+    func updateBadgesAfterScheduling() async {}
+}
+
 // MARK: - Convenience APIs from UserSettings (MainActor-only)
 @MainActor
 public extension NotificationsRepository {
@@ -282,11 +290,6 @@ public extension NotificationsRepository {
         await cancelAll()
     }
 
-    /// Default no-op; concrete types provide the real implementation.
-    func setBadgeCount(_ count: Int) async {}
-
-    /// Default no-op; concrete types provide the real implementation.
-    func updateBadgesAfterScheduling() async {}
 
     /// When a before-meal measurement is logged off schedule, shift today's paired
     /// after-meal (2h) reminder from the original planned time to the new +2h time.
