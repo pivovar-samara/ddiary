@@ -6,6 +6,9 @@ struct PendingNotificationRecord: Sendable {
     let nextTriggerDate: Date?
     let categoryIdentifier: String
     let title: String
+    let body: String
+    let soundName: String?
+    let userInfoStrings: [String: String]
     let mealSlotRawValue: String?
     let measurementTypeRawValue: String?
 }
@@ -31,6 +34,7 @@ protocol UserNotificationCentering: Sendable {
     func deliveredNotificationIdentifiers() async -> [String]
     func pendingNotificationRecords() async -> [PendingNotificationRecord]
     func deliveredNotificationRecords() async -> [DeliveredNotificationRecord]
+    func setBadgeCount(_ count: Int) async
 }
 
 struct LiveUserNotificationCenter: UserNotificationCentering, @unchecked Sendable {
@@ -101,7 +105,12 @@ struct LiveUserNotificationCenter: UserNotificationCentering, @unchecked Sendabl
         await withCheckedContinuation { continuation in
             center.getPendingNotificationRequests { requests in
                 let records = requests.map { request in
-                    PendingNotificationRecord(
+                    let userInfoStrings = request.content.userInfo.reduce(into: [String: String]()) { dict, pair in
+                        if let key = pair.key as? String, let value = pair.value as? String {
+                            dict[key] = value
+                        }
+                    }
+                    return PendingNotificationRecord(
                         identifier: request.identifier,
                         nextTriggerDate: {
                             guard let calendarTrigger = request.trigger as? UNCalendarNotificationTrigger else { return nil }
@@ -109,6 +118,9 @@ struct LiveUserNotificationCenter: UserNotificationCentering, @unchecked Sendabl
                         }(),
                         categoryIdentifier: request.content.categoryIdentifier,
                         title: request.content.title,
+                        body: request.content.body,
+                        soundName: (request.content.sound).map { _ in "alarm-tone.caf" },
+                        userInfoStrings: userInfoStrings,
                         mealSlotRawValue: request.content.userInfo["mealSlot"] as? String,
                         measurementTypeRawValue: request.content.userInfo["measurementType"] as? String
                     )
@@ -133,6 +145,12 @@ struct LiveUserNotificationCenter: UserNotificationCentering, @unchecked Sendabl
                 }
                 continuation.resume(returning: records)
             }
+        }
+    }
+
+    func setBadgeCount(_ count: Int) async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            center.setBadgeCount(count) { _ in continuation.resume() }
         }
     }
 }
@@ -389,6 +407,36 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
     func cancelAll() async {
         center.removeAllPendingNotificationRequests()
         center.removeAllDeliveredNotifications()
+    }
+
+    func setBadgeCount(_ count: Int) async {
+        await center.setBadgeCount(count)
+    }
+
+    func updateBadgesAfterScheduling() async {
+        let records = await center.pendingNotificationRecords()
+        let sorted = records
+            .filter { !shouldPreservePendingRequestOnStartup($0.identifier) }
+            .sorted { ($0.nextTriggerDate ?? .distantFuture) < ($1.nextTriggerDate ?? .distantFuture) }
+
+        for (index, record) in sorted.enumerated() {
+            guard let fireDate = record.nextTriggerDate else { continue }
+            let content = UNMutableNotificationContent()
+            content.title = record.title
+            content.body = record.body
+            if let soundName = record.soundName {
+                content.sound = UNNotificationSound(named: UNNotificationSoundName(soundName))
+            }
+            content.categoryIdentifier = record.categoryIdentifier
+            if !record.userInfoStrings.isEmpty {
+                content.userInfo = Dictionary(uniqueKeysWithValues: record.userInfoStrings.map { ($0.key as AnyHashable, $0.value) })
+            }
+            content.badge = NSNumber(value: index + 1)
+            let comps = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate)
+            let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
+            let request = UNNotificationRequest(identifier: record.identifier, content: content, trigger: trigger)
+            _ = await center.addOrReplace(request: request)
+        }
     }
 
     func cancelAllExceptOneOffRequests() async {

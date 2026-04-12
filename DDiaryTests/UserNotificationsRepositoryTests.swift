@@ -954,7 +954,10 @@ private final class FakeNotificationCenter: UserNotificationCentering, @unchecke
 
     func pendingNotificationRecords() async -> [PendingNotificationRecord] {
         pendingRequests.values.map { request in
-            PendingNotificationRecord(
+            let userInfoStrings = request.content.userInfo.reduce(into: [String: String]()) { dict, pair in
+                if let key = pair.key as? String, let value = pair.value as? String { dict[key] = value }
+            }
+            return PendingNotificationRecord(
                 identifier: request.identifier,
                 nextTriggerDate: {
                     guard let calendarTrigger = request.trigger as? UNCalendarNotificationTrigger else { return nil }
@@ -962,6 +965,9 @@ private final class FakeNotificationCenter: UserNotificationCentering, @unchecke
                 }(),
                 categoryIdentifier: request.content.categoryIdentifier,
                 title: request.content.title,
+                body: request.content.body,
+                soundName: request.content.sound != nil ? "alarm-tone.caf" : nil,
+                userInfoStrings: userInfoStrings,
                 mealSlotRawValue: request.content.userInfo[UserNotificationsRepository.PayloadKeys.mealSlot] as? String,
                 measurementTypeRawValue: request.content.userInfo[UserNotificationsRepository.PayloadKeys.measurementType] as? String
             )
@@ -970,5 +976,11 @@ private final class FakeNotificationCenter: UserNotificationCentering, @unchecke
 
     func deliveredNotificationRecords() async -> [DeliveredNotificationRecord] {
         Array(deliveredRecordsByID.values)
+    }
+
+    var badgeCount: Int = 0
+
+    func setBadgeCount(_ count: Int) async {
+        badgeCount = count
     }
 }

@@ -206,6 +206,16 @@ public protocol NotificationsRepository: Sendable {
     /// Preserves pending requests whose identifiers contain `.snooze.` or `.shifted.`.
     /// Delivered notifications are always cleared regardless of identifier.
     func cancelAllExceptOneOffRequests() async
+
+    // MARK: Badge management
+
+    /// Set the app icon badge to the given count. Pass 0 to clear the badge.
+    func setBadgeCount(_ count: Int) async
+
+    /// Reassign sequential badge numbers on all non-one-off pending notifications,
+    /// sorted by fire date, so the badge increments naturally as each fires.
+    /// Call this after scheduling to keep badge numbers in sync with the queue.
+    func updateBadgesAfterScheduling() async
 }
 
 // MARK: - Convenience APIs from UserSettings (MainActor-only)
@@ -272,6 +282,12 @@ public extension NotificationsRepository {
         await cancelAll()
     }
 
+    /// Default no-op; concrete types provide the real implementation.
+    func setBadgeCount(_ count: Int) async {}
+
+    /// Default no-op; concrete types provide the real implementation.
+    func updateBadgesAfterScheduling() async {}
+
     /// When a before-meal measurement is logged off schedule, shift today's paired
     /// after-meal (2h) reminder from the original planned time to the new +2h time.
     func rescheduleShiftedAfterMeal2hNotification(
@@ -320,6 +336,7 @@ public extension NotificationsRepository {
         await cancelAllExceptOneOffRequests()
         try await scheduleBPNotifications(settings: settings)
         try await scheduleGlucoseNotifications(settings: settings)
+        await updateBadgesAfterScheduling()
     }
 
     /// Schedules a debug-only BP notification that matches production category/content.

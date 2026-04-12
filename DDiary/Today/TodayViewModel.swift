@@ -301,6 +301,10 @@ public final class TodayViewModel {
 
         await syncNotificationsFromTodayOverview(overview)
 
+        let missedCount = bpSlots.filter { $0.status == .due || $0.status == .missed }.count
+                        + glucoseSlots.filter { $0.status == .due || $0.status == .missed }.count
+        await notificationsRepository.setBadgeCount(missedCount)
+
         isLoading = false
     }
 
