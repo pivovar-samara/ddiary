@@ -31,6 +31,7 @@ protocol UserNotificationCentering: Sendable {
     func deliveredNotificationIdentifiers() async -> [String]
     func pendingNotificationRecords() async -> [PendingNotificationRecord]
     func deliveredNotificationRecords() async -> [DeliveredNotificationRecord]
+    func setBadgeCount(_ count: Int) async
 }
 
 struct LiveUserNotificationCenter: UserNotificationCentering, @unchecked Sendable {
@@ -101,12 +102,10 @@ struct LiveUserNotificationCenter: UserNotificationCentering, @unchecked Sendabl
         await withCheckedContinuation { continuation in
             center.getPendingNotificationRequests { requests in
                 let records = requests.map { request in
-                    PendingNotificationRecord(
+                    let nextTriggerDate = (request.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate()
+                    return PendingNotificationRecord(
                         identifier: request.identifier,
-                        nextTriggerDate: {
-                            guard let calendarTrigger = request.trigger as? UNCalendarNotificationTrigger else { return nil }
-                            return calendarTrigger.nextTriggerDate()
-                        }(),
+                        nextTriggerDate: nextTriggerDate,
                         categoryIdentifier: request.content.categoryIdentifier,
                         title: request.content.title,
                         mealSlotRawValue: request.content.userInfo["mealSlot"] as? String,
@@ -135,6 +134,12 @@ struct LiveUserNotificationCenter: UserNotificationCentering, @unchecked Sendabl
             }
         }
     }
+
+    func setBadgeCount(_ count: Int) async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            center.setBadgeCount(count) { _ in continuation.resume() }
+        }
+    }
 }
 
 /*
@@ -158,6 +163,13 @@ Usage notes:
     }
 
 */
+
+/// Notification userInfo payload keys. Defined at module scope with computed properties
+/// so actor-isolation inference does not apply (computed statics are functions, not stored state).
+enum NotificationPayloadKeys {
+    static var mealSlot: String { "mealSlot" }
+    static var measurementType: String { "measurementType" }
+}
 
 struct UserNotificationsRepository: NotificationsRepository, Sendable {
     private static let maxPendingNotificationRequests = 64
@@ -199,10 +211,7 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         static let glucoseBedtimePrefix = "ddiary.glucose.bedtime."
     }
 
-    enum PayloadKeys {
-        static let mealSlot = "mealSlot"
-        static let measurementType = "measurementType"
-    }
+    typealias PayloadKeys = NotificationPayloadKeys
 
     // MARK: - Public category registration
     static func registerCategories(center: any UserNotificationCentering = LiveUserNotificationCenter()) {
@@ -389,6 +398,10 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
     func cancelAll() async {
         center.removeAllPendingNotificationRequests()
         center.removeAllDeliveredNotifications()
+    }
+
+    func setBadgeCount(_ count: Int) async {
+        await center.setBadgeCount(count)
     }
 
     func cancelAllExceptOneOffRequests() async {

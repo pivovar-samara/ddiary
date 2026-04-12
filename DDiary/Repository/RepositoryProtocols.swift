@@ -206,6 +206,18 @@ public protocol NotificationsRepository: Sendable {
     /// Preserves pending requests whose identifiers contain `.snooze.` or `.shifted.`.
     /// Delivered notifications are always cleared regardless of identifier.
     func cancelAllExceptOneOffRequests() async
+
+    // MARK: Badge management
+
+    /// Set the app icon badge to the given count. Pass 0 to clear the badge.
+    func setBadgeCount(_ count: Int) async
+}
+
+// MARK: - Badge management defaults (nonisolated)
+/// Default no-op badge implementation. Intentionally *not* in the @MainActor extension
+/// so conforming types do not inherit main-actor isolation on their matching witness.
+public extension NotificationsRepository {
+    func setBadgeCount(_ count: Int) async {}
 }
 
 // MARK: - Convenience APIs from UserSettings (MainActor-only)
@@ -272,6 +284,7 @@ public extension NotificationsRepository {
         await cancelAll()
     }
 
+
     /// When a before-meal measurement is logged off schedule, shift today's paired
     /// after-meal (2h) reminder from the original planned time to the new +2h time.
     func rescheduleShiftedAfterMeal2hNotification(
@@ -307,8 +320,8 @@ public extension NotificationsRepository {
             body: payload.body,
             categoryIdentifier: UserNotificationsRepository.IDs.glucoseAfterCategory,
             userInfo: [
-                UserNotificationsRepository.PayloadKeys.mealSlot: mealSlot.rawValue,
-                UserNotificationsRepository.PayloadKeys.measurementType: GlucoseMeasurementType.afterMeal2h.rawValue,
+                "mealSlot": mealSlot.rawValue,
+                "measurementType": GlucoseMeasurementType.afterMeal2h.rawValue,
             ]
         )
     }
@@ -347,8 +360,8 @@ public extension NotificationsRepository {
             body: L10n.notificationGlucoseBeforeBreakfastBody,
             categoryIdentifier: UserNotificationsRepository.IDs.glucoseBeforeCategory,
             userInfo: [
-                UserNotificationsRepository.PayloadKeys.mealSlot: MealSlot.breakfast.rawValue,
-                UserNotificationsRepository.PayloadKeys.measurementType: GlucoseMeasurementType.beforeMeal.rawValue,
+                "mealSlot": MealSlot.breakfast.rawValue,
+                "measurementType": GlucoseMeasurementType.beforeMeal.rawValue,
             ]
         )
     }
