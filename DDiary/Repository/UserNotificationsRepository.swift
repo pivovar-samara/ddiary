@@ -583,6 +583,7 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         content.body = body
         content.sound = UNNotificationSound(named: UNNotificationSoundName("alarm-tone.caf"))
         content.categoryIdentifier = categoryIdentifier
+        content.badge = 1  // Lights the icon badge when the notification fires; real count is set by TodayViewModel on app open.
         if !userInfo.isEmpty { content.userInfo = userInfo }
         return content
     }
