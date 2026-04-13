@@ -742,6 +742,70 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         XCTAssertTrue(reminders.isEmpty)
     }
 
+    /// Regression test: iOS can deliver a notification several minutes (or even hours, when
+    /// DND/low-power defers it) after the scheduled time. When that delay crosses a minute
+    /// boundary the reminder reconstruction and identifier-based cancellation were broken
+    /// because scheduledReminders used deliveredDate instead of the original trigger time.
+    func test_scheduledReminders_usesScheduledDateNotDeliveredDateForFiltering() async {
+        let center = FakeNotificationCenter()
+        let repository = UserNotificationsRepository(center: center)
+        let calendar = Calendar.current
+        let today = Date()
+        let todayMid = calendar.startOfDay(for: today).addingTimeInterval(12 * 60 * 60) // noon
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: today))!
+                            .addingTimeInterval(0.5 * 60 * 60) // 00:30 next day
+
+        // Record A: scheduled today (noon) but iOS delivered it tomorrow (extreme DND delay).
+        // scheduledDate governs filtering → it MUST appear in today's reminders.
+        center.deliveredRecordsByID["gl.late"] = DeliveredNotificationRecord(
+            identifier: "gl.late",
+            deliveredDate: tomorrow,   // delivered next day
+            scheduledDate: todayMid,   // planned for today
+            categoryIdentifier: UserNotificationsRepository.IDs.glucoseBeforeCategory,
+            title: L10n.notificationGlucoseBeforeLunchTitle,
+            mealSlotRawValue: MealSlot.lunch.rawValue,
+            measurementTypeRawValue: GlucoseMeasurementType.beforeMeal.rawValue
+        )
+        center.deliveredIdentifiers.insert("gl.late")
+
+        // Record B: delivered today but scheduled tomorrow.
+        // scheduledDate governs filtering → it must NOT appear in today's reminders.
+        center.deliveredRecordsByID["gl.early"] = DeliveredNotificationRecord(
+            identifier: "gl.early",
+            deliveredDate: todayMid,   // delivered today
+            scheduledDate: tomorrow,   // planned for tomorrow
+            categoryIdentifier: UserNotificationsRepository.IDs.glucoseBeforeCategory,
+            title: L10n.notificationGlucoseBeforeBreakfastTitle,
+            mealSlotRawValue: MealSlot.breakfast.rawValue,
+            measurementTypeRawValue: GlucoseMeasurementType.beforeMeal.rawValue
+        )
+        center.deliveredIdentifiers.insert("gl.early")
+
+        // Record C: scheduled and delivered today (normal on-time case) — must be INCLUDED.
+        center.deliveredRecordsByID["gl.ontime"] = DeliveredNotificationRecord(
+            identifier: "gl.ontime",
+            deliveredDate: todayMid,
+            scheduledDate: todayMid,
+            categoryIdentifier: UserNotificationsRepository.IDs.glucoseBeforeCategory,
+            title: L10n.notificationGlucoseBeforeDinnerTitle,
+            mealSlotRawValue: MealSlot.dinner.rawValue,
+            measurementTypeRawValue: GlucoseMeasurementType.beforeMeal.rawValue
+        )
+        center.deliveredIdentifiers.insert("gl.ontime")
+
+        let reminders = await repository.scheduledReminders(on: today)
+
+        // A and C are planned for today; B is planned for tomorrow → 2 results.
+        XCTAssertEqual(reminders.count, 2, "scheduledDate, not deliveredDate, governs day-range filtering")
+        // A: late-delivered but planned for today — present with the PLANNED time as its date.
+        XCTAssertTrue(reminders.contains(where: { $0.date == todayMid }))
+        // B: delivered today but planned for tomorrow — absent.
+        XCTAssertFalse(reminders.contains(where: {
+            guard case .glucose(let slot, _) = $0.kind else { return false }
+            return slot == .breakfast
+        }))
+    }
+
     // MARK: - cancelAllExceptOneOffRequests
 
     func test_cancelAllExceptOneOffRequests_removesRegularNotificationsAndPreservesSnoozeAndShifted() async {

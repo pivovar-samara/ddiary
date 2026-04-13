@@ -125,9 +125,18 @@ struct LiveUserNotificationCenter: UserNotificationCentering, @unchecked Sendabl
     func deliveredNotificationRecords() async -> [DeliveredNotificationRecord] {
         await withCheckedContinuation { continuation in
             center.getDeliveredNotifications { notifications in
+                // Build the calendar once outside the loop (not inside map).
+                let baseCalendar = Calendar.current
                 let records = notifications.map { notification in
                     let calendarTrigger = notification.request.trigger as? UNCalendarNotificationTrigger
-                    let scheduledDate = calendarTrigger.flatMap { Calendar.current.date(from: $0.dateComponents) }
+                    let scheduledDate: Date? = calendarTrigger.flatMap { trigger in
+                        // Honour the timezone encoded in the trigger's date components, if any.
+                        // This avoids reconstructing the wrong hour around DST transitions or when
+                        // the notification was scheduled while the device was in a different timezone.
+                        var cal = baseCalendar
+                        if let tz = trigger.dateComponents.timeZone { cal.timeZone = tz }
+                        return cal.date(from: trigger.dateComponents)
+                    }
                     return DeliveredNotificationRecord(
                         identifier: notification.request.identifier,
                         deliveredDate: notification.date,
