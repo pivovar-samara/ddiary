@@ -749,11 +749,13 @@ final class UserNotificationsRepositoryTests: XCTestCase {
     func test_scheduledReminders_usesScheduledDateNotDeliveredDateForFiltering() async {
         let center = FakeNotificationCenter()
         let repository = UserNotificationsRepository(center: center)
-        let calendar = Calendar.current
-        let today = Date()
-        let todayMid = calendar.startOfDay(for: today).addingTimeInterval(12 * 60 * 60) // noon
-        let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: today))!
-                            .addingTimeInterval(0.5 * 60 * 60) // 00:30 next day
+        // Use a fixed Gregorian/UTC calendar and pinned dates so the test is immune to
+        // real-clock values, midnight boundaries, DST transitions, and CI timezone differences.
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = TimeZone(identifier: "UTC")!
+        let todayMid = utc.date(from: DateComponents(year: 2026, month: 6, day: 15, hour: 12, minute: 0))!
+        let tomorrow = utc.date(from: DateComponents(year: 2026, month: 6, day: 16, hour: 0, minute: 30))!
+        let referenceDay = utc.date(from: DateComponents(year: 2026, month: 6, day: 15, hour: 8, minute: 0))!
 
         // Record A: scheduled today (noon) but iOS delivered it tomorrow (extreme DND delay).
         // scheduledDate governs filtering → it MUST appear in today's reminders.
@@ -793,9 +795,9 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         )
         center.deliveredIdentifiers.insert("gl.ontime")
 
-        let reminders = await repository.scheduledReminders(on: today)
+        let reminders = await repository.scheduledReminders(on: referenceDay)
 
-        // A and C are planned for today; B is planned for tomorrow → 2 results.
+        // A and C are planned for 2026-06-15; B is planned for 2026-06-16 → 2 results.
         XCTAssertEqual(reminders.count, 2, "scheduledDate, not deliveredDate, governs day-range filtering")
         // A: late-delivered but planned for today — present with the PLANNED time as its date.
         XCTAssertTrue(reminders.contains(where: { $0.date == todayMid }))
@@ -937,6 +939,10 @@ final class UserNotificationsRepositoryTests: XCTestCase {
 }
 
 private final class FakeNotificationCenter: UserNotificationCentering, @unchecked Sendable {
+    /// Stable sentinel date used when auto-populating delivered records from `deliveredIdentifiers`.
+    /// Fixed to 2001-01-01 00:00:00 UTC so tests that rely on this path are not time-dependent.
+    static let defaultDeliveredDate = Date(timeIntervalSinceReferenceDate: 0)
+
     var authorizationResult: Result<Bool, Error> = .success(true)
     var categories: [UNNotificationCategory] = []
     var pendingRequests: [String: UNNotificationRequest] = [:]
@@ -948,7 +954,7 @@ private final class FakeNotificationCenter: UserNotificationCentering, @unchecke
             for identifier in deliveredIdentifiers where deliveredRecordsByID[identifier] == nil {
                 deliveredRecordsByID[identifier] = DeliveredNotificationRecord(
                     identifier: identifier,
-                    deliveredDate: Date(),
+                    deliveredDate: FakeNotificationCenter.defaultDeliveredDate,
                     scheduledDate: nil,
                     categoryIdentifier: "",
                     title: "",

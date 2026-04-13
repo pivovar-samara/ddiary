@@ -130,12 +130,19 @@ struct LiveUserNotificationCenter: UserNotificationCentering, @unchecked Sendabl
                 let records = notifications.map { notification in
                     let calendarTrigger = notification.request.trigger as? UNCalendarNotificationTrigger
                     let scheduledDate: Date? = calendarTrigger.flatMap { trigger in
-                        // Honour the timezone encoded in the trigger's date components, if any.
-                        // This avoids reconstructing the wrong hour around DST transitions or when
-                        // the notification was scheduled while the device was in a different timezone.
+                        // Only reconstruct when the components are complete enough to produce a
+                        // meaningful date. Repeating (non-cycle) triggers store only hour/minute;
+                        // Calendar.date(from:) on such incomplete components fills in arbitrary
+                        // defaults instead of returning nil, silently yielding the wrong date.
+                        let dc = trigger.dateComponents
+                        guard dc.year != nil, dc.month != nil, dc.day != nil,
+                              dc.hour != nil, dc.minute != nil
+                        else { return nil }
+                        // Honour the timezone encoded in the components, if any, to avoid
+                        // reconstructing the wrong hour around DST transitions.
                         var cal = baseCalendar
-                        if let tz = trigger.dateComponents.timeZone { cal.timeZone = tz }
-                        return cal.date(from: trigger.dateComponents)
+                        if let tz = dc.timeZone { cal.timeZone = tz }
+                        return cal.date(from: dc)
                     }
                     return DeliveredNotificationRecord(
                         identifier: notification.request.identifier,
