@@ -13,6 +13,11 @@ struct PendingNotificationRecord: Sendable {
 struct DeliveredNotificationRecord: Sendable {
     let identifier: String
     let deliveredDate: Date
+    /// Original planned fire date reconstructed from the trigger's dateComponents.
+    /// Use this (rather than deliveredDate) when you need the scheduled time — iOS can
+    /// deliver a notification minutes after its scheduled time (DND, low-power, throttling),
+    /// so deliveredDate may differ from the planned minute, breaking identifier-based lookup.
+    let scheduledDate: Date?
     let categoryIdentifier: String
     let title: String
     let mealSlotRawValue: String?
@@ -121,9 +126,12 @@ struct LiveUserNotificationCenter: UserNotificationCentering, @unchecked Sendabl
         await withCheckedContinuation { continuation in
             center.getDeliveredNotifications { notifications in
                 let records = notifications.map { notification in
-                    DeliveredNotificationRecord(
+                    let calendarTrigger = notification.request.trigger as? UNCalendarNotificationTrigger
+                    let scheduledDate = calendarTrigger.flatMap { Calendar.current.date(from: $0.dateComponents) }
+                    return DeliveredNotificationRecord(
                         identifier: notification.request.identifier,
                         deliveredDate: notification.date,
+                        scheduledDate: scheduledDate,
                         categoryIdentifier: notification.request.content.categoryIdentifier,
                         title: notification.request.content.title,
                         mealSlotRawValue: notification.request.content.userInfo["mealSlot"] as? String,
@@ -535,13 +543,18 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
 
         let delivered = await center.deliveredNotificationRecords()
         for record in delivered {
-            guard record.deliveredDate >= dayStart, record.deliveredDate < dayEnd else { continue }
+            // Use scheduledDate (from trigger components) for day-range filtering and for passing
+            // back to callers as the "planned time". deliveredDate can differ by several minutes
+            // (DND, low-power throttling), which would produce a wrong originalAfterDate when
+            // the caller uses it to reconstruct an identifier for cancelPlannedGlucoseNotification.
+            let referenceDate = record.scheduledDate ?? record.deliveredDate
+            guard referenceDate >= dayStart, referenceDate < dayEnd else { continue }
             if let reminder = scheduledReminder(
                 categoryIdentifier: record.categoryIdentifier,
                 title: record.title,
                 mealSlotRawValue: record.mealSlotRawValue,
                 measurementTypeRawValue: record.measurementTypeRawValue,
-                at: record.deliveredDate
+                at: referenceDate
             ) {
                 reminders.append(reminder)
             }

@@ -686,6 +686,7 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         center.deliveredRecordsByID["gl.delivered"] = DeliveredNotificationRecord(
             identifier: "gl.delivered",
             deliveredDate: deliveredDate,
+            scheduledDate: deliveredDate,
             categoryIdentifier: UserNotificationsRepository.IDs.glucoseBeforeCategory,
             title: L10n.notificationGlucoseBeforeLunchTitle,
             mealSlotRawValue: MealSlot.lunch.rawValue,
@@ -728,6 +729,7 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         center.deliveredRecordsByID["gl.tomorrow"] = DeliveredNotificationRecord(
             identifier: "gl.tomorrow",
             deliveredDate: tomorrow,
+            scheduledDate: tomorrow,
             categoryIdentifier: UserNotificationsRepository.IDs.glucoseBedtimeCategory,
             title: L10n.notificationGlucoseBedtimeTitle,
             mealSlotRawValue: MealSlot.none.rawValue,
@@ -883,6 +885,7 @@ private final class FakeNotificationCenter: UserNotificationCentering, @unchecke
                 deliveredRecordsByID[identifier] = DeliveredNotificationRecord(
                     identifier: identifier,
                     deliveredDate: Date(),
+                    scheduledDate: nil,
                     categoryIdentifier: "",
                     title: "",
                     mealSlotRawValue: nil,
