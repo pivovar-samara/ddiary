@@ -143,11 +143,11 @@ final class UserNotificationsRepositoryTests: XCTestCase {
             }
         )
         XCTAssertEqual(
-            request.content.userInfo[UserNotificationsRepository.PayloadKeys.mealSlot] as? String,
+            request.content.userInfo["mealSlot"] as? String,
             MealSlot.lunch.rawValue
         )
         XCTAssertEqual(
-            request.content.userInfo[UserNotificationsRepository.PayloadKeys.measurementType] as? String,
+            request.content.userInfo["measurementType"] as? String,
             GlucoseMeasurementType.beforeMeal.rawValue
         )
     }
@@ -433,8 +433,8 @@ final class UserNotificationsRepositoryTests: XCTestCase {
             body: "body",
             categoryIdentifier: UserNotificationsRepository.IDs.glucoseBeforeCategory,
             userInfo: [
-                UserNotificationsRepository.PayloadKeys.mealSlot: MealSlot.breakfast.rawValue,
-                UserNotificationsRepository.PayloadKeys.measurementType: GlucoseMeasurementType.beforeMeal.rawValue,
+                "mealSlot": MealSlot.breakfast.rawValue,
+                "measurementType": GlucoseMeasurementType.beforeMeal.rawValue,
             ]
         )
 
@@ -443,11 +443,11 @@ final class UserNotificationsRepositoryTests: XCTestCase {
             return
         }
         XCTAssertEqual(
-            request.content.userInfo[UserNotificationsRepository.PayloadKeys.mealSlot] as? String,
+            request.content.userInfo["mealSlot"] as? String,
             MealSlot.breakfast.rawValue
         )
         XCTAssertEqual(
-            request.content.userInfo[UserNotificationsRepository.PayloadKeys.measurementType] as? String,
+            request.content.userInfo["measurementType"] as? String,
             GlucoseMeasurementType.beforeMeal.rawValue
         )
         let trigger = request.trigger as? UNCalendarNotificationTrigger
@@ -508,11 +508,11 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         let request = try? XCTUnwrap(center.pendingRequests[snoozedID])
         XCTAssertNotNil(request)
         XCTAssertEqual(
-            request?.content.userInfo[UserNotificationsRepository.PayloadKeys.mealSlot] as? String,
+            request?.content.userInfo["mealSlot"] as? String,
             MealSlot.lunch.rawValue
         )
         XCTAssertEqual(
-            request?.content.userInfo[UserNotificationsRepository.PayloadKeys.measurementType] as? String,
+            request?.content.userInfo["measurementType"] as? String,
             GlucoseMeasurementType.beforeMeal.rawValue
         )
     }
@@ -624,11 +624,11 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         XCTAssertEqual(shiftedRequest?.content.categoryIdentifier, UserNotificationsRepository.IDs.glucoseAfterCategory)
         XCTAssertEqual(shiftedRequest?.content.title, L10n.notificationGlucoseAfterLunch2hTitle)
         XCTAssertEqual(
-            shiftedRequest?.content.userInfo[UserNotificationsRepository.PayloadKeys.mealSlot] as? String,
+            shiftedRequest?.content.userInfo["mealSlot"] as? String,
             MealSlot.lunch.rawValue
         )
         XCTAssertEqual(
-            shiftedRequest?.content.userInfo[UserNotificationsRepository.PayloadKeys.measurementType] as? String,
+            shiftedRequest?.content.userInfo["measurementType"] as? String,
             GlucoseMeasurementType.afterMeal2h.rawValue
         )
         let removedPending = Set(center.removedPendingIdentifiers.flatMap { $0 })
@@ -660,11 +660,11 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         XCTAssertEqual(glucoseRequest?.content.categoryIdentifier, UserNotificationsRepository.IDs.glucoseBeforeCategory)
         XCTAssertEqual(glucoseRequest?.content.title, L10n.notificationGlucoseBeforeBreakfastTitle)
         XCTAssertEqual(
-            glucoseRequest?.content.userInfo[UserNotificationsRepository.PayloadKeys.mealSlot] as? String,
+            glucoseRequest?.content.userInfo["mealSlot"] as? String,
             MealSlot.breakfast.rawValue
         )
         XCTAssertEqual(
-            glucoseRequest?.content.userInfo[UserNotificationsRepository.PayloadKeys.measurementType] as? String,
+            glucoseRequest?.content.userInfo["measurementType"] as? String,
             GlucoseMeasurementType.beforeMeal.rawValue
         )
     }
@@ -748,11 +748,13 @@ final class UserNotificationsRepositoryTests: XCTestCase {
     /// because scheduledReminders used deliveredDate instead of the original trigger time.
     func test_scheduledReminders_usesScheduledDateNotDeliveredDateForFiltering() async {
         let center = FakeNotificationCenter()
-        let repository = UserNotificationsRepository(center: center)
         // Use a fixed Gregorian/UTC calendar and pinned dates so the test is immune to
         // real-clock values, midnight boundaries, DST transitions, and CI timezone differences.
+        // Inject the same UTC calendar into the repository so day-range filtering uses UTC
+        // boundaries, which are consistent with the pinned UTC dates constructed below.
         var utc = Calendar(identifier: .gregorian)
         utc.timeZone = TimeZone(identifier: "UTC")!
+        let repository = UserNotificationsRepository(center: center, calendar: utc)
         let todayMid = utc.date(from: DateComponents(year: 2026, month: 6, day: 15, hour: 12, minute: 0))!
         let tomorrow = utc.date(from: DateComponents(year: 2026, month: 6, day: 16, hour: 0, minute: 30))!
         let referenceDay = utc.date(from: DateComponents(year: 2026, month: 6, day: 15, hour: 8, minute: 0))!
@@ -904,10 +906,10 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         content.title = title
         var userInfo: [AnyHashable: Any] = [:]
         if let mealSlot {
-            userInfo[UserNotificationsRepository.PayloadKeys.mealSlot] = mealSlot.rawValue
+            userInfo["mealSlot"] = mealSlot.rawValue
         }
         if let measurementType {
-            userInfo[UserNotificationsRepository.PayloadKeys.measurementType] = measurementType.rawValue
+            userInfo["measurementType"] = measurementType.rawValue
         }
         if !userInfo.isEmpty {
             content.userInfo = userInfo
@@ -1033,8 +1035,8 @@ private final class FakeNotificationCenter: UserNotificationCentering, @unchecke
                 nextTriggerDate: nextTriggerDate,
                 categoryIdentifier: request.content.categoryIdentifier,
                 title: request.content.title,
-                mealSlotRawValue: request.content.userInfo[UserNotificationsRepository.PayloadKeys.mealSlot] as? String,
-                measurementTypeRawValue: request.content.userInfo[UserNotificationsRepository.PayloadKeys.measurementType] as? String
+                mealSlotRawValue: request.content.userInfo["mealSlot"] as? String,
+                measurementTypeRawValue: request.content.userInfo["measurementType"] as? String
             )
         }
     }

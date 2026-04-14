@@ -188,13 +188,6 @@ Usage notes:
 
 */
 
-/// Notification userInfo payload keys. Defined at module scope with computed properties
-/// so actor-isolation inference does not apply (computed statics are functions, not stored state).
-enum NotificationPayloadKeys {
-    static var mealSlot: String { "mealSlot" }
-    static var measurementType: String { "measurementType" }
-}
-
 struct UserNotificationsRepository: NotificationsRepository, Sendable {
     private static let maxPendingNotificationRequests = 64
     private let center: any UserNotificationCentering
@@ -234,8 +227,6 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         static let glucoseAfterPrefix = "ddiary.glucose.after."
         static let glucoseBedtimePrefix = "ddiary.glucose.bedtime."
     }
-
-    typealias PayloadKeys = NotificationPayloadKeys
 
     // MARK: - Public category registration
     static func registerCategories(center: any UserNotificationCentering = LiveUserNotificationCenter()) {
@@ -479,10 +470,10 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         let snoozedID = originalIdentifier + ".snooze.\(minutes)"
         var userInfo: [AnyHashable: Any] = [:]
         if let mealSlotRawValue {
-            userInfo[PayloadKeys.mealSlot] = mealSlotRawValue
+            userInfo["mealSlot"] = mealSlotRawValue
         }
         if let measurementTypeRawValue {
-            userInfo[PayloadKeys.measurementType] = measurementTypeRawValue
+            userInfo["measurementType"] = measurementTypeRawValue
         }
         await scheduleOneOff(
             at: fireDate,
@@ -537,7 +528,7 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
     }
 
     public func scheduledReminders(on day: Date) async -> [ScheduledReminder] {
-        let calendar = Calendar.current
+        let calendar = self.calendar
         let dayStart = calendar.startOfDay(for: day)
         let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart
         var reminders: [ScheduledReminder] = []
@@ -627,7 +618,7 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
             requestedWindowDays: numberOfDays
         )
         guard cappedDays > 0 else { return }
-        let calendar = Calendar.current
+        let calendar = self.calendar
         let startOfWindow = calendar.startOfDay(for: startDate)
 
         for dayOffset in 0..<cappedDays {
@@ -896,8 +887,8 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         measurementType: GlucoseMeasurementType
     ) -> [AnyHashable: Any] {
         [
-            PayloadKeys.mealSlot: mealSlot.rawValue,
-            PayloadKeys.measurementType: measurementType.rawValue,
+            "mealSlot": mealSlot.rawValue,
+            "measurementType": measurementType.rawValue,
         ]
     }
 
