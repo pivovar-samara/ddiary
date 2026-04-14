@@ -143,11 +143,11 @@ final class UserNotificationsRepositoryTests: XCTestCase {
             }
         )
         XCTAssertEqual(
-            request.content.userInfo[UserNotificationsRepository.PayloadKeys.mealSlot] as? String,
+            request.content.userInfo["mealSlot"] as? String,
             MealSlot.lunch.rawValue
         )
         XCTAssertEqual(
-            request.content.userInfo[UserNotificationsRepository.PayloadKeys.measurementType] as? String,
+            request.content.userInfo["measurementType"] as? String,
             GlucoseMeasurementType.beforeMeal.rawValue
         )
     }
@@ -433,8 +433,8 @@ final class UserNotificationsRepositoryTests: XCTestCase {
             body: "body",
             categoryIdentifier: UserNotificationsRepository.IDs.glucoseBeforeCategory,
             userInfo: [
-                UserNotificationsRepository.PayloadKeys.mealSlot: MealSlot.breakfast.rawValue,
-                UserNotificationsRepository.PayloadKeys.measurementType: GlucoseMeasurementType.beforeMeal.rawValue,
+                "mealSlot": MealSlot.breakfast.rawValue,
+                "measurementType": GlucoseMeasurementType.beforeMeal.rawValue,
             ]
         )
 
@@ -443,11 +443,11 @@ final class UserNotificationsRepositoryTests: XCTestCase {
             return
         }
         XCTAssertEqual(
-            request.content.userInfo[UserNotificationsRepository.PayloadKeys.mealSlot] as? String,
+            request.content.userInfo["mealSlot"] as? String,
             MealSlot.breakfast.rawValue
         )
         XCTAssertEqual(
-            request.content.userInfo[UserNotificationsRepository.PayloadKeys.measurementType] as? String,
+            request.content.userInfo["measurementType"] as? String,
             GlucoseMeasurementType.beforeMeal.rawValue
         )
         let trigger = request.trigger as? UNCalendarNotificationTrigger
@@ -508,11 +508,11 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         let request = try? XCTUnwrap(center.pendingRequests[snoozedID])
         XCTAssertNotNil(request)
         XCTAssertEqual(
-            request?.content.userInfo[UserNotificationsRepository.PayloadKeys.mealSlot] as? String,
+            request?.content.userInfo["mealSlot"] as? String,
             MealSlot.lunch.rawValue
         )
         XCTAssertEqual(
-            request?.content.userInfo[UserNotificationsRepository.PayloadKeys.measurementType] as? String,
+            request?.content.userInfo["measurementType"] as? String,
             GlucoseMeasurementType.beforeMeal.rawValue
         )
     }
@@ -575,6 +575,59 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         XCTAssertNotNil(center.pendingRequests[snoozedID], "snoozed notification must survive rescheduleGlucoseCycle")
     }
 
+    /// Regression: when the user logs a before-meal measurement off-schedule, the after-meal
+    /// reminder is shifted (e.g. 20:30 → 21:00). A subsequent `rescheduleGlucoseCycle` call
+    /// (triggered by app launch or settings save) must NOT re-add the original cycle time (20:30),
+    /// which would result in the user receiving two pushes for the same slot.
+    func test_rescheduleGlucoseCycle_doesNotReaddCycleSlotWhenShiftedOneOffIsPending() async throws {
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = TimeZone(identifier: "UTC")!
+        let center = FakeNotificationCenter()
+        let repository = UserNotificationsRepository(center: center, calendar: utc)
+
+        // Dinner day: cycle scheduled 20:30 → user shifted to 21:00.
+        // The 20:30 cycle notification was already cancelled by rescheduleShiftedAfterMeal2hNotification,
+        // so it is NOT in pendingRequests. Only the shifted 21:00 survives.
+        let startDate = utc.date(from: DateComponents(year: 2026, month: 4, day: 14, hour: 19, minute: 5))!
+        let shiftedDate = utc.date(from: DateComponents(year: 2026, month: 4, day: 14, hour: 21, minute: 0))!
+        let shiftedID = shiftedAfterID(mealSlot: .dinner, day: shiftedDate, calendar: utc)
+        center.pendingRequests[shiftedID] = makeRequest(id: shiftedID)
+
+        // The original 20:30 cycle ID — must NOT reappear after reschedule.
+        let originalCycleID = cycleID(
+            prefix: UserNotificationsRepository.IDs.glucoseAfterPrefix,
+            day: utc.date(from: DateComponents(year: 2026, month: 4, day: 14, hour: 20, minute: 30))!,
+            hour: 20,
+            minute: 30,
+            calendar: utc
+        )
+        XCTAssertNil(center.pendingRequests[originalCycleID], "pre-condition: 20:30 is already cancelled")
+
+        // Anchor = startOfDay for today so today is dinnerDay (step offset 0 % 4 == 2 for dinner).
+        // Use a 1-day window so only today's reminders are scheduled.
+        let anchorDate = utc.date(from: DateComponents(year: 2026, month: 4, day: 12))! // 2 days before → dinnerDay
+        let configuration = GlucoseCycleConfiguration(
+            anchorDate: anchorDate,
+            breakfast: DateComponents(hour: 8, minute: 0),
+            lunch: DateComponents(hour: 13, minute: 0),
+            dinner: DateComponents(hour: 18, minute: 30),
+            bedtime: DateComponents(hour: 22, minute: 0)
+        )
+
+        try await repository.rescheduleGlucoseCycle(
+            configuration: configuration,
+            startDate: startDate,
+            numberOfDays: 1
+        )
+
+        // The shifted 21:00 must still be present.
+        XCTAssertNotNil(center.pendingRequests[shiftedID],
+                        "shifted 21:00 reminder must survive rescheduleGlucoseCycle")
+        // The original 20:30 must NOT be re-added.
+        XCTAssertNil(center.pendingRequests[originalCycleID],
+                     "20:30 cycle slot must not be re-added when shifted 21:00 is pending for the same slot/day")
+    }
+
     func test_rescheduleBloodPressure_preservesSnoozedNotification() async throws {
         let center = FakeNotificationCenter()
         let repository = UserNotificationsRepository(center: center)
@@ -624,11 +677,11 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         XCTAssertEqual(shiftedRequest?.content.categoryIdentifier, UserNotificationsRepository.IDs.glucoseAfterCategory)
         XCTAssertEqual(shiftedRequest?.content.title, L10n.notificationGlucoseAfterLunch2hTitle)
         XCTAssertEqual(
-            shiftedRequest?.content.userInfo[UserNotificationsRepository.PayloadKeys.mealSlot] as? String,
+            shiftedRequest?.content.userInfo["mealSlot"] as? String,
             MealSlot.lunch.rawValue
         )
         XCTAssertEqual(
-            shiftedRequest?.content.userInfo[UserNotificationsRepository.PayloadKeys.measurementType] as? String,
+            shiftedRequest?.content.userInfo["measurementType"] as? String,
             GlucoseMeasurementType.afterMeal2h.rawValue
         )
         let removedPending = Set(center.removedPendingIdentifiers.flatMap { $0 })
@@ -660,11 +713,11 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         XCTAssertEqual(glucoseRequest?.content.categoryIdentifier, UserNotificationsRepository.IDs.glucoseBeforeCategory)
         XCTAssertEqual(glucoseRequest?.content.title, L10n.notificationGlucoseBeforeBreakfastTitle)
         XCTAssertEqual(
-            glucoseRequest?.content.userInfo[UserNotificationsRepository.PayloadKeys.mealSlot] as? String,
+            glucoseRequest?.content.userInfo["mealSlot"] as? String,
             MealSlot.breakfast.rawValue
         )
         XCTAssertEqual(
-            glucoseRequest?.content.userInfo[UserNotificationsRepository.PayloadKeys.measurementType] as? String,
+            glucoseRequest?.content.userInfo["measurementType"] as? String,
             GlucoseMeasurementType.beforeMeal.rawValue
         )
     }
@@ -686,6 +739,7 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         center.deliveredRecordsByID["gl.delivered"] = DeliveredNotificationRecord(
             identifier: "gl.delivered",
             deliveredDate: deliveredDate,
+            scheduledDate: deliveredDate,
             categoryIdentifier: UserNotificationsRepository.IDs.glucoseBeforeCategory,
             title: L10n.notificationGlucoseBeforeLunchTitle,
             mealSlotRawValue: MealSlot.lunch.rawValue,
@@ -728,6 +782,7 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         center.deliveredRecordsByID["gl.tomorrow"] = DeliveredNotificationRecord(
             identifier: "gl.tomorrow",
             deliveredDate: tomorrow,
+            scheduledDate: tomorrow,
             categoryIdentifier: UserNotificationsRepository.IDs.glucoseBedtimeCategory,
             title: L10n.notificationGlucoseBedtimeTitle,
             mealSlotRawValue: MealSlot.none.rawValue,
@@ -738,6 +793,79 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         let reminders = await repository.scheduledReminders(on: today)
 
         XCTAssertTrue(reminders.isEmpty)
+    }
+
+    /// Regression test: iOS can deliver a notification several minutes (or even hours, when
+    /// DND/low-power defers it) after the scheduled time. When that delay crosses a minute
+    /// boundary the reminder reconstruction and identifier-based cancellation were broken
+    /// because scheduledReminders used deliveredDate instead of the original trigger time.
+    func test_scheduledReminders_usesScheduledDateNotDeliveredDateForFiltering() async {
+        let center = FakeNotificationCenter()
+        // Use a fixed Gregorian/UTC calendar and pinned dates so the test is immune to
+        // real-clock values, midnight boundaries, DST transitions, and CI timezone differences.
+        // Inject the same UTC calendar into the repository so day-range filtering uses UTC
+        // boundaries, which are consistent with the pinned UTC dates constructed below.
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = TimeZone(identifier: "UTC")!
+        let repository = UserNotificationsRepository(center: center, calendar: utc)
+        let todayMid = utc.date(from: DateComponents(year: 2026, month: 6, day: 15, hour: 12, minute: 0))!
+        let tomorrow = utc.date(from: DateComponents(year: 2026, month: 6, day: 16, hour: 0, minute: 30))!
+        let referenceDay = utc.date(from: DateComponents(year: 2026, month: 6, day: 15, hour: 8, minute: 0))!
+
+        // Record A: scheduled today (noon) but iOS delivered it tomorrow (extreme DND delay).
+        // scheduledDate governs filtering → it MUST appear in today's reminders.
+        center.deliveredRecordsByID["gl.late"] = DeliveredNotificationRecord(
+            identifier: "gl.late",
+            deliveredDate: tomorrow,   // delivered next day
+            scheduledDate: todayMid,   // planned for today
+            categoryIdentifier: UserNotificationsRepository.IDs.glucoseBeforeCategory,
+            title: L10n.notificationGlucoseBeforeLunchTitle,
+            mealSlotRawValue: MealSlot.lunch.rawValue,
+            measurementTypeRawValue: GlucoseMeasurementType.beforeMeal.rawValue
+        )
+        center.deliveredIdentifiers.insert("gl.late")
+
+        // Record B: delivered today but scheduled tomorrow.
+        // scheduledDate governs filtering → it must NOT appear in today's reminders.
+        center.deliveredRecordsByID["gl.early"] = DeliveredNotificationRecord(
+            identifier: "gl.early",
+            deliveredDate: todayMid,   // delivered today
+            scheduledDate: tomorrow,   // planned for tomorrow
+            categoryIdentifier: UserNotificationsRepository.IDs.glucoseBeforeCategory,
+            title: L10n.notificationGlucoseBeforeBreakfastTitle,
+            mealSlotRawValue: MealSlot.breakfast.rawValue,
+            measurementTypeRawValue: GlucoseMeasurementType.beforeMeal.rawValue
+        )
+        center.deliveredIdentifiers.insert("gl.early")
+
+        // Record C: scheduled and delivered today (normal on-time case) — must be INCLUDED.
+        center.deliveredRecordsByID["gl.ontime"] = DeliveredNotificationRecord(
+            identifier: "gl.ontime",
+            deliveredDate: todayMid,
+            scheduledDate: todayMid,
+            categoryIdentifier: UserNotificationsRepository.IDs.glucoseBeforeCategory,
+            title: L10n.notificationGlucoseBeforeDinnerTitle,
+            mealSlotRawValue: MealSlot.dinner.rawValue,
+            measurementTypeRawValue: GlucoseMeasurementType.beforeMeal.rawValue
+        )
+        center.deliveredIdentifiers.insert("gl.ontime")
+
+        let reminders = await repository.scheduledReminders(on: referenceDay)
+
+        // A and C are planned for 2026-06-15; B is planned for 2026-06-16 → 2 results.
+        XCTAssertEqual(reminders.count, 2, "scheduledDate, not deliveredDate, governs day-range filtering")
+        // A: late-delivered but planned for today — present with the PLANNED (scheduled) time,
+        // not deliveredDate (tomorrow). Assert specifically on the lunch slot so Record C
+        // (dinner, on-time) cannot mask a regression where Record A wrongly uses deliveredDate.
+        XCTAssertTrue(reminders.contains(where: {
+            guard case .glucose(let slot, _) = $0.kind else { return false }
+            return slot == .lunch && $0.date == todayMid
+        }))
+        // B: delivered today but planned for tomorrow — absent.
+        XCTAssertFalse(reminders.contains(where: {
+            guard case .glucose(let slot, _) = $0.kind else { return false }
+            return slot == .breakfast
+        }))
     }
 
     // MARK: - cancelAllExceptOneOffRequests
@@ -836,10 +964,10 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         content.title = title
         var userInfo: [AnyHashable: Any] = [:]
         if let mealSlot {
-            userInfo[UserNotificationsRepository.PayloadKeys.mealSlot] = mealSlot.rawValue
+            userInfo["mealSlot"] = mealSlot.rawValue
         }
         if let measurementType {
-            userInfo[UserNotificationsRepository.PayloadKeys.measurementType] = measurementType.rawValue
+            userInfo["measurementType"] = measurementType.rawValue
         }
         if !userInfo.isEmpty {
             content.userInfo = userInfo
@@ -871,6 +999,10 @@ final class UserNotificationsRepositoryTests: XCTestCase {
 }
 
 private final class FakeNotificationCenter: UserNotificationCentering, @unchecked Sendable {
+    /// Stable sentinel date used when auto-populating delivered records from `deliveredIdentifiers`.
+    /// Fixed to 2001-01-01 00:00:00 UTC so tests that rely on this path are not time-dependent.
+    static let defaultDeliveredDate = Date(timeIntervalSinceReferenceDate: 0)
+
     var authorizationResult: Result<Bool, Error> = .success(true)
     var categories: [UNNotificationCategory] = []
     var pendingRequests: [String: UNNotificationRequest] = [:]
@@ -882,7 +1014,8 @@ private final class FakeNotificationCenter: UserNotificationCentering, @unchecke
             for identifier in deliveredIdentifiers where deliveredRecordsByID[identifier] == nil {
                 deliveredRecordsByID[identifier] = DeliveredNotificationRecord(
                     identifier: identifier,
-                    deliveredDate: Date(),
+                    deliveredDate: FakeNotificationCenter.defaultDeliveredDate,
+                    scheduledDate: nil,
                     categoryIdentifier: "",
                     title: "",
                     mealSlotRawValue: nil,
@@ -960,8 +1093,8 @@ private final class FakeNotificationCenter: UserNotificationCentering, @unchecke
                 nextTriggerDate: nextTriggerDate,
                 categoryIdentifier: request.content.categoryIdentifier,
                 title: request.content.title,
-                mealSlotRawValue: request.content.userInfo[UserNotificationsRepository.PayloadKeys.mealSlot] as? String,
-                measurementTypeRawValue: request.content.userInfo[UserNotificationsRepository.PayloadKeys.measurementType] as? String
+                mealSlotRawValue: request.content.userInfo["mealSlot"] as? String,
+                measurementTypeRawValue: request.content.userInfo["measurementType"] as? String
             )
         }
     }

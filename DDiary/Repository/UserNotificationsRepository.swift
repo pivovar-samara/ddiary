@@ -13,6 +13,11 @@ struct PendingNotificationRecord: Sendable {
 struct DeliveredNotificationRecord: Sendable {
     let identifier: String
     let deliveredDate: Date
+    /// Original planned fire date reconstructed from the trigger's dateComponents.
+    /// Use this (rather than deliveredDate) when you need the scheduled time — iOS can
+    /// deliver a notification minutes after its scheduled time (DND, low-power, throttling),
+    /// so deliveredDate may differ from the planned minute, breaking identifier-based lookup.
+    let scheduledDate: Date?
     let categoryIdentifier: String
     let title: String
     let mealSlotRawValue: String?
@@ -120,10 +125,30 @@ struct LiveUserNotificationCenter: UserNotificationCentering, @unchecked Sendabl
     func deliveredNotificationRecords() async -> [DeliveredNotificationRecord] {
         await withCheckedContinuation { continuation in
             center.getDeliveredNotifications { notifications in
+                // Build the calendar once outside the loop (not inside map).
+                let baseCalendar = Calendar.current
                 let records = notifications.map { notification in
-                    DeliveredNotificationRecord(
+                    let calendarTrigger = notification.request.trigger as? UNCalendarNotificationTrigger
+                    let scheduledDate: Date? = calendarTrigger.flatMap { trigger in
+                        // Only reconstruct when the components are complete enough to produce a
+                        // meaningful date. Repeating (non-cycle) triggers store only hour/minute;
+                        // Calendar.date(from:) on such incomplete components fills in arbitrary
+                        // defaults instead of returning nil, silently yielding the wrong date.
+                        let dc = trigger.dateComponents
+                        guard dc.year != nil, dc.month != nil, dc.day != nil,
+                              dc.hour != nil, dc.minute != nil
+                        else { return nil }
+                        // Prefer the calendar encoded in the components (e.g. non-Gregorian),
+                        // falling back to baseCalendar if absent. Then honour the timezone so
+                        // that hours round-trip correctly around DST transitions.
+                        var cal = dc.calendar ?? baseCalendar
+                        if let tz = dc.timeZone { cal.timeZone = tz }
+                        return cal.date(from: dc)
+                    }
+                    return DeliveredNotificationRecord(
                         identifier: notification.request.identifier,
                         deliveredDate: notification.date,
+                        scheduledDate: scheduledDate,
                         categoryIdentifier: notification.request.content.categoryIdentifier,
                         title: notification.request.content.title,
                         mealSlotRawValue: notification.request.content.userInfo["mealSlot"] as? String,
@@ -164,13 +189,6 @@ Usage notes:
 
 */
 
-/// Notification userInfo payload keys. Defined at module scope with computed properties
-/// so actor-isolation inference does not apply (computed statics are functions, not stored state).
-enum NotificationPayloadKeys {
-    static var mealSlot: String { "mealSlot" }
-    static var measurementType: String { "measurementType" }
-}
-
 struct UserNotificationsRepository: NotificationsRepository, Sendable {
     private static let maxPendingNotificationRequests = 64
     private let center: any UserNotificationCentering
@@ -210,8 +228,6 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         static let glucoseAfterPrefix = "ddiary.glucose.after."
         static let glucoseBedtimePrefix = "ddiary.glucose.bedtime."
     }
-
-    typealias PayloadKeys = NotificationPayloadKeys
 
     // MARK: - Public category registration
     static func registerCategories(center: any UserNotificationCentering = LiveUserNotificationCenter()) {
@@ -455,10 +471,10 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         let snoozedID = originalIdentifier + ".snooze.\(minutes)"
         var userInfo: [AnyHashable: Any] = [:]
         if let mealSlotRawValue {
-            userInfo[PayloadKeys.mealSlot] = mealSlotRawValue
+            userInfo["mealSlot"] = mealSlotRawValue
         }
         if let measurementTypeRawValue {
-            userInfo[PayloadKeys.measurementType] = measurementTypeRawValue
+            userInfo["measurementType"] = measurementTypeRawValue
         }
         await scheduleOneOff(
             at: fireDate,
@@ -513,7 +529,7 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
     }
 
     public func scheduledReminders(on day: Date) async -> [ScheduledReminder] {
-        let calendar = Calendar.current
+        let calendar = self.calendar
         let dayStart = calendar.startOfDay(for: day)
         let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart
         var reminders: [ScheduledReminder] = []
@@ -535,13 +551,18 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
 
         let delivered = await center.deliveredNotificationRecords()
         for record in delivered {
-            guard record.deliveredDate >= dayStart, record.deliveredDate < dayEnd else { continue }
+            // Use scheduledDate (from trigger components) for day-range filtering and for passing
+            // back to callers as the "planned time". deliveredDate can differ by several minutes
+            // (DND, low-power throttling), which would produce a wrong originalAfterDate when
+            // the caller uses it to reconstruct an identifier for cancelPlannedGlucoseNotification.
+            let referenceDate = record.scheduledDate ?? record.deliveredDate
+            guard referenceDate >= dayStart, referenceDate < dayEnd else { continue }
             if let reminder = scheduledReminder(
                 categoryIdentifier: record.categoryIdentifier,
                 title: record.title,
                 mealSlotRawValue: record.mealSlotRawValue,
                 measurementTypeRawValue: record.measurementTypeRawValue,
-                at: record.deliveredDate
+                at: referenceDate
             ) {
                 reminders.append(reminder)
             }
@@ -598,8 +619,17 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
             requestedWindowDays: numberOfDays
         )
         guard cappedDays > 0 else { return }
-        let calendar = Calendar.current
+        let calendar = self.calendar
         let startOfWindow = calendar.startOfDay(for: startDate)
+
+        // Snapshot pending IDs once so we can skip re-adding cycle slots that
+        // already have a user-shifted one-off pending for the same slot/day.
+        // This prevents a race where scheduleAllNotifications is called after
+        // the user logs a before-meal measurement off-schedule: the shifted
+        // after-meal reminder (e.g. 21:00) would survive removeAll because it
+        // contains ".shifted.", but the cycle scheduler would blindly add the
+        // original time (e.g. 20:30) back, causing two pushes for one slot.
+        let pendingIDs = Set(await center.pendingRequestIdentifiers())
 
         for dayOffset in 0..<cappedDays {
             guard let day = calendar.date(byAdding: .day, value: dayOffset, to: startOfWindow) else { continue }
@@ -608,6 +638,23 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
 
             for reminder in reminders {
                 let payload = cycleNotificationPayload(for: reminder)
+
+                // Skip after-meal cycle slots that have a user-shifted one-off
+                // already pending for the same meal slot on the same day.
+                // The shifted identifier format is: "{prefix}shifted.{slot}.d{yyyyMMdd}.{hhmm}"
+                // We match the day-level prefix to cover any shift time.
+                if reminder.measurementType == .afterMeal2h, payload.mealSlot != .none {
+                    let parts = calendar.dateComponents([.year, .month, .day], from: reminder.date)
+                    let y = parts.year ?? 0
+                    let mo = parts.month ?? 0
+                    let d = parts.day ?? 0
+                    let shiftedDayPrefix = "\(IDs.glucoseAfterPrefix)shifted.\(payload.mealSlot.rawValue)"
+                        + ".d\(String(format: "%04d", y))\(String(format: "%02d", mo))\(String(format: "%02d", d))"
+                    if pendingIDs.contains(where: { $0.hasPrefix(shiftedDayPrefix) }) {
+                        continue
+                    }
+                }
+
                 let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: reminder.date)
                 let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
                 let request = UNNotificationRequest(
@@ -867,8 +914,8 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         measurementType: GlucoseMeasurementType
     ) -> [AnyHashable: Any] {
         [
-            PayloadKeys.mealSlot: mealSlot.rawValue,
-            PayloadKeys.measurementType: measurementType.rawValue,
+            "mealSlot": mealSlot.rawValue,
+            "measurementType": measurementType.rawValue,
         ]
     }
 
