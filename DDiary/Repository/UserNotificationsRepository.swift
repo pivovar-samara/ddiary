@@ -138,9 +138,10 @@ struct LiveUserNotificationCenter: UserNotificationCentering, @unchecked Sendabl
                         guard dc.year != nil, dc.month != nil, dc.day != nil,
                               dc.hour != nil, dc.minute != nil
                         else { return nil }
-                        // Honour the timezone encoded in the components, if any, to avoid
-                        // reconstructing the wrong hour around DST transitions.
-                        var cal = baseCalendar
+                        // Prefer the calendar encoded in the components (e.g. non-Gregorian),
+                        // falling back to baseCalendar if absent. Then honour the timezone so
+                        // that hours round-trip correctly around DST transitions.
+                        var cal = dc.calendar ?? baseCalendar
                         if let tz = dc.timeZone { cal.timeZone = tz }
                         return cal.date(from: dc)
                     }
@@ -621,6 +622,15 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         let calendar = self.calendar
         let startOfWindow = calendar.startOfDay(for: startDate)
 
+        // Snapshot pending IDs once so we can skip re-adding cycle slots that
+        // already have a user-shifted one-off pending for the same slot/day.
+        // This prevents a race where scheduleAllNotifications is called after
+        // the user logs a before-meal measurement off-schedule: the shifted
+        // after-meal reminder (e.g. 21:00) would survive removeAll because it
+        // contains ".shifted.", but the cycle scheduler would blindly add the
+        // original time (e.g. 20:30) back, causing two pushes for one slot.
+        let pendingIDs = Set(await center.pendingRequestIdentifiers())
+
         for dayOffset in 0..<cappedDays {
             guard let day = calendar.date(byAdding: .day, value: dayOffset, to: startOfWindow) else { continue }
             let reminders = GlucoseCyclePlanner.reminders(on: day, configuration: configuration, calendar: calendar)
@@ -628,6 +638,23 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
 
             for reminder in reminders {
                 let payload = cycleNotificationPayload(for: reminder)
+
+                // Skip after-meal cycle slots that have a user-shifted one-off
+                // already pending for the same meal slot on the same day.
+                // The shifted identifier format is: "{prefix}shifted.{slot}.d{yyyyMMdd}.{hhmm}"
+                // We match the day-level prefix to cover any shift time.
+                if reminder.measurementType == .afterMeal2h, payload.mealSlot != .none {
+                    let parts = calendar.dateComponents([.year, .month, .day], from: reminder.date)
+                    let y = parts.year ?? 0
+                    let mo = parts.month ?? 0
+                    let d = parts.day ?? 0
+                    let shiftedDayPrefix = "\(IDs.glucoseAfterPrefix)shifted.\(payload.mealSlot.rawValue)"
+                        + ".d\(String(format: "%04d", y))\(String(format: "%02d", mo))\(String(format: "%02d", d))"
+                    if pendingIDs.contains(where: { $0.hasPrefix(shiftedDayPrefix) }) {
+                        continue
+                    }
+                }
+
                 let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: reminder.date)
                 let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
                 let request = UNNotificationRequest(

@@ -575,6 +575,59 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         XCTAssertNotNil(center.pendingRequests[snoozedID], "snoozed notification must survive rescheduleGlucoseCycle")
     }
 
+    /// Regression: when the user logs a before-meal measurement off-schedule, the after-meal
+    /// reminder is shifted (e.g. 20:30 → 21:00). A subsequent `rescheduleGlucoseCycle` call
+    /// (triggered by app launch or settings save) must NOT re-add the original cycle time (20:30),
+    /// which would result in the user receiving two pushes for the same slot.
+    func test_rescheduleGlucoseCycle_doesNotReaddCycleSlotWhenShiftedOneOffIsPending() async throws {
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = TimeZone(identifier: "UTC")!
+        let center = FakeNotificationCenter()
+        let repository = UserNotificationsRepository(center: center, calendar: utc)
+
+        // Dinner day: cycle scheduled 20:30 → user shifted to 21:00.
+        // The 20:30 cycle notification was already cancelled by rescheduleShiftedAfterMeal2hNotification,
+        // so it is NOT in pendingRequests. Only the shifted 21:00 survives.
+        let startDate = utc.date(from: DateComponents(year: 2026, month: 4, day: 14, hour: 19, minute: 5))!
+        let shiftedDate = utc.date(from: DateComponents(year: 2026, month: 4, day: 14, hour: 21, minute: 0))!
+        let shiftedID = shiftedAfterID(mealSlot: .dinner, day: shiftedDate, calendar: utc)
+        center.pendingRequests[shiftedID] = makeRequest(id: shiftedID)
+
+        // The original 20:30 cycle ID — must NOT reappear after reschedule.
+        let originalCycleID = cycleID(
+            prefix: UserNotificationsRepository.IDs.glucoseAfterPrefix,
+            day: utc.date(from: DateComponents(year: 2026, month: 4, day: 14, hour: 20, minute: 30))!,
+            hour: 20,
+            minute: 30,
+            calendar: utc
+        )
+        XCTAssertNil(center.pendingRequests[originalCycleID], "pre-condition: 20:30 is already cancelled")
+
+        // Anchor = startOfDay for today so today is dinnerDay (step offset 0 % 4 == 2 for dinner).
+        // Use a 1-day window so only today's reminders are scheduled.
+        let anchorDate = utc.date(from: DateComponents(year: 2026, month: 4, day: 12))! // 2 days before → dinnerDay
+        let configuration = GlucoseCycleConfiguration(
+            anchorDate: anchorDate,
+            breakfast: DateComponents(hour: 8, minute: 0),
+            lunch: DateComponents(hour: 13, minute: 0),
+            dinner: DateComponents(hour: 18, minute: 30),
+            bedtime: DateComponents(hour: 22, minute: 0)
+        )
+
+        try await repository.rescheduleGlucoseCycle(
+            configuration: configuration,
+            startDate: startDate,
+            numberOfDays: 1
+        )
+
+        // The shifted 21:00 must still be present.
+        XCTAssertNotNil(center.pendingRequests[shiftedID],
+                        "shifted 21:00 reminder must survive rescheduleGlucoseCycle")
+        // The original 20:30 must NOT be re-added.
+        XCTAssertNil(center.pendingRequests[originalCycleID],
+                     "20:30 cycle slot must not be re-added when shifted 21:00 is pending for the same slot/day")
+    }
+
     func test_rescheduleBloodPressure_preservesSnoozedNotification() async throws {
         let center = FakeNotificationCenter()
         let repository = UserNotificationsRepository(center: center)
@@ -801,8 +854,13 @@ final class UserNotificationsRepositoryTests: XCTestCase {
 
         // A and C are planned for 2026-06-15; B is planned for 2026-06-16 → 2 results.
         XCTAssertEqual(reminders.count, 2, "scheduledDate, not deliveredDate, governs day-range filtering")
-        // A: late-delivered but planned for today — present with the PLANNED time as its date.
-        XCTAssertTrue(reminders.contains(where: { $0.date == todayMid }))
+        // A: late-delivered but planned for today — present with the PLANNED (scheduled) time,
+        // not deliveredDate (tomorrow). Assert specifically on the lunch slot so Record C
+        // (dinner, on-time) cannot mask a regression where Record A wrongly uses deliveredDate.
+        XCTAssertTrue(reminders.contains(where: {
+            guard case .glucose(let slot, _) = $0.kind else { return false }
+            return slot == .lunch && $0.date == todayMid
+        }))
         // B: delivered today but planned for tomorrow — absent.
         XCTAssertFalse(reminders.contains(where: {
             guard case .glucose(let slot, _) = $0.kind else { return false }
