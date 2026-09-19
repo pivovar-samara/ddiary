@@ -95,6 +95,7 @@ public final class TodayViewModel {
     public private(set) var errorMessage: String? = nil
     private var isRefreshInProgress: Bool = false
     private var hasPendingRefresh: Bool = false
+    private var isPreparingManualGlucoseEntry: Bool = false
 
     public private(set) var bpSlots: [BPSlotViewModel] = []
     public private(set) var glucoseSlots: [GlucoseSlotViewModel] = []
@@ -382,6 +383,48 @@ public final class TodayViewModel {
         // Existing measurement reference will be handled in the view layer
     }
 
+    /// Prepares the quick-entry sheet for a manually added glucose measurement. The meal tag is derived
+    /// from the planned slot nearest to `referenceDate` across yesterday/today/tomorrow, so an entry made
+    /// after midnight binds to the previous evening's bedtime slot rather than the upcoming breakfast.
+    /// - Parameter referenceDate: injectable for tests; production callers use the current time.
+    public func prepareManualGlucoseQuickEntry(referenceDate: Date = Date()) async {
+        guard !isPreparingManualGlucoseEntry, !presentGlucoseQuickEntry else { return }
+        isPreparingManualGlucoseEntry = true
+        defer { isPreparingManualGlucoseEntry = false }
+
+        presentBPQuickEntry = false
+        let nearest = await getTodayOverviewUseCase.nearestGlucoseSlot(to: referenceDate)
+        selectedGlucoseSlot = Self.manualGlucoseSlot(from: nearest, referenceDate: referenceDate)
+        // Presented last, so the sheet can never appear before the tag is resolved.
+        presentGlucoseQuickEntry = true
+    }
+
+    private static func manualGlucoseSlot(
+        from slot: GlucosePlannedSlot?,
+        referenceDate: Date
+    ) -> GlucoseSlotViewModel {
+        guard let slot else {
+            // Nothing planned on any of the three days: fall back to a bedtime tag.
+            return GlucoseSlotViewModel(
+                mealSlot: .none,
+                measurementType: .bedtime,
+                displayTime: "",
+                scheduledDate: referenceDate,
+                status: .due,
+                matchedMeasurementId: nil
+            )
+        }
+        return GlucoseSlotViewModel(
+            mealSlot: slot.mealSlot,
+            measurementType: slot.measurementType,
+            displayTime: UIFormatters.formatTime(slot.date),
+            scheduledDate: slot.date,
+            status: .due,
+            // A manual entry never edits an existing measurement, even when the nearest slot is completed.
+            matchedMeasurementId: nil
+        )
+    }
+
     @discardableResult
     func presentQuickEntryFromNotification(
         target: NotificationQuickEntryTarget,
@@ -413,6 +456,11 @@ public final class TodayViewModel {
 
     // MARK: - Helpers
 
+    /// Looks the notification's slot up among today's slots only. That is enough in practice: the tag pair
+    /// comes from the notification payload, and `NotificationQuickEntryRouter` supplies its own
+    /// `scheduledDate`, so the caller's `scheduledDate ?? …` fallback does not fire in the real flow.
+    /// Known gap: a bedtime notification opened after midnight finds no same-tag slot today, and the
+    /// resulting `scheduledDate` degrades to `Date()`.
     private func matchingGlucoseSlot(
         mealSlot: MealSlot,
         measurementType: GlucoseMeasurementType

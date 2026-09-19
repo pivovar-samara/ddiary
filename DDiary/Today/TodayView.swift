@@ -128,7 +128,7 @@ public struct TodayView: View {
                         presentManualBPQuickEntry(vm: vm)
                     }
                     Button(L10n.settingsRowGlucose) {
-                        presentManualGlucoseQuickEntry(vm: vm)
+                        Task { await presentManualGlucoseQuickEntry(vm: vm) }
                     }
                 } label: {
                     Image(systemName: "plus")
@@ -391,30 +391,14 @@ public struct TodayView: View {
         vm.presentBPQuickEntry = true
     }
 
-    private func presentManualGlucoseQuickEntry(vm: TodayViewModel) {
+    @MainActor
+    private func presentManualGlucoseQuickEntry(vm: TodayViewModel) async {
         editingBPMeasurementId = nil
         editingGlucoseMeasurementId = nil
         selectedBPScheduledDate = nil
+        // Manual entries carry no planned date, which is what marks them `isLinkedToSchedule == false`.
         selectedGlucoseScheduledDate = nil
-        vm.presentBPQuickEntry = false
-        vm.selectedGlucoseSlot = defaultManualGlucoseSlot(vm: vm)
-        vm.presentGlucoseQuickEntry = true
-    }
-
-    private func defaultManualGlucoseSlot(vm: TodayViewModel) -> GlucoseSlotViewModel {
-        if let closest = vm.glucoseSlots.min(by: {
-            abs($0.scheduledDate.timeIntervalSinceNow) < abs($1.scheduledDate.timeIntervalSinceNow)
-        }) {
-            return closest
-        }
-        return GlucoseSlotViewModel(
-            mealSlot: .none,
-            measurementType: .bedtime,
-            displayTime: "",
-            scheduledDate: Date(),
-            status: .due,
-            matchedMeasurementId: nil
-        )
+        await vm.prepareManualGlucoseQuickEntry()
     }
 
     private func stableId(for item: TodayViewModel.TodayItem) -> String {

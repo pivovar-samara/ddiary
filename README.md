@@ -389,6 +389,11 @@ Sections:
 Interactions:
 - Tap BP slot -> open BP Quick Entry (create/edit by matched measurement ID).
 - Tap glucose slot -> open Glucose Quick Entry with prefilled `mealSlot` and `measurementType`.
+- Toolbar "+" -> Glucose opens a manual entry. It is not linked to the schedule
+  (`isLinkedToSchedule = false`, so it never completes a slot), and its `mealSlot` /
+  `measurementType` are derived from the planned slot nearest in time, searched across
+  **yesterday, today and tomorrow** — an entry made after midnight therefore binds to the previous
+  evening's bedtime slot rather than the upcoming breakfast.
 
 ### 6.2 History Screen
 
