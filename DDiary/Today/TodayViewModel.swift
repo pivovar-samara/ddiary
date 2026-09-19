@@ -383,9 +383,11 @@ public final class TodayViewModel {
         // Existing measurement reference will be handled in the view layer
     }
 
-    /// Prepares the quick-entry sheet for a manually added glucose measurement. The meal tag is derived
-    /// from the planned slot nearest to `referenceDate` across yesterday/today/tomorrow, so an entry made
-    /// after midnight binds to the previous evening's bedtime slot rather than the upcoming breakfast.
+    /// Prepares the quick-entry sheet for a manually added glucose measurement. The meal tag is the one
+    /// of the planned slot nearest in time to `referenceDate`, searched across yesterday, today and
+    /// tomorrow. Which slot that is depends on the configured schedule: with a bedtime slot at 22:00 an
+    /// entry at 00:30 takes the previous evening's bedtime tag, while the same entry at 04:00 takes the
+    /// upcoming breakfast.
     /// - Parameter referenceDate: injectable for tests; production callers use the current time.
     /// - Note: When the schedule cannot be read the sheet stays closed and `errorMessage` is set. The
     ///   derived tag is not editable afterwards, so guessing one is worse than asking the user to retry.
@@ -403,7 +405,12 @@ public final class TodayViewModel {
             return
         }
 
-        presentBPQuickEntry = false
+        // Another intent — a slot tap, a notification, a BP entry — may have presented a sheet while the
+        // schedule read was suspended. Stand down instead of replacing it: the view keeps its own
+        // `selectedGlucoseScheduledDate` for the newer intent, and pairing it with this manual tag would
+        // save the measurement as schedule-linked under the wrong slot.
+        guard !presentGlucoseQuickEntry, !presentBPQuickEntry else { return }
+
         selectedGlucoseSlot = Self.manualGlucoseSlot(from: nearest, referenceDate: referenceDate)
         // Presented last, so the sheet can never appear before the tag is resolved.
         presentGlucoseQuickEntry = true

@@ -94,6 +94,42 @@ final class TodayViewModelManualGlucoseEntryTests: XCTestCase {
         XCTAssertEqual(viewModel.errorMessage, L10n.todayErrorManualEntryUnavailable)
     }
 
+    /// The schedule read is a real suspension point, so a slot tap or a notification can present its own
+    /// entry while it is in flight. The manual intent must stand down rather than replace the selection:
+    /// the view pairs its own `selectedGlucoseScheduledDate` with whatever slot is selected, so a stale
+    /// manual tag would be saved as schedule-linked under the newer intent's planned date.
+    func test_prepareManualGlucoseQuickEntry_whenAnotherEntryIsPresentedDuringTheRead_standsDown() async throws {
+        let settings = GatedSettingsRepository()
+        let userSettings = try await settings.configure()
+        userSettings.enableDailyCycleMode = false
+        userSettings.enableBeforeMeal = true
+        userSettings.bedtimeSlotEnabled = true
+        userSettings.bedtimeHour = 22
+        userSettings.bedtimeMinute = 0
+
+        let viewModel = makeViewModel(settings: settings)
+        let scheduledSlot = GlucoseSlotViewModel(
+            mealSlot: .breakfast,
+            measurementType: .beforeMeal,
+            displayTime: "08:00",
+            scheduledDate: try date(year: 2026, month: 2, day: 17, hour: 8, minute: 0),
+            status: .due,
+            matchedMeasurementId: nil
+        )
+
+        let reference = try date(year: 2026, month: 2, day: 17, hour: 0, minute: 30)
+        let preparing = Task { await viewModel.prepareManualGlucoseQuickEntry(referenceDate: reference) }
+        try await settings.waitUntilSuspended()
+
+        // A scheduled-slot tap wins the sheet while the manual intent is still suspended.
+        viewModel.onGlucoseSlotTapped(scheduledSlot)
+        settings.resume()
+        await preparing.value
+
+        XCTAssertEqual(viewModel.selectedGlucoseSlot, scheduledSlot)
+        XCTAssertTrue(viewModel.presentGlucoseQuickEntry)
+    }
+
     // MARK: - Helpers
 
     private func makeViewModel(settings: any SettingsRepository) -> TodayViewModel {
@@ -138,4 +174,44 @@ private final class ThrowingSettingsRepository: SettingsRepository {
     func getOrCreate() async throws -> UserSettings { throw TestError.forced }
     func save(_ settings: UserSettings) async throws { throw TestError.forced }
     func update(_ settings: UserSettings) async throws { throw TestError.forced }
+}
+
+
+/// Suspends inside `getOrCreate()` until the test resumes it, so the window around the `await` in
+/// `prepareManualGlucoseQuickEntry` can be driven deterministically.
+@MainActor
+private final class GatedSettingsRepository: SettingsRepository {
+    private let inner = MockSettingsRepository()
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var isSuspended = false
+
+    /// Materializes the underlying settings so the test can set them up before the gated call.
+    func configure() async throws -> UserSettings {
+        try await inner.getOrCreate()
+    }
+
+    func waitUntilSuspended(iterations: Int = 1_000) async throws {
+        for _ in 0..<iterations {
+            if isSuspended { return }
+            await Task.yield()
+        }
+        throw TestError.forced
+    }
+
+    func resume() {
+        continuation?.resume()
+        continuation = nil
+        isSuspended = false
+    }
+
+    func getOrCreate() async throws -> UserSettings {
+        await withCheckedContinuation { continuation in
+            self.continuation = continuation
+            self.isSuspended = true
+        }
+        return try await inner.getOrCreate()
+    }
+
+    func save(_ settings: UserSettings) async throws { try await inner.save(settings) }
+    func update(_ settings: UserSettings) async throws { try await inner.update(settings) }
 }

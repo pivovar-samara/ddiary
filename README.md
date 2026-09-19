@@ -391,9 +391,12 @@ Interactions:
 - Tap glucose slot -> open Glucose Quick Entry with prefilled `mealSlot` and `measurementType`.
 - Toolbar "+" -> Glucose opens a manual entry. It is not linked to the schedule
   (`isLinkedToSchedule = false`, so it never completes a slot), and its `mealSlot` /
-  `measurementType` are derived from the planned slot nearest in time, searched across
-  **yesterday, today and tomorrow** — an entry made after midnight therefore binds to the previous
-  evening's bedtime slot rather than the upcoming breakfast.
+  `measurementType` are taken from the planned slot **nearest in time**, searched across
+  yesterday, today and tomorrow. The neighbouring days matter for entries near midnight: with
+  breakfast at 08:00 and the bedtime slot enabled at 22:00, an entry at 00:30 is tagged as the
+  previous day's bedtime (2h30m away) instead of the coming breakfast (7h30m away). It stays a
+  plain nearest-slot rule, so the same entry at 04:00 is tagged as breakfast, and with the bedtime
+  slot disabled it takes whichever other slot is closest.
 
 ### 6.2 History Screen
 

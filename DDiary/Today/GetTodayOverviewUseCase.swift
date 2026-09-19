@@ -201,8 +201,11 @@ public final class GetTodayOverviewUseCase {
     }
 
     /// Returns the planned glucose slot nearest in time to `referenceDate`, considering the previous,
-    /// current and next calendar day. The cross-day window is what makes a late-night entry bind to the
-    /// previous day's bedtime slot instead of the upcoming morning's breakfast slot.
+    /// current and next calendar day. Widening the window past the current day is what lets a neighbouring
+    /// day's slot win at all: with a bedtime slot at 22:00 and breakfast at 08:00, an entry at 00:30 picks
+    /// the previous day's bedtime (2h30m) over the coming breakfast (7h30m). Which slot wins is always
+    /// just "the nearest one" — the same entry at 04:00 picks breakfast, and with the bedtime slot
+    /// disabled it picks whatever else is closest.
     /// - Note: Read-only — unlike `compute(today:)` this never persists a cycle anchor.
     /// - Returns: `nil` only when nothing is planned in the window. A settings-read failure is reported
     ///   as a thrown error, never as `nil`: the derived tag cannot be edited afterwards, so the caller
