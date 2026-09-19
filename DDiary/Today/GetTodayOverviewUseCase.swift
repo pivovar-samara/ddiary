@@ -204,10 +204,13 @@ public final class GetTodayOverviewUseCase {
     /// current and next calendar day. The cross-day window is what makes a late-night entry bind to the
     /// previous day's bedtime slot instead of the upcoming morning's breakfast slot.
     /// - Note: Read-only — unlike `compute(today:)` this never persists a cycle anchor.
-    /// - Returns: `nil` when nothing is planned in the window, or when settings cannot be read.
-    public func nearestGlucoseSlot(to referenceDate: Date = Date()) async -> GlucosePlannedSlot? {
+    /// - Returns: `nil` only when nothing is planned in the window. A settings-read failure is reported
+    ///   as a thrown error, never as `nil`: the derived tag cannot be edited afterwards, so the caller
+    ///   must be able to tell "no slots" apart from "could not look".
+    /// - Throws: whatever `SettingsRepository.getOrCreate()` throws.
+    public func nearestGlucoseSlot(to referenceDate: Date = Date()) async throws -> GlucosePlannedSlot? {
         let calendar = Calendar.current
-        guard let settings = try? await settingsRepository.getOrCreate() else { return nil }
+        let settings = try await settingsRepository.getOrCreate()
         let cycleAnchorDate = Self.resolvedCycleAnchor(
             settings: settings,
             referenceDate: referenceDate,
@@ -322,8 +325,9 @@ public final class GetTodayOverviewUseCase {
             )
     }
 
-    /// Picks the candidate closest in time to `reference`. `candidates` must be sorted ascending by
-    /// date, which makes the index tie-break equivalent to "the earlier slot wins".
+    /// Picks the candidate closest in time to `reference`. When two candidates are equidistant the one
+    /// at or after `reference` wins, matching BP matching; only when both sit on the same side does the
+    /// index decide, and because `candidates` must be sorted ascending by date that means the earlier one.
     static func nearestSlot(in candidates: [GlucosePlannedSlot], to reference: Date) -> GlucosePlannedSlot? {
         candidates.indices.min { lhs, rhs in
             let dl = abs(candidates[lhs].date.timeIntervalSince(reference))

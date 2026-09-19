@@ -81,9 +81,22 @@ final class TodayViewModelManualGlucoseEntryTests: XCTestCase {
         XCTAssertEqual(viewModel.selectedGlucoseSlot, sentinel)
     }
 
+    func test_prepareManualGlucoseQuickEntry_whenSettingsCannotBeRead_reportsErrorAndKeepsSheetClosed() async throws {
+        let viewModel = makeViewModel(settings: ThrowingSettingsRepository())
+
+        await viewModel.prepareManualGlucoseQuickEntry(
+            referenceDate: try date(year: 2026, month: 2, day: 17, hour: 0, minute: 30)
+        )
+
+        // No guessed tag: the form stays closed rather than defaulting to bedtime.
+        XCTAssertFalse(viewModel.presentGlucoseQuickEntry)
+        XCTAssertNil(viewModel.selectedGlucoseSlot)
+        XCTAssertEqual(viewModel.errorMessage, L10n.todayErrorManualEntryUnavailable)
+    }
+
     // MARK: - Helpers
 
-    private func makeViewModel(settings: MockSettingsRepository) -> TodayViewModel {
+    private func makeViewModel(settings: any SettingsRepository) -> TodayViewModel {
         let measurements = MockMeasurementsRepository()
         let analytics = MockAnalyticsRepository()
         return TodayViewModel(
@@ -118,4 +131,11 @@ final class TodayViewModelManualGlucoseEntryTests: XCTestCase {
 @MainActor
 private final class NoopSchedulesUpdater: SchedulesUpdating {
     func scheduleFromCurrentSettings() async throws {}
+}
+
+@MainActor
+private final class ThrowingSettingsRepository: SettingsRepository {
+    func getOrCreate() async throws -> UserSettings { throw TestError.forced }
+    func save(_ settings: UserSettings) async throws { throw TestError.forced }
+    func update(_ settings: UserSettings) async throws { throw TestError.forced }
 }

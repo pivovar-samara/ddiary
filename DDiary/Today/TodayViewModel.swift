@@ -387,13 +387,23 @@ public final class TodayViewModel {
     /// from the planned slot nearest to `referenceDate` across yesterday/today/tomorrow, so an entry made
     /// after midnight binds to the previous evening's bedtime slot rather than the upcoming breakfast.
     /// - Parameter referenceDate: injectable for tests; production callers use the current time.
+    /// - Note: When the schedule cannot be read the sheet stays closed and `errorMessage` is set. The
+    ///   derived tag is not editable afterwards, so guessing one is worse than asking the user to retry.
     public func prepareManualGlucoseQuickEntry(referenceDate: Date = Date()) async {
         guard !isPreparingManualGlucoseEntry, !presentGlucoseQuickEntry else { return }
         isPreparingManualGlucoseEntry = true
         defer { isPreparingManualGlucoseEntry = false }
 
+        errorMessage = nil
+        let nearest: GlucosePlannedSlot?
+        do {
+            nearest = try await getTodayOverviewUseCase.nearestGlucoseSlot(to: referenceDate)
+        } catch {
+            errorMessage = L10n.todayErrorManualEntryUnavailable
+            return
+        }
+
         presentBPQuickEntry = false
-        let nearest = await getTodayOverviewUseCase.nearestGlucoseSlot(to: referenceDate)
         selectedGlucoseSlot = Self.manualGlucoseSlot(from: nearest, referenceDate: referenceDate)
         // Presented last, so the sheet can never appear before the tag is resolved.
         presentGlucoseQuickEntry = true

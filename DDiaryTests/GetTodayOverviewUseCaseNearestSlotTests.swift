@@ -24,7 +24,7 @@ final class GetTodayOverviewUseCaseNearestSlotTests: XCTestCase {
         userSettings.bedtimeMinute = 0
 
         let reference = try date(year: 2026, month: 2, day: 17, hour: 0, minute: 30)
-        let resolved = await sut.nearestGlucoseSlot(to: reference)
+        let resolved = try await sut.nearestGlucoseSlot(to: reference)
         let nearest = try XCTUnwrap(resolved)
 
         XCTAssertEqual(nearest.mealSlot, .none)
@@ -47,7 +47,7 @@ final class GetTodayOverviewUseCaseNearestSlotTests: XCTestCase {
         userSettings.bedtimeSlotEnabled = false
 
         let reference = try date(year: 2026, month: 2, day: 17, hour: 0, minute: 30)
-        let resolved = await sut.nearestGlucoseSlot(to: reference)
+        let resolved = try await sut.nearestGlucoseSlot(to: reference)
         let nearest = try XCTUnwrap(resolved)
 
         XCTAssertEqual(nearest.mealSlot, .dinner)
@@ -69,7 +69,7 @@ final class GetTodayOverviewUseCaseNearestSlotTests: XCTestCase {
         userSettings.bedtimeSlotEnabled = false
 
         let reference = try date(year: 2026, month: 2, day: 17, hour: 12, minute: 50)
-        let resolved = await sut.nearestGlucoseSlot(to: reference)
+        let resolved = try await sut.nearestGlucoseSlot(to: reference)
         let nearest = try XCTUnwrap(resolved)
 
         XCTAssertEqual(nearest.mealSlot, .lunch)
@@ -95,7 +95,7 @@ final class GetTodayOverviewUseCaseNearestSlotTests: XCTestCase {
         userSettings.bedtimeSlotEnabled = false
 
         let reference = try date(year: 2026, month: 2, day: 16, hour: 23, minute: 50)
-        let resolved = await sut.nearestGlucoseSlot(to: reference)
+        let resolved = try await sut.nearestGlucoseSlot(to: reference)
         let nearest = try XCTUnwrap(resolved)
 
         XCTAssertEqual(nearest.mealSlot, .breakfast)
@@ -114,7 +114,7 @@ final class GetTodayOverviewUseCaseNearestSlotTests: XCTestCase {
         userSettings.bedtimeSlotEnabled = false
 
         let reference = try date(year: 2026, month: 2, day: 17, hour: 0, minute: 30)
-        let nearest = await sut.nearestGlucoseSlot(to: reference)
+        let nearest = try await sut.nearestGlucoseSlot(to: reference)
 
         XCTAssertNil(nearest)
     }
@@ -139,7 +139,7 @@ final class GetTodayOverviewUseCaseNearestSlotTests: XCTestCase {
 
         // Exactly 5h after yesterday's bedtime and 5h before today's breakfast.
         let reference = try date(year: 2026, month: 2, day: 17, hour: 3, minute: 0)
-        let resolved = await sut.nearestGlucoseSlot(to: reference)
+        let resolved = try await sut.nearestGlucoseSlot(to: reference)
         let nearest = try XCTUnwrap(resolved)
 
         XCTAssertEqual(nearest.mealSlot, .breakfast)
@@ -160,7 +160,7 @@ final class GetTodayOverviewUseCaseNearestSlotTests: XCTestCase {
         userSettings.bedtimeMinute = 0
 
         let reference = try date(year: 2026, month: 2, day: 17, hour: 0, minute: 30)
-        _ = await sut.nearestGlucoseSlot(to: reference)
+        _ = try await sut.nearestGlucoseSlot(to: reference)
 
         XCTAssertNil(userSettings.dailyCycleAnchorDate)
     }
@@ -181,7 +181,7 @@ final class GetTodayOverviewUseCaseNearestSlotTests: XCTestCase {
         userSettings.dailyCycleAnchorDate = try date(year: 2026, month: 2, day: 13, hour: 0, minute: 0)
 
         let reference = try date(year: 2026, month: 2, day: 17, hour: 0, minute: 30)
-        let resolved = await sut.nearestGlucoseSlot(to: reference)
+        let resolved = try await sut.nearestGlucoseSlot(to: reference)
         let nearest = try XCTUnwrap(resolved)
 
         XCTAssertEqual(nearest.mealSlot, .none)
@@ -206,7 +206,7 @@ final class GetTodayOverviewUseCaseNearestSlotTests: XCTestCase {
         userSettings.cycleOverrides = ["2026-02-16": GlucoseCycleStep.bedtimeDay.rawValue]
 
         let reference = try date(year: 2026, month: 2, day: 17, hour: 0, minute: 30)
-        let resolved = await sut.nearestGlucoseSlot(to: reference)
+        let resolved = try await sut.nearestGlucoseSlot(to: reference)
         let nearest = try XCTUnwrap(resolved)
 
         XCTAssertEqual(nearest.mealSlot, .none)
@@ -228,12 +228,32 @@ final class GetTodayOverviewUseCaseNearestSlotTests: XCTestCase {
         userSettings.dailyCycleAnchorDate = try date(year: 2026, month: 2, day: 13, hour: 0, minute: 0)
 
         let reference = try date(year: 2026, month: 2, day: 16, hour: 23, minute: 50)
-        let resolved = await sut.nearestGlucoseSlot(to: reference)
+        let resolved = try await sut.nearestGlucoseSlot(to: reference)
         let nearest = try XCTUnwrap(resolved)
 
         XCTAssertEqual(nearest.mealSlot, .breakfast)
         XCTAssertEqual(nearest.measurementType, .beforeMeal)
         XCTAssertEqual(nearest.date, try date(year: 2026, month: 2, day: 17, hour: 1, minute: 0))
+    }
+
+    // MARK: - Failure
+
+    /// A settings-read failure must stay distinguishable from "nothing is planned": the caller uses
+    /// `nil` as a licence to fall back to a bedtime tag, and that tag cannot be edited afterwards.
+    func test_nearest_whenSettingsCannotBeRead_throwsInsteadOfReturningNil() async throws {
+        let sut = GetTodayOverviewUseCase(
+            measurementsRepository: MockMeasurementsRepository(),
+            settingsRepository: ThrowingSettingsRepository()
+        )
+
+        let reference = try date(year: 2026, month: 2, day: 17, hour: 0, minute: 30)
+
+        do {
+            _ = try await sut.nearestGlucoseSlot(to: reference)
+            XCTFail("Expected nearestGlucoseSlot to propagate the settings failure")
+        } catch {
+            XCTAssertTrue(error is TestError)
+        }
     }
 
     // MARK: - Helpers
@@ -249,4 +269,11 @@ final class GetTodayOverviewUseCaseNearestSlotTests: XCTestCase {
         let components = DateComponents(year: year, month: month, day: day, hour: hour, minute: minute)
         return try XCTUnwrap(Calendar.current.date(from: components))
     }
+}
+
+@MainActor
+private final class ThrowingSettingsRepository: SettingsRepository {
+    func getOrCreate() async throws -> UserSettings { throw TestError.forced }
+    func save(_ settings: UserSettings) async throws { throw TestError.forced }
+    func update(_ settings: UserSettings) async throws { throw TestError.forced }
 }
