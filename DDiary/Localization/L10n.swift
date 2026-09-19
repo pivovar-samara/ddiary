@@ -59,6 +59,10 @@ enum L10n {
         "today.cycle_switch.accessibility.hint",
         "Opens a menu to change the daily cycle target"
     )
+    static let todayErrorManualEntryUnavailable = tr(
+        "today.error.manual_entry_unavailable",
+        "Couldn't read your settings. Please try again."
+    )
     static let slotStatusScheduled = tr("slot.status.scheduled", "Scheduled")
     static let slotStatusDue = tr("slot.status.due", "Due")
     static let slotStatusMissed = tr("slot.status.missed", "Missed")

@@ -95,6 +95,7 @@ public final class TodayViewModel {
     public private(set) var errorMessage: String? = nil
     private var isRefreshInProgress: Bool = false
     private var hasPendingRefresh: Bool = false
+    private var isPreparingManualGlucoseEntry: Bool = false
 
     public private(set) var bpSlots: [BPSlotViewModel] = []
     public private(set) var glucoseSlots: [GlucoseSlotViewModel] = []
@@ -382,6 +383,65 @@ public final class TodayViewModel {
         // Existing measurement reference will be handled in the view layer
     }
 
+    /// Prepares the quick-entry sheet for a manually added glucose measurement. The meal tag is the one
+    /// of the planned slot nearest in time to `referenceDate`, searched across yesterday, today and
+    /// tomorrow. Which slot that is depends on the configured schedule: with a bedtime slot at 22:00 an
+    /// entry at 00:30 takes the previous evening's bedtime tag, while the same entry at 04:00 takes the
+    /// upcoming breakfast.
+    /// - Parameter referenceDate: injectable for tests; production callers use the current time.
+    /// - Note: When the schedule cannot be read the sheet stays closed and `errorMessage` is set. The
+    ///   derived tag is not editable afterwards, so guessing one is worse than asking the user to retry.
+    public func prepareManualGlucoseQuickEntry(referenceDate: Date = Date()) async {
+        guard !isPreparingManualGlucoseEntry, !presentGlucoseQuickEntry else { return }
+        isPreparingManualGlucoseEntry = true
+        defer { isPreparingManualGlucoseEntry = false }
+
+        errorMessage = nil
+        let nearest: GlucosePlannedSlot?
+        do {
+            nearest = try await getTodayOverviewUseCase.nearestGlucoseSlot(to: referenceDate)
+        } catch {
+            errorMessage = L10n.todayErrorManualEntryUnavailable
+            return
+        }
+
+        // Another intent — a slot tap, a notification, a BP entry — may have presented a sheet while the
+        // schedule read was suspended. Stand down instead of replacing it: the view keeps its own
+        // `selectedGlucoseScheduledDate` for the newer intent, and pairing it with this manual tag would
+        // save the measurement as schedule-linked under the wrong slot.
+        guard !presentGlucoseQuickEntry, !presentBPQuickEntry else { return }
+
+        selectedGlucoseSlot = Self.manualGlucoseSlot(from: nearest, referenceDate: referenceDate)
+        // Presented last, so the sheet can never appear before the tag is resolved.
+        presentGlucoseQuickEntry = true
+    }
+
+    private static func manualGlucoseSlot(
+        from slot: GlucosePlannedSlot?,
+        referenceDate: Date
+    ) -> GlucoseSlotViewModel {
+        guard let slot else {
+            // Nothing planned on any of the three days: fall back to a bedtime tag.
+            return GlucoseSlotViewModel(
+                mealSlot: .none,
+                measurementType: .bedtime,
+                displayTime: "",
+                scheduledDate: referenceDate,
+                status: .due,
+                matchedMeasurementId: nil
+            )
+        }
+        return GlucoseSlotViewModel(
+            mealSlot: slot.mealSlot,
+            measurementType: slot.measurementType,
+            displayTime: UIFormatters.formatTime(slot.date),
+            scheduledDate: slot.date,
+            status: .due,
+            // A manual entry never edits an existing measurement, even when the nearest slot is completed.
+            matchedMeasurementId: nil
+        )
+    }
+
     @discardableResult
     func presentQuickEntryFromNotification(
         target: NotificationQuickEntryTarget,
@@ -413,6 +473,11 @@ public final class TodayViewModel {
 
     // MARK: - Helpers
 
+    /// Looks the notification's slot up among today's slots only. That is enough in practice: the tag pair
+    /// comes from the notification payload, and `NotificationQuickEntryRouter` supplies its own
+    /// `scheduledDate`, so the caller's `scheduledDate ?? …` fallback does not fire in the real flow.
+    /// Known gap: a bedtime notification opened after midnight finds no same-tag slot today, and the
+    /// resulting `scheduledDate` degrades to `Date()`.
     private func matchingGlucoseSlot(
         mealSlot: MealSlot,
         measurementType: GlucoseMeasurementType

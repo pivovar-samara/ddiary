@@ -94,61 +94,12 @@ public final class GetTodayOverviewUseCase {
         }
 
         // Build Glucose planned slots from meal times and toggles
-        var glucosePlanned: [(slot: GlucosePlannedSlot, baseDate: Date)] = []
-        if settings.enableDailyCycleMode {
-            let cycleConfig = GlucoseCycleConfiguration(
-                anchorDate: cycleAnchorDate ?? calendar.startOfDay(for: today),
-                breakfast: DateComponents(hour: settings.breakfastHour, minute: settings.breakfastMinute),
-                lunch: DateComponents(hour: settings.lunchHour, minute: settings.lunchMinute),
-                dinner: DateComponents(hour: settings.dinnerHour, minute: settings.dinnerMinute),
-                bedtime: DateComponents(hour: settings.bedtimeHour, minute: settings.bedtimeMinute),
-                overrides: settings.cycleOverrides
-            )
-            let reminders = GlucoseCyclePlanner.reminders(on: today, configuration: cycleConfig, calendar: calendar)
-            glucosePlanned = reminders.map { reminder in
-                let slot = GlucosePlannedSlot(
-                    mealSlot: reminder.mealSlot,
-                    measurementType: reminder.measurementType,
-                    date: reminder.date,
-                    completed: false,
-                    matchedMeasurementId: nil
-                )
-                return (slot, reminder.date)
-            }
-        } else {
-            // Breakfast
-            if let breakfast = Self.date(on: today, using: DateComponents(hour: settings.breakfastHour, minute: settings.breakfastMinute), calendar: calendar) {
-                if settings.enableBeforeMeal {
-                    glucosePlanned.append((GlucosePlannedSlot(mealSlot: .breakfast, measurementType: .beforeMeal, date: breakfast, completed: false, matchedMeasurementId: nil), breakfast))
-                }
-                if settings.enableAfterMeal2h, let after = calendar.date(byAdding: .hour, value: 2, to: breakfast) {
-                    glucosePlanned.append((GlucosePlannedSlot(mealSlot: .breakfast, measurementType: .afterMeal2h, date: after, completed: false, matchedMeasurementId: nil), after))
-                }
-            }
-            // Lunch
-            if let lunch = Self.date(on: today, using: DateComponents(hour: settings.lunchHour, minute: settings.lunchMinute), calendar: calendar) {
-                if settings.enableBeforeMeal {
-                    glucosePlanned.append((GlucosePlannedSlot(mealSlot: .lunch, measurementType: .beforeMeal, date: lunch, completed: false, matchedMeasurementId: nil), lunch))
-                }
-                if settings.enableAfterMeal2h, let after = calendar.date(byAdding: .hour, value: 2, to: lunch) {
-                    glucosePlanned.append((GlucosePlannedSlot(mealSlot: .lunch, measurementType: .afterMeal2h, date: after, completed: false, matchedMeasurementId: nil), after))
-                }
-            }
-            // Dinner
-            if let dinner = Self.date(on: today, using: DateComponents(hour: settings.dinnerHour, minute: settings.dinnerMinute), calendar: calendar) {
-                if settings.enableBeforeMeal {
-                    glucosePlanned.append((GlucosePlannedSlot(mealSlot: .dinner, measurementType: .beforeMeal, date: dinner, completed: false, matchedMeasurementId: nil), dinner))
-                }
-                if settings.enableAfterMeal2h, let after = calendar.date(byAdding: .hour, value: 2, to: dinner) {
-                    glucosePlanned.append((GlucosePlannedSlot(mealSlot: .dinner, measurementType: .afterMeal2h, date: after, completed: false, matchedMeasurementId: nil), after))
-                }
-            }
-            // Bedtime (use user-configured time when slot enabled)
-            if settings.bedtimeSlotEnabled,
-               let bedtime = Self.date(on: today, using: DateComponents(hour: settings.bedtimeHour, minute: settings.bedtimeMinute), calendar: calendar) {
-                glucosePlanned.append((GlucosePlannedSlot(mealSlot: .none, measurementType: .bedtime, date: bedtime, completed: false, matchedMeasurementId: nil), bedtime))
-            }
-        }
+        var glucosePlanned: [(slot: GlucosePlannedSlot, baseDate: Date)] = Self.plannedGlucoseSlots(
+            on: today,
+            settings: settings,
+            cycleAnchorDate: cycleAnchorDate,
+            calendar: calendar
+        ).map { ($0, $0.date) }
 
         glucosePlanned.sort { $0.baseDate < $1.baseDate }
 
@@ -249,6 +200,42 @@ public final class GetTodayOverviewUseCase {
         )
     }
 
+    /// Returns the planned glucose slot nearest in time to `referenceDate`, considering the previous,
+    /// current and next calendar day. Widening the window past the current day is what lets a neighbouring
+    /// day's slot win at all: with a bedtime slot at 22:00 and breakfast at 08:00, an entry at 00:30 picks
+    /// the previous day's bedtime (2h30m) over the coming breakfast (7h30m). Which slot wins is always
+    /// just "the nearest one" — the same entry at 04:00 picks breakfast, and with the bedtime slot
+    /// disabled it picks whatever else is closest.
+    /// - Note: Read-only — unlike `compute(today:)` this never persists a cycle anchor.
+    /// - Returns: `nil` only when nothing is planned in the window. A settings-read failure is reported
+    ///   as a thrown error, never as `nil`: the derived tag cannot be edited afterwards, so the caller
+    ///   must be able to tell "no slots" apart from "could not look".
+    /// - Throws: whatever `SettingsRepository.getOrCreate()` throws.
+    public func nearestGlucoseSlot(to referenceDate: Date = Date()) async throws -> GlucosePlannedSlot? {
+        let calendar = Calendar.current
+        let settings = try await settingsRepository.getOrCreate()
+        let cycleAnchorDate = Self.resolvedCycleAnchor(
+            settings: settings,
+            referenceDate: referenceDate,
+            calendar: calendar
+        )
+
+        let startOfReferenceDay = calendar.startOfDay(for: referenceDate)
+        let days = [-1, 0, 1].compactMap { calendar.date(byAdding: .day, value: $0, to: startOfReferenceDay) }
+        let candidates = days
+            .flatMap {
+                Self.plannedGlucoseSlots(
+                    on: $0,
+                    settings: settings,
+                    cycleAnchorDate: cycleAnchorDate,
+                    calendar: calendar
+                )
+            }
+            .sorted { $0.date < $1.date }
+
+        return Self.nearestSlot(in: candidates, to: referenceDate)
+    }
+
     // MARK: - Helpers
 
     private static func date(on base: Date, using components: DateComponents, calendar: Calendar) -> Date? {
@@ -257,6 +244,106 @@ public final class GetTodayOverviewUseCase {
         day.minute = components.minute
         day.second = components.second ?? 0
         return calendar.date(from: day)
+    }
+
+    /// Builds the planned glucose slots for an arbitrary calendar day from `UserSettings`.
+    /// Pure: no repository access and no persistence, so it is safe to call for several days in a row.
+    /// - Parameter cycleAnchorDate: resolved read-only by the caller from the *reference* day via
+    ///   `resolvedCycleAnchor(settings:referenceDate:calendar:)`, never from `day` itself.
+    /// - Returns: slots sorted by date.
+    static func plannedGlucoseSlots(
+        on day: Date,
+        settings: UserSettings,
+        cycleAnchorDate: Date?,
+        calendar: Calendar
+    ) -> [GlucosePlannedSlot] {
+        var planned: [GlucosePlannedSlot] = []
+        if settings.enableDailyCycleMode {
+            let cycleConfig = GlucoseCycleConfiguration(
+                anchorDate: cycleAnchorDate ?? calendar.startOfDay(for: day),
+                breakfast: DateComponents(hour: settings.breakfastHour, minute: settings.breakfastMinute),
+                lunch: DateComponents(hour: settings.lunchHour, minute: settings.lunchMinute),
+                dinner: DateComponents(hour: settings.dinnerHour, minute: settings.dinnerMinute),
+                bedtime: DateComponents(hour: settings.bedtimeHour, minute: settings.bedtimeMinute),
+                overrides: settings.cycleOverrides
+            )
+            let reminders = GlucoseCyclePlanner.reminders(on: day, configuration: cycleConfig, calendar: calendar)
+            planned = reminders.map { reminder in
+                GlucosePlannedSlot(
+                    mealSlot: reminder.mealSlot,
+                    measurementType: reminder.measurementType,
+                    date: reminder.date,
+                    completed: false,
+                    matchedMeasurementId: nil
+                )
+            }
+        } else {
+            // Breakfast
+            if let breakfast = Self.date(on: day, using: DateComponents(hour: settings.breakfastHour, minute: settings.breakfastMinute), calendar: calendar) {
+                if settings.enableBeforeMeal {
+                    planned.append(GlucosePlannedSlot(mealSlot: .breakfast, measurementType: .beforeMeal, date: breakfast, completed: false, matchedMeasurementId: nil))
+                }
+                if settings.enableAfterMeal2h, let after = calendar.date(byAdding: .hour, value: 2, to: breakfast) {
+                    planned.append(GlucosePlannedSlot(mealSlot: .breakfast, measurementType: .afterMeal2h, date: after, completed: false, matchedMeasurementId: nil))
+                }
+            }
+            // Lunch
+            if let lunch = Self.date(on: day, using: DateComponents(hour: settings.lunchHour, minute: settings.lunchMinute), calendar: calendar) {
+                if settings.enableBeforeMeal {
+                    planned.append(GlucosePlannedSlot(mealSlot: .lunch, measurementType: .beforeMeal, date: lunch, completed: false, matchedMeasurementId: nil))
+                }
+                if settings.enableAfterMeal2h, let after = calendar.date(byAdding: .hour, value: 2, to: lunch) {
+                    planned.append(GlucosePlannedSlot(mealSlot: .lunch, measurementType: .afterMeal2h, date: after, completed: false, matchedMeasurementId: nil))
+                }
+            }
+            // Dinner
+            if let dinner = Self.date(on: day, using: DateComponents(hour: settings.dinnerHour, minute: settings.dinnerMinute), calendar: calendar) {
+                if settings.enableBeforeMeal {
+                    planned.append(GlucosePlannedSlot(mealSlot: .dinner, measurementType: .beforeMeal, date: dinner, completed: false, matchedMeasurementId: nil))
+                }
+                if settings.enableAfterMeal2h, let after = calendar.date(byAdding: .hour, value: 2, to: dinner) {
+                    planned.append(GlucosePlannedSlot(mealSlot: .dinner, measurementType: .afterMeal2h, date: after, completed: false, matchedMeasurementId: nil))
+                }
+            }
+            // Bedtime (use user-configured time when slot enabled)
+            if settings.bedtimeSlotEnabled,
+               let bedtime = Self.date(on: day, using: DateComponents(hour: settings.bedtimeHour, minute: settings.bedtimeMinute), calendar: calendar) {
+                planned.append(GlucosePlannedSlot(mealSlot: .none, measurementType: .bedtime, date: bedtime, completed: false, matchedMeasurementId: nil))
+            }
+        }
+        return planned.sorted { $0.date < $1.date }
+    }
+
+    /// Resolves the daily-cycle anchor without writing it back. `persistCycleAnchorIfNeeded` uses the
+    /// same formula, so the two paths cannot drift apart.
+    /// - Important: `referenceDate` must always be the reference day (today), never a neighbouring day —
+    ///   `fallbackAnchorDate` subtracts the cycle index from it, so a shifted reference shifts the anchor.
+    static func resolvedCycleAnchor(settings: UserSettings, referenceDate: Date, calendar: Calendar) -> Date? {
+        guard settings.enableDailyCycleMode else { return nil }
+        return settings.dailyCycleAnchorDate
+            ?? GlucoseCyclePlanner.fallbackAnchorDate(
+                currentCycleIndex: settings.currentCycleIndex,
+                referenceDate: referenceDate,
+                calendar: calendar
+            )
+    }
+
+    /// Picks the candidate closest in time to `reference`. When two candidates are equidistant the one
+    /// at or after `reference` wins, matching BP matching; only when both sit on the same side does the
+    /// index decide, and because `candidates` must be sorted ascending by date that means the earlier one.
+    static func nearestSlot(in candidates: [GlucosePlannedSlot], to reference: Date) -> GlucosePlannedSlot? {
+        candidates.indices.min { lhs, rhs in
+            let dl = abs(candidates[lhs].date.timeIntervalSince(reference))
+            let dr = abs(candidates[rhs].date.timeIntervalSince(reference))
+            if dl == dr {
+                // Prefer the slot at or after the reference time when equidistant, as BP matching does.
+                let lFuture = candidates[lhs].date >= reference
+                let rFuture = candidates[rhs].date >= reference
+                if lFuture != rFuture { return lFuture }
+                return lhs < rhs
+            }
+            return dl < dr
+        }.map { candidates[$0] }
     }
 
     private static func dayRange(for date: Date, calendar: Calendar) -> (start: Date, end: Date) {
@@ -325,13 +412,11 @@ public final class GetTodayOverviewUseCase {
     }
 
     private func persistCycleAnchorIfNeeded(settings: UserSettings, today: Date, calendar: Calendar) async -> Date? {
-        guard settings.enableDailyCycleMode else { return nil }
-        let anchorDate = settings.dailyCycleAnchorDate
-            ?? GlucoseCyclePlanner.fallbackAnchorDate(
-                currentCycleIndex: settings.currentCycleIndex,
-                referenceDate: today,
-                calendar: calendar
-            )
+        guard let anchorDate = Self.resolvedCycleAnchor(
+            settings: settings,
+            referenceDate: today,
+            calendar: calendar
+        ) else { return nil }
         guard settings.dailyCycleAnchorDate == nil else { return anchorDate }
         settings.dailyCycleAnchorDate = anchorDate
         do {
