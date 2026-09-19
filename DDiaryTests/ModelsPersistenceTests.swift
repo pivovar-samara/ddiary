@@ -15,7 +15,7 @@ struct ModelsPersistenceTests {
                 UserSettings.self,
                 GoogleIntegration.self,
             ]),
-            configurations: [ModelConfiguration(isStoredInMemoryOnly: true)]
+            configurations: [ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)]
         )
         let context = ModelContext(container)
 
@@ -55,7 +55,7 @@ struct ModelsPersistenceTests {
                 UserSettings.self,
                 GoogleIntegration.self,
             ]),
-            configurations: [ModelConfiguration(isStoredInMemoryOnly: true)]
+            configurations: [ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)]
         )
         let context = ModelContext(container)
 
@@ -97,7 +97,7 @@ struct ModelsPersistenceTests {
                 UserSettings.self,
                 GoogleIntegration.self,
             ]),
-            configurations: [ModelConfiguration(isStoredInMemoryOnly: true)]
+            configurations: [ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)]
         )
         let context = ModelContext(container)
 
