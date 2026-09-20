@@ -59,6 +59,7 @@ struct AppContainer {
     let notificationsRepository: any NotificationsRepository
     let analyticsRepository: any AnalyticsRepository
     let googleSheetsClient: any GoogleSheetsClient
+    let cloudSyncStatusMonitor: CloudSyncStatusMonitor
     let getTodayOverviewUseCase: GetTodayOverviewUseCase
     let getHistoryUseCase: GetHistoryUseCase
     let updateSchedulesUseCase: UpdateSchedulesUseCase
@@ -79,7 +80,8 @@ struct AppContainer {
         googleSheetsClient: any GoogleSheetsClient = LiveGoogleSheetsClient(),
         tokenStorage: any TokenStorage = KeychainTokenStorage(),
         configureGoogleTokenPersistence: Bool = true,
-        isPrettyDataMode: Bool = false
+        isPrettyDataMode: Bool = false,
+        observesCloudSyncStatus: Bool = true
     ) {
         let measurementsRepository = SwiftDataMeasurementsRepository(modelContext: modelContext)
         let settingsRepository = SwiftDataSettingsRepository(modelContext: modelContext)
@@ -116,6 +118,14 @@ struct AppContainer {
         self.notificationsRepository = notificationsRepository
         self.analyticsRepository = analyticsRepository
         self.googleSheetsClient = googleSheetsClient
+
+        // CloudKit reports mirroring failures asynchronously, long after ModelContainer init
+        // returned, so the monitor has to be listening before the setup event arrives.
+        let cloudSyncStatusMonitor = CloudSyncStatusMonitor()
+        if observesCloudSyncStatus {
+            cloudSyncStatusMonitor.startObserving()
+        }
+        self.cloudSyncStatusMonitor = cloudSyncStatusMonitor
 
         self.getTodayOverviewUseCase = GetTodayOverviewUseCase(
             measurementsRepository: measurementsRepository,
@@ -211,7 +221,8 @@ struct AppContainer {
             googleSheetsClient: DisabledGoogleSheetsClient(),
             tokenStorage: tokenStorage,
             configureGoogleTokenPersistence: false,
-            isPrettyDataMode: true
+            isPrettyDataMode: true,
+            observesCloudSyncStatus: false
         )
     }
     

@@ -393,6 +393,6 @@ private func makeInMemoryModelContainer() throws -> ModelContainer {
             UserSettings.self,
             GoogleIntegration.self
         ]),
-        configurations: [ModelConfiguration(isStoredInMemoryOnly: true)]
+        configurations: [ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)]
     )
 }
