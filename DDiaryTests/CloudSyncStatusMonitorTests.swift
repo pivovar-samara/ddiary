@@ -66,13 +66,28 @@ final class CloudSyncStatusMonitorTests: XCTestCase {
         XCTAssertFalse(monitor.isCloudSyncUnavailable)
     }
 
-    func test_startObserving_isIdempotent_andStopObservingDetaches() async {
+    func test_whenSetupFailsAfterRecovery_reportsCloudSyncUnavailableAgain() async {
+        let monitor = CloudSyncStatusMonitor(center: NotificationCenter())
+
+        monitor.record(CloudSyncEvent(kind: .setup, hasEnded: true, succeeded: false))
+        monitor.record(CloudSyncEvent(kind: .setup, hasEnded: true, succeeded: true))
+        XCTAssertFalse(monitor.isCloudSyncUnavailable)
+
+        // Signing back out of iCloud fails setup a second time within the same session.
+        monitor.record(CloudSyncEvent(kind: .setup, hasEnded: true, succeeded: false))
+
+        XCTAssertTrue(monitor.isCloudSyncUnavailable)
+    }
+
+    func test_startObserving_isIdempotent_andSurvivesStopAndRestart() async {
         let center = NotificationCenter()
         let monitor = CloudSyncStatusMonitor(center: center)
 
         monitor.startObserving()
         monitor.startObserving()
         monitor.stopObserving()
+        monitor.stopObserving()
+        monitor.startObserving()
 
         XCTAssertFalse(monitor.isCloudSyncUnavailable)
     }

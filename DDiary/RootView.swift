@@ -89,8 +89,14 @@ struct RootView: View {
             .task {
                 presentCloudSyncNoticeIfNeeded()
             }
-            .onChange(of: container.cloudSyncStatusMonitor.isCloudSyncUnavailable) { _, _ in
-                presentCloudSyncNoticeIfNeeded()
+            .onChange(of: container.cloudSyncStatusMonitor.isCloudSyncUnavailable) { _, isUnavailable in
+                if isUnavailable {
+                    presentCloudSyncNoticeIfNeeded()
+                } else {
+                    // Mirroring recovered (the user signed back into iCloud, say). Arm the notice
+                    // again so a later failure in this same session is still reported.
+                    hasPresentedCloudSyncNotice = false
+                }
             }
         }
         .alert(

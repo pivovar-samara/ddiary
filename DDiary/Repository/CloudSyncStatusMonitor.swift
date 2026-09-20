@@ -45,7 +45,7 @@ final class CloudSyncStatusMonitor {
     private(set) var isCloudSyncUnavailable = false
 
     @ObservationIgnored private let center: NotificationCenter
-    @ObservationIgnored private var observer: NSObjectProtocol?
+    @ObservationIgnored private var observation: NotificationObservation?
 
     @ObservationIgnored private static let logger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "DDiary",
@@ -57,9 +57,9 @@ final class CloudSyncStatusMonitor {
     }
 
     func startObserving() {
-        guard observer == nil else { return }
+        guard observation == nil else { return }
 
-        observer = center.addObserver(
+        let token = center.addObserver(
             forName: NSPersistentCloudKitContainer.eventChangedNotification,
             object: nil,
             queue: nil
@@ -69,12 +69,11 @@ final class CloudSyncStatusMonitor {
                 self?.record(event)
             }
         }
+        observation = NotificationObservation(center: center, token: token)
     }
 
     func stopObserving() {
-        guard let observer else { return }
-        center.removeObserver(observer)
-        self.observer = nil
+        observation = nil
     }
 
     /// Applies a mirroring event. Exposed so tests can drive the state machine without CoreData.
@@ -117,5 +116,26 @@ final class CloudSyncStatusMonitor {
             succeeded: event.succeeded,
             errorDescription: event.error.map { String(describing: $0) }
         )
+    }
+}
+
+/// Owns a `NotificationCenter` registration and removes it when released.
+///
+/// `NotificationCenter` keeps the registered block alive by itself, so a monitor that goes away
+/// without unregistering would leave the block receiving notifications forever. Holding the token
+/// here makes that cleanup automatic: releasing the monitor releases this, which unregisters.
+/// It is deliberately `nonisolated` — a `@MainActor` type would need an isolated deinit to reach
+/// its own stored token, and that deinit path aborts the process on the iOS 26.x runtime.
+private nonisolated final class NotificationObservation {
+    private let center: NotificationCenter
+    private let token: any NSObjectProtocol
+
+    init(center: NotificationCenter, token: any NSObjectProtocol) {
+        self.center = center
+        self.token = token
+    }
+
+    deinit {
+        center.removeObserver(token)
     }
 }
