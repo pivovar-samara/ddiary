@@ -89,7 +89,7 @@ Use this checklist for final iPhone/iPad smoke validation before tagging an RC.
 ## Privacy / Release Compliance
 
 - [ ] Privacy Report generated from the archive (Xcode Organizer -> Generate Privacy Report).
-- [ ] App Store Connect App Privacy answers match docs/legal/app-store-privacy.md. Note two
+- [ ] App Store Connect App Privacy answers match docs/analytics-privacy.md. Note two
       known, documented divergences from the report: Amplitude's manifest declares Coarse
       Location that our configuration does not actually collect, and Firebase Analytics
       contributes no manifest at all.

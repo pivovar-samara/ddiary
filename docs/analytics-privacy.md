@@ -1,7 +1,11 @@
-# App Privacy (App Store Connect) and Firebase console settings
+# Analytics privacy: App Store Connect answers and console settings
 
-Not a Notion page. This is what has to be true in App Store Connect and in the Firebase / GA4
-consoles for the Privacy Policy to be accurate and for the app to pass review.
+What has to be true in App Store Connect and in the Firebase / GA4 consoles for the published
+privacy policy to be accurate and for the app to pass review, plus the reasoning behind each
+answer so it does not have to be re-derived.
+
+The privacy policy and support pages themselves live on Notion:
+https://circular-drug-3ff.notion.site/DIA-ry-Legal-3338f966e50380bf8a74f62e3d3761a8
 
 ## 1. App Store Connect -> App Privacy -> Data Types
 
