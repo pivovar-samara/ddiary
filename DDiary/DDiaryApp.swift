@@ -159,7 +159,12 @@ struct DDiaryApp: App {
         )
 
         switch launchState {
-        case let .ready(_, appContainer, _):
+        case let .ready(_, appContainer, launchNotice):
+            if launchNotice == .cloudSyncUnavailable {
+                // No CloudKit container was built, so no mirroring event will ever arrive.
+                // Seed the monitor so Today and Settings report this like any other failure.
+                appContainer.cloudSyncStatusMonitor.markUnavailable()
+            }
             if usesPrettyData {
                 self.notificationsCoordinator = nil
             } else {
@@ -180,8 +185,8 @@ struct DDiaryApp: App {
     var body: some Scene {
         WindowGroup {
             switch launchState {
-            case let .ready(sharedModelContainer, appContainer, launchNotice):
-                RootView(launchNotice: launchNotice)
+            case let .ready(sharedModelContainer, appContainer, _):
+                RootView()
                     .appContainer(appContainer)
                     .modelContainer(sharedModelContainer)
             case .failed(let message):

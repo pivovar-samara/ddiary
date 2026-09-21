@@ -18,20 +18,8 @@ private enum RootTab: Hashable {
 }
 
 struct RootView: View {
-    let launchNotice: AppLaunchNotice?
-
     @Environment(\.appContainer) private var container: AppContainer
     @State private var selectedTab: RootTab = .today
-    @State private var activeLaunchNotice: AppLaunchNotice?
-    @State private var hasPresentedCloudSyncNotice: Bool
-
-    init(launchNotice: AppLaunchNotice? = nil) {
-        self.launchNotice = launchNotice
-        _activeLaunchNotice = State(initialValue: launchNotice)
-        // A notice raised at launch already covers the cloud-sync case; don't repeat it when the
-        // mirroring failure lands afterwards.
-        _hasPresentedCloudSyncNotice = State(initialValue: launchNotice == .cloudSyncUnavailable)
-    }
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -85,43 +73,7 @@ struct RootView: View {
             .task {
                 await container.updateSchedulesUseCase.requestAuthorizationAndSchedule()
             }
-            // The mirroring failure can land either before this view appears or well after it.
-            .task {
-                presentCloudSyncNoticeIfNeeded()
-            }
-            .onChange(of: container.cloudSyncStatusMonitor.isCloudSyncUnavailable) { _, isUnavailable in
-                if isUnavailable {
-                    presentCloudSyncNoticeIfNeeded()
-                } else {
-                    // Mirroring recovered (the user signed back into iCloud, say). Arm the notice
-                    // again so a later failure in this same session is still reported.
-                    hasPresentedCloudSyncNotice = false
-                }
-            }
         }
-        .alert(
-            activeLaunchNotice?.title ?? "",
-            isPresented: Binding(
-                get: { activeLaunchNotice != nil },
-                set: { isPresented in
-                    if !isPresented {
-                        activeLaunchNotice = nil
-                    }
-                }
-            ),
-            presenting: activeLaunchNotice
-        ) { _ in
-            Button(L10n.quickEntryAlertOK, role: .cancel) {}
-        } message: { notice in
-            Text(notice.message)
-        }
-    }
-
-    private func presentCloudSyncNoticeIfNeeded() {
-        guard container.cloudSyncStatusMonitor.isCloudSyncUnavailable else { return }
-        guard !hasPresentedCloudSyncNotice else { return }
-        hasPresentedCloudSyncNotice = true
-        activeLaunchNotice = .cloudSyncUnavailable
     }
 
     private func routeToTodayIfPendingQuickEntry() {

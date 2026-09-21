@@ -174,6 +174,12 @@ struct StatusDot: View {
         self.size = size
     }
 
+    /// Create a status dot with an explicit color, for states outside the slot-status vocabulary.
+    init(color: Color, size: CGFloat = 8) {
+        self.color = color
+        self.size = size
+    }
+
     var body: some View {
         Circle()
             .fill(color)
