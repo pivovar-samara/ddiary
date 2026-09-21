@@ -165,6 +165,11 @@ struct DDiaryApp: App {
         self.usesPrettyData = analyticsEnvironment.isPrettyData
         self.analyticsEnvironment = analyticsEnvironment
 
+        // Before makeLaunchState: Crashlytics installs its signal and exception handlers inside
+        // FirebaseApp.configure(), and the SwiftData + CloudKit init that follows is the most
+        // crash-prone stretch of launch — it already needs a two-level fallback.
+        FirebaseBootstrap.configureIfNeeded(environment: analyticsEnvironment)
+
         self.launchState = AppBootstrapper.makeLaunchState(
             isUITesting: analyticsEnvironment.isUITesting,
             usesPrettyData: analyticsEnvironment.isPrettyData,

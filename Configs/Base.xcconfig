@@ -9,3 +9,8 @@
 // https://developer.apple.com/documentation/xcode/adding-a-build-configuration-file-to-your-project
 
 #include "Secrets.xcconfig"
+
+// Firebase SPM checkout root.
+// Declared as a build setting (not the shell-only ${BUILD_DIR%/Build/*} form) so the
+// Crashlytics dSYM phase can list its scripts as input paths and stay sandbox-safe.
+FIREBASE_SDK_DIR = $(BUILD_DIR)/../../SourcePackages/checkouts/firebase-ios-sdk

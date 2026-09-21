@@ -27,6 +27,12 @@ enum AnalyticsRepositoryFactory {
             logger.error("Amplitude disabled: AMPLITUDE_API_KEY is empty")
         }
 
+        if FirebaseBootstrap.isConfigured {
+            sinks.append(FirebaseAnalyticsEventSink())
+        } else {
+            logger.error("Firebase Analytics disabled: FirebaseApp was not configured")
+        }
+
         return CompositeAnalyticsRepository(sinks: sinks)
     }
 }

@@ -4,6 +4,18 @@
 <dict>
 	<key>AMPLITUDE_API_KEY</key>
 	<string>$(AMPLITUDE_API_KEY)</string>
+	<key>FIREBASE_ANALYTICS_COLLECTION_ENABLED</key>
+	<true/>
+	<key>FirebaseAppDelegateProxyEnabled</key>
+	<false/>
+	<key>FirebaseAutomaticScreenReportingEnabled</key>
+	<false/>
+	<key>FirebaseCrashlyticsCollectionEnabled</key>
+	<true/>
+	<key>GOOGLE_ANALYTICS_DEFAULT_ALLOW_AD_PERSONALIZATION_SIGNALS</key>
+	<false/>
+	<key>GOOGLE_ANALYTICS_IDFV_COLLECTION_ENABLED</key>
+	<false/>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
