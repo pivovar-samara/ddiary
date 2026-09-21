@@ -35,7 +35,6 @@
 		483246C22EF4014900D33F53 /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
 		483246C32EF4014900D33F53 /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 		483246C42EF4014900D33F53 /* Secrets.xcconfig.example */ = {isa = PBXFileReference; lastKnownFileType = text; path = Secrets.xcconfig.example; sourceTree = "<group>"; };
-		48FB0A072FA00A0100FB0A01 /* GoogleService-Info.plist.example */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist.example"; sourceTree = "<group>"; };
 		484314DB2EDAE34000ECF66A /* DDiary.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DDiary.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		484314DC2EDAE34000ECF66A /* DDiaryTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DDiaryTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		484314DD2EDAE34000ECF66A /* DDiaryUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DDiaryUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -44,6 +43,7 @@
 		4885FF7E2F332B1300674DF9 /* DDiaryFull.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = DDiaryFull.xctestplan; sourceTree = "<group>"; };
 		48903E3D2F4B0F4D00FEFF98 /* DDiaryCITests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = DDiaryCITests.xctestplan; sourceTree = "<group>"; };
 		48F9A6952ED7763600C114DB /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
+		48FB0A072FA00A0100FB0A01 /* GoogleService-Info.plist.example */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist.example"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
