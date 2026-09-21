@@ -50,9 +50,8 @@ struct AppBootstrapper {
     static func makeLaunchState(
         isUITesting: Bool,
         usesPrettyData: Bool = false,
-        appContainerFactory: AppContainerFactory = { modelContainer in
-            AppContainer(modelContainer: modelContainer)
-        },
+        analyticsEnvironment: AnalyticsEnvironment = .current(),
+        appContainerFactory: AppContainerFactory? = nil,
         prettyDataAppContainerFactory: AppContainerFactory = { modelContainer in
             AppContainer.prettyData(modelContainer: modelContainer)
         },
@@ -60,6 +59,14 @@ struct AppBootstrapper {
             try ModelContainer(for: schema, migrationPlan: migrationPlan, configurations: configurations)
         }
     ) -> AppLaunchState {
+        // A default argument cannot reference another parameter, so the production factory
+        // is resolved here instead. Analytics is opt-in: AppContainer now defaults to no-op.
+        let resolvedAppContainerFactory: AppContainerFactory = appContainerFactory ?? { modelContainer in
+            AppContainer(
+                modelContext: ModelContext(modelContainer),
+                analyticsRepository: AnalyticsRepositoryFactory.make(environment: analyticsEnvironment)
+            )
+        }
         let fullSchema = Schema(versionedSchema: DDiarySchemaV1.self)
 
         if isUITesting || usesPrettyData {
@@ -72,7 +79,7 @@ struct AppBootstrapper {
                         cloudKitDatabase: .none
                     ),
                     launchNotice: nil,
-                    appContainerFactory: usesPrettyData ? prettyDataAppContainerFactory : appContainerFactory,
+                    appContainerFactory: usesPrettyData ? prettyDataAppContainerFactory : resolvedAppContainerFactory,
                     seedPrettyData: usesPrettyData,
                     modelContainerFactory: modelContainerFactory
                 )
@@ -90,7 +97,7 @@ struct AppBootstrapper {
                     cloudKitDatabase: .private(PersistenceConstants.cloudKitContainerIdentifier)
                 ),
                 launchNotice: nil,
-                appContainerFactory: appContainerFactory,
+                appContainerFactory: resolvedAppContainerFactory,
                 modelContainerFactory: modelContainerFactory
             )
         } catch let cloudKitError {
@@ -106,7 +113,7 @@ struct AppBootstrapper {
                         cloudKitDatabase: .none
                     ),
                     launchNotice: .cloudSyncUnavailable,
-                    appContainerFactory: appContainerFactory,
+                    appContainerFactory: resolvedAppContainerFactory,
                     modelContainerFactory: modelContainerFactory
                 )
             } catch let localError {
@@ -147,15 +154,21 @@ struct DDiaryApp: App {
     private let notificationsCoordinator: NotificationsCoordinator?
     private let isUITesting: Bool
     private let usesPrettyData: Bool
+    private let analyticsEnvironment: AnalyticsEnvironment
 
     init() {
-        let args = ProcessInfo.processInfo.arguments
-        let env = ProcessInfo.processInfo.environment
-        self.isUITesting = args.contains("UITESTING") || env["UITESTING"] == "1"
-        self.usesPrettyData = args.contains("PRETTY_DATA") || env["PRETTY_DATA"] == "1"
+        let analyticsEnvironment = AnalyticsEnvironment.make(
+            arguments: ProcessInfo.processInfo.arguments,
+            environment: ProcessInfo.processInfo.environment
+        )
+        self.isUITesting = analyticsEnvironment.isUITesting
+        self.usesPrettyData = analyticsEnvironment.isPrettyData
+        self.analyticsEnvironment = analyticsEnvironment
+
         self.launchState = AppBootstrapper.makeLaunchState(
-            isUITesting: isUITesting,
-            usesPrettyData: usesPrettyData
+            isUITesting: analyticsEnvironment.isUITesting,
+            usesPrettyData: analyticsEnvironment.isPrettyData,
+            analyticsEnvironment: analyticsEnvironment
         )
 
         switch launchState {

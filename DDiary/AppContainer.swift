@@ -76,7 +76,7 @@ struct AppContainer {
     init(
         modelContext: ModelContext,
         notificationsRepository: any NotificationsRepository = UserNotificationsRepository(),
-        analyticsRepository: any AnalyticsRepository = AmplitudeAnalyticsRepository(),
+        analyticsRepository: any AnalyticsRepository = NoopAnalyticsRepository(),
         googleSheetsClient: any GoogleSheetsClient = LiveGoogleSheetsClient(),
         tokenStorage: any TokenStorage = KeychainTokenStorage(),
         configureGoogleTokenPersistence: Bool = true,
