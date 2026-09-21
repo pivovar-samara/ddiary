@@ -32,8 +32,23 @@ Worth raising with Amplitude separately: with `enableCoppaControl = true` the SD
 `DDiary/Resources/PrivacyInfo.xcprivacy`, AdSupport is not linked, and IDFV collection is off.
 
 **Before each submission:** generate the Privacy Report from the archive (Xcode Organizer ->
-Generate Privacy Report) and reconcile the answers above with it. The binary
-`GoogleAppMeasurement` xcframework carries its own manifest that can only be read that way.
+Generate Privacy Report) and reconcile the answers above with it.
+
+**The report does not cover Firebase Analytics.** `GoogleAppMeasurement.xcframework`,
+`FirebaseAnalytics.xcframework` and `GoogleAdsOnDeviceConversion.xcframework` ship **no**
+`PrivacyInfo.xcprivacy` — verified against the signed archives on `dl.google.com` for 12.19.2.
+Only Crashlytics, Installations, GoogleDataTransport, GoogleUtilities and Amplitude contribute
+declarations. So the Product Interaction and Device ID rows above have to be justified from
+Google's own documentation rather than from the report:
+https://firebase.google.com/docs/ios/app-store-data-collection
+
+To dump every manifest that actually ships in the app bundle:
+
+```bash
+APP=<path to DDiary.app>
+find "$APP" -name "*.xcprivacy" -not -path "*/PlugIns/*" -exec sh -c \
+  'echo "== ${1#$APP/}"; plutil -p "$1" | grep -E "DataType\"|Linked|Tracking"' _ {} \;
+```
 
 ## 2. Firebase / Google Analytics 4 console
 
