@@ -7,26 +7,46 @@ consoles for the Privacy Policy to be accurate and for the app to pass review.
 
 | Category | Data type | Purpose | Linked to user | Used for tracking | Comes from |
 |---|---|---|---|---|---|
-| Usage Data | Product Interaction | Analytics | **Yes** | No | Amplitude SDK manifest + Firebase |
-| Identifiers | Device ID | Analytics | **Yes** | No | Amplitude SDK manifest + Firebase app-instance ID |
-| Location | Coarse Location | Analytics | **Yes** | No | Amplitude SDK manifest |
+| Usage Data | Product Interaction | Analytics | **Yes** | No | Amplitude + Firebase Analytics |
+| Identifiers | Device ID | Analytics | **Yes** | No | Amplitude device ID + Firebase app-instance ID |
 | Diagnostics | Crash Data | App Functionality | No | No | Firebase Crashlytics |
 | Diagnostics | Other Diagnostic Data | App Functionality | No | No | Crashlytics + Firebase Installations |
 
-**Why "Linked to user = Yes" on the first three.** That is not our runtime configuration, it is
-what `Amplitude-Swift`'s bundled `PrivacyInfo.xcprivacy` statically declares. The manifest ships
-inside the package and lands in the app's aggregated Privacy Report no matter how we configure
-the SDK at runtime, and reviewers compare the App Store answers against that report. Arguing
-"but we disable city collection" does not help — the report says otherwise.
+"Linked to user" is Yes on the first two because both SDKs attach a persistent per-install
+device identifier to every event. No account identifier is involved — `setUserId` / `setUserID`
+is never called in either SDK.
 
-Worth raising with Amplitude separately: with `enableCoppaControl = true` the SDK does not send
-`city` or `ip_address`, so the Coarse Location declaration overstates what actually happens.
+### Coarse Location: declared by Amplitude's manifest, deliberately NOT declared here
+
+`Amplitude-Swift`'s bundled `PrivacyInfo.xcprivacy` declares `CoarseLocation` as linked to the
+user, so it will appear in the aggregated Privacy Report. We do not declare it in App Store
+Connect, and this is why:
+
+- Amplitude's manifest is explicitly a **default**. Their docs say: "Amplitude sets the privacy
+  manifest based on a default configuration. Update the privacy manifest according to your
+  configuration and your app."
+  https://amplitude.com/docs/sdks/analytics/ios/ios-swift-sdk#apple-privacy-manifest
+- Amplitude defines its own Coarse Location as "Country, region, and city based on IP address.
+  Amplitude doesn't collect them from device GPS or location features." That basis does not
+  apply to us: `enableCoppaControl = true` suppresses `ip_address`, so `event.ip` is never set
+  to `$remote` and the server has nothing to derive geography from.
+- Verified in `Amplitude-Swift` 1.15.5 sources: `ContextPlugin` never populates `city`, `region`,
+  `dma` or latitude/longitude at all — those fields only ever come from server-side IP lookup.
+  `TrackingOptions.forCoppaControl()` disables `idfa`, `idfv`, `city` and `ip_address`.
+- The one location-adjacent value that is still sent is `country`, and it comes from
+  `Locale.current.regionCode` (`ContextPlugin.swift:79`) — the user's device region setting, not
+  a measurement of where the device is. A device set to another region reports that region.
+
+If this ever needs to be airtight rather than merely defensible, add `.disableTrackCountry()` to
+the `TrackingOptions` chain in `AmplitudeAnalyticsEventSink` and nothing location-adjacent leaves
+the device. The cost is losing the country breakdown in Amplitude reports.
 
 **Do not declare:**
 
 - *Performance Data* — Crashlytics does not declare it and `FirebasePerformance` is not linked.
 - *User ID* — `setUserID` is never called, in either SDK.
 - *Health & Fitness* — unaffected by this change. Check what is already declared and leave it alone.
+- *Coarse Location* — see the section above.
 
 **"Data Used to Track You" must stay empty.** `NSPrivacyTracking` is `false` in
 `DDiary/Resources/PrivacyInfo.xcprivacy`, AdSupport is not linked, and IDFV collection is off.

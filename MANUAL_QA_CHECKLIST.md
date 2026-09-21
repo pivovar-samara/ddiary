@@ -89,9 +89,10 @@ Use this checklist for final iPhone/iPad smoke validation before tagging an RC.
 ## Privacy / Release Compliance
 
 - [ ] Privacy Report generated from the archive (Xcode Organizer -> Generate Privacy Report).
-- [ ] App Store Connect App Privacy answers match that report, including the data types the
-      Amplitude and Firebase manifests declare (Amplitude declares Coarse Location, Device ID
-      and Product Interaction as *linked to the user*, regardless of our runtime settings).
+- [ ] App Store Connect App Privacy answers match docs/legal/app-store-privacy.md. Note two
+      known, documented divergences from the report: Amplitude's manifest declares Coarse
+      Location that our configuration does not actually collect, and Firebase Analytics
+      contributes no manifest at all.
 - [ ] "Data Used to Track You" is still empty; Google signals is still OFF in the GA4 console.
 - [ ] Privacy Policy and the support page on Notion reflect the current analytics providers.
 - [ ] Crashlytics shows no entries under Missing dSYMs for the build being shipped.
