@@ -35,6 +35,7 @@
 		483246C22EF4014900D33F53 /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
 		483246C32EF4014900D33F53 /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 		483246C42EF4014900D33F53 /* Secrets.xcconfig.example */ = {isa = PBXFileReference; lastKnownFileType = text; path = Secrets.xcconfig.example; sourceTree = "<group>"; };
+		48FB0A072FA00A0100FB0A01 /* GoogleService-Info.plist.example */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist.example"; sourceTree = "<group>"; };
 		484314DB2EDAE34000ECF66A /* DDiary.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DDiary.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		484314DC2EDAE34000ECF66A /* DDiaryTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DDiaryTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		484314DD2EDAE34000ECF66A /* DDiaryUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DDiaryUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -108,6 +109,7 @@
 			isa = PBXGroup;
 			children = (
 				483246C02EF4014900D33F53 /* Base.xcconfig */,
+				48FB0A072FA00A0100FB0A01 /* GoogleService-Info.plist.example */,
 				483246C12EF4014900D33F53 /* Debug.xcconfig */,
 				483246C22EF4014900D33F53 /* Release.xcconfig */,
 				483246C32EF4014900D33F53 /* Secrets.xcconfig */,
