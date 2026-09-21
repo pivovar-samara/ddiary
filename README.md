@@ -24,8 +24,12 @@ DIA-ry is a local-first iOS and iPadOS app for tracking blood pressure and blood
    - `AMPLITUDE_API_KEY_PROD`
    - `SUPPORT_EMAIL_DEV`
    - `SUPPORT_EMAIL_PROD`
+4. (Optional) Enable Firebase Analytics and Crashlytics:
+   - download `GoogleService-Info.plist` from the Firebase console (Project settings -> Your apps -> iOS)
+   - save it as `DDiary/Resources/GoogleService-Info.plist`
+   - `Configs/GoogleService-Info.plist.example` shows the expected shape
 
-`Configs/Secrets.xcconfig` is intentionally gitignored and must never contain shared production credentials in commits.
+`Configs/Secrets.xcconfig` and `DDiary/Resources/GoogleService-Info.plist` are intentionally gitignored and must never contain shared production credentials in commits. Without the Firebase plist the app still builds and runs — Firebase simply stays disabled and says so in the log.
 
 Note: the user-facing app name is `DIA-ry`, while technical project identifiers (repository, Xcode target/scheme, bundle prefix) still use `DDiary`.
 
@@ -96,7 +100,7 @@ The app is explicitly **not a medical device** and provides no medical recommend
 - **Architecture:** MVVM + Use Case + Repository + **manual DI**.
 - **Use Cases:** Implemented as **`@MainActor` classes** around repository operations.
 - **Domain vs Persistence models:** SwiftData `@Model` types double as domain models (Option B).
-- **Analytics:** Amplitude (minimal events).
+- **Analytics:** Amplitude and Firebase Analytics receive the same minimal event set; Firebase Crashlytics handles crash reporting. Collection is minimised — no IDFA, no IDFV, no ad personalisation, no automatic screen views. See `DDiary/Repository/Analytics/`.
 - **Tests:** Unit tests, repository tests with mocks, and basic UI tests.
 
 Apple Health integration is intentionally **excluded from v1**.
@@ -610,7 +614,7 @@ When user taps “Disconnect Google”:
      - `SwiftDataSettingsRepository`
      - `SwiftDataGoogleIntegrationRepository`
      - `UserNotificationsRepository`
-     - `AmplitudeAnalyticsRepository`
+     - `CompositeAnalyticsRepository` (fans events out to `AmplitudeAnalyticsEventSink` and `FirebaseAnalyticsEventSink`)
     
    - SwiftData-based repositories are generally used from the main actor; repository functions that mutate SwiftData should be `@MainActor` or call `MainActor.run`.
    - Networking and analytics code can run on background tasks but must coordinate writes through repos.

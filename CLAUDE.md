@@ -59,6 +59,10 @@ Parallel testing is disabled — the test suite uses in-memory SwiftData, which 
 - **New Swift files auto-compile** — Xcode project uses `PBXFileSystemSynchronizedRootGroup`. Drop a `.swift` file into the right folder; no `project.pbxproj` edit needed.
 - **CloudKit is not active during testing** — tests use in-memory SwiftData only.
 - **Secrets** — `Configs/Secrets.xcconfig` is gitignored. Copy from `Secrets.xcconfig.example` and fill locally. Never commit it.
+- **`GoogleService-Info.plist` is gitignored too** — it lives at `DDiary/Resources/GoogleService-Info.plist`, is regenerated in Xcode Cloud from `GOOGLE_SERVICE_INFO_PLIST_BASE64`, and its template is `Configs/GoogleService-Info.plist.example`. A build without it is valid: Firebase disables itself and logs why.
+- **Telemetry is gated by `AnalyticsEnvironment`, not by SDK flags.** Unit tests run inside the host app, so `DDiaryApp.init` executes during `xcodebuild test` — the gate is what keeps analytics and Crashlytics off. Never call `setAnalyticsCollectionEnabled` / `setCrashlyticsCollectionEnabled`: they write sticky values that outrank Info.plist forever.
+- **Analytics event names must pass GA4 validation** — no `firebase_`/`google_`/`ga_` prefix, `^[A-Za-z][A-Za-z0-9_]*$`, max 40 chars. `AnalyticsEventFactory` is the only place event names are defined; `AnalyticsEventFactoryTests` enforces the rules.
+- **Firebase privacy keys in `Info.plist` must be literal `<true/>`/`<false/>`** — never `$(VAR)` via xcconfig. Firebase only accepts `NSNumber` for them and silently ignores strings.
 
 ## Test Doubles (DDiaryTests/TestSupport.swift)
 
