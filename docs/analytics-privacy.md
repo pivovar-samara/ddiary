@@ -1,8 +1,10 @@
-# Analytics privacy: App Store Connect answers and console settings
+# App privacy: App Store Connect answers, data flows and console settings
 
-What has to be true in App Store Connect and in the Firebase / GA4 consoles for the published
-privacy policy to be accurate and for the app to pass review, plus the reasoning behind each
-answer so it does not have to be re-derived.
+Everything needed to fill in the App Privacy questionnaire without re-deriving it: the analytics
+and diagnostics the SDKs collect, the app's own data flows, and what has to be true in the
+Firebase / GA4 consoles for the published privacy policy to stay accurate.
+
+This is engineering analysis of what the code actually does, not legal advice.
 
 The privacy policy and support pages themselves live on Notion:
 https://circular-drug-3ff.notion.site/DIA-ry-Legal-3338f966e50380bf8a74f62e3d3761a8
@@ -65,7 +67,7 @@ the device. The cost is losing the country breakdown in Amplitude reports.
 
 - *Performance Data* — Crashlytics does not declare it and `FirebasePerformance` is not linked.
 - *User ID* — `setUserID` is never called, in either SDK.
-- *Health & Fitness* — unaffected by this change. Check what is already declared and leave it alone.
+- *Health & Fitness* — the health values never reach analytics, and the Google Sheets flow that does carry them is not developer-accessible. Reasoned through in section 2.
 - *Coarse Location* — see the section above.
 
 **"Data Used to Track You" must stay empty.** `NSPrivacyTracking` is `false` in
@@ -90,7 +92,63 @@ find "$APP" -name "*.xcprivacy" -not -path "*/PlugIns/*" -exec sh -c \
   'echo "== ${1#$APP/}"; plutil -p "$1" | grep -E "DataType\"|Linked|Tracking"' _ {} \;
 ```
 
-## 2. Firebase / Google Analytics 4 console
+## 2. The app's own data flows
+
+None of these appear in any privacy manifest — not ours and not the SDKs' — because manifests
+only describe what someone wrote into them. The Privacy Report cannot answer this part, so it has
+to be reasoned about directly.
+
+**Apple's test.** Data counts as *collected* when it is transmitted off the device in a way that
+lets the developer, or the developer's third-party partners, access it for longer than it takes
+to service the request in real time. Storage the developer cannot read is not collection.
+See <https://developer.apple.com/app-store/app-privacy-details/>.
+
+| Flow | What leaves the device | Who can read it | Collected? |
+|---|---|---|---|
+| Local SwiftData store | nothing | the user | No |
+| iCloud / CloudKit | all records | the user's Apple account only — the container uses `cloudKitDatabase: .private`, and developers have no access to private databases | No |
+| Google Sheets backup (opt-in) | BP: systolic, diastolic, pulse, timestamp, comment. Glucose: value, unit, measurement type, meal slot, timestamp, comment | the user's own Google account | **Judgment call — see below** |
+| CSV export | nothing, by us | a file is written to the app's temporary directory and handed to the share sheet; the user picks the destination | No |
+| Google OAuth | authorization code and token exchange with Google | Google, as the identity provider. The refresh token is stored in the device Keychain and never reaches us | No |
+| Integration metadata | spreadsheet ID, Google account identifier | stored in SwiftData, so it follows the same private CloudKit path as the records | No |
+
+### Google Sheets: recommendation is *not* to declare Health & Fitness
+
+The health values genuinely leave the device, so this deserves an explicit answer rather than an
+assumption. Four facts decide it:
+
+1. **There is no developer backend.** The only hosts the app ever contacts are
+   `sheets.googleapis.com`, `oauth2.googleapis.com`, Amplitude's and Firebase's. Nothing is ours.
+2. **The OAuth scope is `drive.file` only** — access limited to files the app itself created, not
+   the user's wider Drive.
+3. **The refresh token lives in the device Keychain**, deliberately not in SwiftData/CloudKit, so
+   there is no path by which it could reach us.
+4. **The spreadsheet is created in the user's own Drive and owned by them.** They can read, share
+   or delete it; we cannot.
+
+So at no point can the developer access the data. Google holds it as the storage provider the
+*user* chose, at the user's direction, rather than as our partner — which is what Apple's
+definition turns on.
+
+**The counter-argument, stated fairly:** the data does leave the device, it does land with a
+third party, and a reviewer could read "third-party partners" more broadly than we do. If you
+would rather not argue the point at review time, declaring Health & Fitness (App Functionality,
+not linked, not used for tracking) is the conservative answer and costs nothing but a line on the
+product page. Either answer is defensible; what is not defensible is answering without deciding.
+
+**What would flip this to "collected", so watch for it:**
+
+- adding any server-side component that touches the records or the OAuth token;
+- broadening the OAuth scope beyond `drive.file`;
+- writing to a spreadsheet the developer owns or has been shared on;
+- any analytics event carrying a measurement value. `AnalyticsEventFactory` is the only place a
+  value becomes an event property, and `normalizeReason` collapses free-form error text to a
+  closed set — that is what keeps this true, and it is why those two stay together.
+
+Regardless of how the App Store question is answered, the privacy policy has to describe these
+flows, and it does.
+
+## 3. Firebase / Google Analytics 4 console
 
 Without these, the declarations above become false.
 
@@ -109,7 +167,7 @@ Without these, the declarations above become false.
    - custom dimensions: `kind`, `reason`, `result`
    - custom metrics: `success_count`, `failure_count`
 
-## 3. Event reference
+## 4. Event reference
 
 Eleven events, identical in Amplitude and Firebase. Defined in
 `DDiary/Repository/Analytics/AnalyticsEventFactory.swift`.
