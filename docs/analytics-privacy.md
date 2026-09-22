@@ -20,6 +20,22 @@ https://circular-drug-3ff.notion.site/DIA-ry-Legal-3338f966e50380bf8a74f62e3d376
 device identifier to every event. No account identifier is involved — `setUserId` / `setUserID`
 is never called in either SDK.
 
+### The app's own `PrivacyInfo.xcprivacy` must mirror those two rows
+
+`DDiary/Resources/PrivacyInfo.xcprivacy` declares Product Interaction and Device ID, both
+`Linked = true`, `Tracking = false`, purpose Analytics — deliberately the same as the table
+above. Keep them in sync; a shipped manifest that disagrees with the App Store answers is worse
+than either one being wrong on its own.
+
+Device ID in particular cannot be left to the SDKs. Amplitude declares its own device ID, but
+**Firebase Analytics ships no manifest at all**, so without this entry the Firebase app-instance
+ID would be declared nowhere in the bundle. The tempting rule "only declare what the app's own
+code collects, let each SDK declare its own" breaks down precisely because one of the SDKs
+declares nothing.
+
+Crash Data and Other Diagnostic Data are *not* repeated in the app manifest: Crashlytics and
+Installations do declare those themselves, so the aggregated report already carries them.
+
 ### Coarse Location: declared by Amplitude's manifest, deliberately NOT declared here
 
 `Amplitude-Swift`'s bundled `PrivacyInfo.xcprivacy` declares `CoarseLocation` as linked to the
