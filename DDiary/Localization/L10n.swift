@@ -180,8 +180,16 @@ enum L10n {
     static let settingsSectionBPReminders = tr("settings.section.bp_reminders", "Blood Pressure Reminders")
     static let settingsSectionGlucoseReminders = tr("settings.section.glucose_reminders", "Glucose Reminders")
     static let settingsSectionThresholds = tr("settings.section.thresholds", "Thresholds")
+    static let settingsSectionICloud = tr("settings.section.icloud", "iCloud Sync")
     static let settingsSectionGoogleBackup = tr("settings.section.google_backup", "Google Sheets Backup")
     static let settingsSectionExport = tr("settings.section.export", "Export")
+    static let settingsICloudStatusLabel = tr("settings.icloud.status_label", "Status")
+    static let settingsICloudStatusActive = tr("settings.icloud.status_active", "Active")
+    static let settingsICloudStatusUnavailable = tr("settings.icloud.status_unavailable", "Unavailable")
+    static let settingsICloudActiveFooter = tr(
+        "settings.icloud.active_footer",
+        "Your records sync across your Apple devices signed in to the same iCloud account."
+    )
     static let settingsSectionFeedbackAbout = tr("settings.section.feedback_about", "Feedback & About")
 
     static let settingsRowGlucoseUnit = tr("settings.row.glucose_unit", "Glucose Unit")
@@ -339,7 +347,7 @@ enum L10n {
     static let cloudSyncUnavailableTitle = tr("app.cloud_fallback.title", "iCloud sync unavailable")
     static let cloudSyncUnavailableMessage = tr(
         "app.cloud_fallback.message",
-        "DDiary is using local storage on this device for now. Changes won't sync with iCloud until a later launch can reconnect."
+        "DIA-ry is using local storage on this device for now. Your records are safe here, but they won't sync to your other devices until iCloud is available again."
     )
     static let startupTitle = tr("app.startup.title", "Unable to start DDiary")
     static let startupRecoveryHint = tr(

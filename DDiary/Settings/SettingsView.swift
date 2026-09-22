@@ -249,6 +249,26 @@ struct SettingsView: View {
                 }
             }
 
+            // iCloud Sync — status only; the OS owns the account, there is nothing to toggle here.
+            SettingsSectionCard(title: L10n.settingsSectionICloud) {
+                let isUnavailable = container.cloudSyncStatusMonitor.isCloudSyncUnavailable
+                HStack {
+                    StatusDot(color: CloudSyncStatusPresentation.color(isUnavailable: isUnavailable), size: 10)
+                    Text(L10n.settingsICloudStatusLabel)
+                    Spacer()
+                    Text(CloudSyncStatusPresentation.label(isUnavailable: isUnavailable))
+                        .foregroundStyle(.secondary)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("settings.icloud.status")
+            } footer: {
+                Text(
+                    container.cloudSyncStatusMonitor.isCloudSyncUnavailable
+                        ? L10n.cloudSyncUnavailableMessage
+                        : L10n.settingsICloudActiveFooter
+                )
+            }
+
             // Google Sheets Backup
             SettingsSectionCard(title: L10n.settingsSectionGoogleBackup) {
                 HStack {

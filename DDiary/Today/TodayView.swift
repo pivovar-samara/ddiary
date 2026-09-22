@@ -44,6 +44,9 @@ public struct TodayView: View {
         @Bindable var bvm = vm
         ScrollView {
             LazyVStack(alignment: .leading, spacing: DS.Spacing.large, pinnedViews: []) {
+                if container.cloudSyncStatusMonitor.isCloudSyncUnavailable {
+                    CloudSyncUnavailableNotice()
+                }
                 if bvm.isLoading {
                     ProgressView(L10n.todayLoading)
                 }
