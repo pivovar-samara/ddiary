@@ -14,6 +14,11 @@ import Foundation
 /// only, at most 40 characters, and never the reserved `firebase_` / `google_` / `ga_`
 /// prefixes. `AnalyticsEventFactoryTests` enforces this for every event below.
 nonisolated enum AnalyticsEventFactory {
+    /// `app_open` is a *suggested* Firebase event, not a reserved or automatically collected one.
+    /// The SDK ships it as a public constant (`kFIREventAppOpen` / `AnalyticsEventAppOpen`) whose
+    /// own documentation says developers log it to supplement the automatic session events. It is
+    /// absent from GA4's reserved-name list, so logging it manually is correct and does not
+    /// collide with anything Firebase reports on its own.
     static func appOpen() -> AnalyticsEvent {
         AnalyticsEvent(name: "app_open")
     }
