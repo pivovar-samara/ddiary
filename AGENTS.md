@@ -64,9 +64,12 @@ Use this simulator destination unless you need a different one:
 
 ### CI Scripts
 
-- Unit-test script: `ci_scripts/ci_test_unit.sh`
-- CI secrets pre-step: `ci_scripts/ci_pre_xcodebuild.sh`
-- PR workflow: `.github/workflows/pr-ddiary-minimal.yml`
+CI is Xcode Cloud only — there is no GitHub Actions workflow.
+
+- Secrets pre-step: `ci_scripts/ci_pre_xcodebuild.sh` — writes `Configs/Secrets.xcconfig` and
+  `DDiary/Resources/GoogleService-Info.plist` from Xcode Cloud environment variables.
+- Post-build step: `ci_scripts/ci_post_xcodebuild.sh` — uploads Crashlytics dSYMs from the archive.
+- Xcode Cloud project manifest: `DDiary.xcodeproj/xcshareddata/xcodecloud/manifest.json`.
 
 ## Code Style and Conventions
 

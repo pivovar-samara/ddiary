@@ -21,3 +21,18 @@ SUPPORT_EMAIL_PROD = ${SUPPORT_EMAIL_PROD:-}
 EOF
 
 test -s Configs/Secrets.xcconfig
+
+# GoogleService-Info.plist is gitignored like Secrets.xcconfig. Without it the app still
+# builds and runs, Firebase just stays disabled — so a missing variable is a warning, not
+# a build failure.
+if [[ -n "${GOOGLE_SERVICE_INFO_PLIST_BASE64:-}" ]]; then
+  mkdir -p DDiary/Resources
+  # -D, not GNU's --decode: this runs on whatever macOS image Xcode Cloud pairs with the
+  # selected Xcode, and the base64 on older images rejects the long option. With `set -e`
+  # that would abort the build here, before xcodebuild ever starts. -D is accepted by both
+  # the classic macOS base64 and the bintrans-based one in current releases.
+  printf '%s' "${GOOGLE_SERVICE_INFO_PLIST_BASE64}" | base64 -D > DDiary/Resources/GoogleService-Info.plist
+  plutil -lint DDiary/Resources/GoogleService-Info.plist
+else
+  echo "warning: GOOGLE_SERVICE_INFO_PLIST_BASE64 is not set - Firebase will be disabled in this build"
+fi

@@ -5,6 +5,7 @@
 //  Created by Ilia Khokhlov on 10.12.25.
 //
 
+import Foundation
 import XCTest
 @testable import DDiary
 
@@ -53,6 +54,28 @@ final class MockAnalyticsRepository: AnalyticsRepository, @unchecked Sendable {
     }
     func logGoogleEnabled() async { googleEnabledCount += 1 }
     func logGoogleDisabled() async { googleDisabledCount += 1 }
+}
+
+// Records every event handed to a sink so event mapping can be asserted exactly.
+// Unlike MockAnalyticsRepository (only touched from @MainActor tests) this one is called
+// from CompositeAnalyticsRepository's nonisolated path, so it needs real locking.
+final class RecordingAnalyticsEventSink: AnalyticsEventSink, @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage: [AnalyticsEvent] = []
+
+    var events: [AnalyticsEvent] {
+        lock.lock()
+        defer { lock.unlock() }
+        return storage
+    }
+
+    var names: [String] { events.map(\.name) }
+
+    func send(_ event: AnalyticsEvent) {
+        lock.lock()
+        defer { lock.unlock() }
+        storage.append(event)
+    }
 }
 
 // GoogleSheets client test double
