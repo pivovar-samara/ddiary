@@ -91,4 +91,21 @@ final class CloudSyncStatusMonitorTests: XCTestCase {
 
         XCTAssertFalse(monitor.isCloudSyncUnavailable)
     }
+
+    // MARK: - Startup fallback
+
+    func test_markUnavailable_flipsTheFlag() async {
+        let monitor = CloudSyncStatusMonitor(center: NotificationCenter())
+        monitor.markUnavailable()
+        XCTAssertTrue(monitor.isCloudSyncUnavailable)
+    }
+
+    /// The startup fallback and a later mirroring recovery have to agree on one flag, otherwise
+    /// the UI would keep showing "unavailable" after the user signs back into iCloud.
+    func test_markUnavailable_thenSuccessfulSetup_clearsTheFlag() async {
+        let monitor = CloudSyncStatusMonitor(center: NotificationCenter())
+        monitor.markUnavailable()
+        monitor.record(CloudSyncEvent(kind: .setup, hasEnded: true, succeeded: true))
+        XCTAssertFalse(monitor.isCloudSyncUnavailable)
+    }
 }

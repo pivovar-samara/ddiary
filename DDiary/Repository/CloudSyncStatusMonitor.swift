@@ -76,6 +76,18 @@ final class CloudSyncStatusMonitor {
         observation = nil
     }
 
+    /// Records that mirroring is unavailable because the CloudKit-backed store never built.
+    ///
+    /// In that case `NSPersistentCloudKitContainer` is never created, so no mirroring event is
+    /// ever posted and the observer below would stay silent forever. Both the startup fallback
+    /// and the runtime failure have to end up on this one flag, otherwise the startup case goes
+    /// completely unreported.
+    func markUnavailable() {
+        guard !isCloudSyncUnavailable else { return }
+        Self.logger.error("Cloud sync marked unavailable by the startup fallback.")
+        isCloudSyncUnavailable = true
+    }
+
     /// Applies a mirroring event. Exposed so tests can drive the state machine without CoreData.
     func record(_ event: CloudSyncEvent) {
         guard event.hasEnded else { return }
