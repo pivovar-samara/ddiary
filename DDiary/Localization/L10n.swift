@@ -76,12 +76,6 @@ enum L10n {
         "history.empty.description",
         "There are no entries for the selected filter and date range."
     )
-    static let cloudRestoreTitle = tr("cloud_restore.title", "Restoring from iCloud…")
-    static let cloudRestoreHistoryDescription = tr(
-        "cloud_restore.history.description",
-        "If you previously used DDiary, your history may appear shortly after reinstall."
-    )
-    static let cloudRestoreRefreshNow = tr("cloud_restore.action.refresh_now", "Refresh now")
     static let historyFilterLabel = tr("history.filter.label", "Filter")
     static let historyFilterBoth = tr("history.filter.both", "Both")
     static let historyFilterBP = tr("history.filter.bp", "BP")
@@ -172,9 +166,6 @@ enum L10n {
 
     // MARK: - Settings (Sections/Rows)
     static let settingsTitle = tr("settings.title", "Settings")
-    static let settingsShareExportedCSV = tr("settings.share.exported_csv", "Exported CSV")
-    static let settingsShareNoFile = tr("settings.share.no_file", "No file")
-
     static let settingsSectionUnits = tr("settings.section.units", "Units")
     static let settingsSectionMealTimes = tr("settings.section.meal_times", "Meal Times")
     static let settingsSectionBPReminders = tr("settings.section.bp_reminders", "Blood Pressure Reminders")
@@ -229,9 +220,8 @@ enum L10n {
     static let settingsRowIncludeGlucose = tr("settings.row.include_glucose", "Include Glucose")
     static let settingsRowExportCSV = tr("settings.row.export_csv", "Export CSV")
     static let settingsRowSendFeedback = tr("settings.row.send_feedback", "Send Feedback")
-    static let settingsRowSave = tr("settings.row.save", "Save")
-    static let settingsDisclaimerMedical = tr("settings.disclaimer.medical", "DDiary is not a medical device. Consult your physician for medical advice.")
-    static let settingsFeedbackEmailSubject = tr("settings.feedback.email_subject", "DDiary Feedback")
+    static let settingsDisclaimerMedical = tr("settings.disclaimer.medical", "DIA-ry is not a medical device. Consult your physician for medical advice.")
+    static let settingsFeedbackEmailSubject = tr("settings.feedback.email_subject", "DIA-ry Feedback")
     static let mealSnack = tr("meal.snack", "Snack")
     static let glucoseTypeFasting = tr("glucose.type.fasting", "Fasting")
     static let glucoseTypeRandom = tr("glucose.type.random", "Random")
@@ -269,7 +259,6 @@ enum L10n {
 
     static let notificationGlucoseBedtimeTitle = tr("notification.glucose.bedtime.title", "Glucose - Bedtime")
     static let notificationGlucoseBedtimeBody = tr("notification.glucose.bedtime.body", "Log bedtime glucose.")
-    static let notificationRescheduledFromBreakfast = tr("notification.glucose.rescheduled_from_breakfast", "Rescheduled from breakfast.")
 
     // MARK: - Export
     static let exportSectionBP = tr("export.section.bp", "BP")
@@ -306,7 +295,7 @@ enum L10n {
     static let settingsLastSyncNone = tr("settings.row.last_sync_none", "Last sync: —")
     static let cloudRestoreSettingsDescription = tr(
         "cloud_restore.settings.description",
-        "If you used DDiary before, Google backup details may appear after iCloud restore completes."
+        "If you used DIA-ry before, Google backup details may appear after iCloud restore completes."
     )
 
     // MARK: - SettingsViewModel messages
@@ -336,6 +325,13 @@ enum L10n {
         )
     }
     static let settingsGoogleSpreadsheetTitle = tr("settings.google.spreadsheet_title", "DIA-ry backup")
+    /// Titles searched, in order, before a new backup spreadsheet is created.
+    ///
+    /// These are lookup keys for sheets that already live in the user's Google Drive, not display
+    /// strings, so they must never be renamed. The localized title varies with the device language,
+    /// and the last two entries are the names the app used before it was renamed to DIA-ry; dropping
+    /// either would make the app fail to find an existing sheet and silently create a duplicate,
+    /// orphaning the user's history.
     static let settingsGoogleSpreadsheetKnownTitles: [String] = [
         "DIA-ry backup",
         "Резервная копия DIA-ry",
@@ -349,7 +345,7 @@ enum L10n {
         "app.cloud_fallback.message",
         "DIA-ry is using local storage on this device for now. Your records are safe here, but they won't sync to your other devices until iCloud is available again."
     )
-    static let startupTitle = tr("app.startup.title", "Unable to start DDiary")
+    static let startupTitle = tr("app.startup.title", "Unable to start DIA-ry")
     static let startupRecoveryHint = tr(
         "app.startup.recovery_hint",
         "Please restart the app. If the problem persists, reinstall the app or contact support."
