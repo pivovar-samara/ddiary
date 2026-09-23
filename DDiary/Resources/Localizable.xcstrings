@@ -810,97 +810,198 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "تعذّر تشغيل DDiary"
+            "value": "تعذّر تشغيل DIA-ry"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "DDiary konnte nicht gestartet werden"
+            "value": "DIA-ry konnte nicht gestartet werden"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Unable to start DDiary"
+            "value": "Unable to start DIA-ry"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "No se puede iniciar DDiary"
+            "value": "No se puede iniciar DIA-ry"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Impossible de démarrer DDiary"
+            "value": "Impossible de démarrer DIA-ry"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Impossibile avviare DDiary"
+            "value": "Impossibile avviare DIA-ry"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "DDiaryを起動できません"
+            "value": "DIA-ryを起動できません"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "DDiary를 시작할 수 없습니다"
+            "value": "DIA-ry를 시작할 수 없습니다"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Kan DDiary niet starten"
+            "value": "Kan DIA-ry niet starten"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nie można uruchomić DDiary"
+            "value": "Nie można uruchomić DIA-ry"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Não foi possível iniciar o DDiary"
+            "value": "Não foi possível iniciar o DIA-ry"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Не удалось запустить DDiary"
+            "value": "Не удалось запустить DIA-ry"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Det gick inte att starta DDiary"
+            "value": "Det gick inte att starta DIA-ry"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "DDiary başlatılamadı"
+            "value": "DIA-ry başlatılamadı"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Не вдалося запустити DDiary"
+            "value": "Не вдалося запустити DIA-ry"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "无法启动 DDiary"
+            "value": "无法启动 DIA-ry"
+          }
+        }
+      }
+    },
+    "cloud_restore.settings.description": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "إذا كنت قد استخدمت DIA-ry من قبل، فقد تظهر تفاصيل نسخة Google الاحتياطية بعد اكتمال الاستعادة من iCloud."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wenn du DIA-ry schon früher verwendet hast, können die Google-Backup-Daten erscheinen, sobald die Wiederherstellung aus iCloud abgeschlossen ist."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "If you used DIA-ry before, Google backup details may appear after iCloud restore completes."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Si ya usabas DIA-ry antes, los datos de la copia de seguridad de Google pueden aparecer cuando termine la restauración desde iCloud."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Si vous avez déjà utilisé DIA-ry, les informations de sauvegarde Google peuvent apparaître une fois la restauration depuis iCloud terminée."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se hai già usato DIA-ry in passato, i dati del backup Google potrebbero comparire al termine del ripristino da iCloud."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "以前DIA-ryをご利用いただいていた場合、iCloudからの復元が完了するとGoogleバックアップの情報が表示されることがあります。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이전에 DIA-ry를 사용한 적이 있다면 iCloud 복원이 완료된 후 Google 백업 정보가 표시될 수 있습니다."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Als je DIA-ry eerder hebt gebruikt, kunnen de Google-back-upgegevens verschijnen zodra het herstellen vanuit iCloud is voltooid."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jeśli wcześniej korzystano z DIA-ry, dane kopii zapasowej Google mogą pojawić się po zakończeniu przywracania z iCloud."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se você já usou o DIA-ry antes, os dados do backup do Google podem aparecer depois que a restauração do iCloud terminar."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Если вы уже пользовались DIA-ry, данные резервной копии Google могут появиться после завершения восстановления из iCloud."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Om du har använt DIA-ry tidigare kan uppgifterna om Google-säkerhetskopian visas när återställningen från iCloud är klar."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DIA-ry'yi daha önce kullandıysanız, iCloud geri yüklemesi tamamlandıktan sonra Google yedekleme bilgileri görünebilir."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Якщо ви раніше користувалися DIA-ry, дані резервної копії Google можуть з'явитися після завершення відновлення з iCloud."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "如果你以前使用过 DIA-ry，Google 备份信息可能会在 iCloud 恢复完成后显示。"
           }
         }
       }
@@ -4844,208 +4945,6 @@
         }
       }
     },
-    "notification.action.move_to_dinner": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "نقل إلى العشاء"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Auf Abendessen verschieben"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Move to dinner"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mover a cena"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reporter au dîner"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sposta a cena"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "夕食に移動"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "저녁으로 이동"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Naar diner verplaatsen"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Przenieś na kolację"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mover para o jantar"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Перенести на ужин"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Flytta till middag"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Akşam yemeğine taşı"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Перенести на вечерю"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "移至晚餐"
-          }
-        }
-      }
-    },
-    "notification.action.move_to_lunch": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "نقل إلى الغداء"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Auf Mittagessen verschieben"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Move to lunch"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mover a almuerzo"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reporter au déjeuner"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sposta a pranzo"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "昼食に移動"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "점심으로 이동"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Naar lunch verplaatsen"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Przenieś na obiad"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mover para o almoço"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Перенести на обед"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Flytta till lunch"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Öğle yemeğine taşı"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Перенести на обід"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "移至午餐"
-          }
-        }
-      }
-    },
     "notification.action.skip": {
       "extractionState": "manual",
       "localizations": {
@@ -6860,107 +6759,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "血糖 - 午餐前"
-          }
-        }
-      }
-    },
-    "notification.glucose.rescheduled_from_breakfast": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "أُعيد جدولته من الإفطار."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vom Frühstück verschoben."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rescheduled from breakfast."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reprogramado desde el desayuno."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reporté depuis le petit-déjeuner."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Riprogrammato dalla colazione."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "朝食からリスケジュールされました。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "아침 식사에서 재예약되었습니다."
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Verplaatst van ontbijt."
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Przełożono ze śniadania."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reagendado do café da manhã."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Перенесено с завтрака."
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Omplanerad från frukost."
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kahvaltıdan yeniden planlandı."
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Перенесено зі сніданку."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已从早餐重新安排。"
           }
         }
       }
@@ -9092,97 +8890,97 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "DDiary ليس جهازًا طبيًا. استشر طبيبك للحصول على المشورة الطبية."
+            "value": "DIA-ry ليس جهازًا طبيًا. استشر طبيبك للحصول على المشورة الطبية."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "DDiary ist kein Medizinprodukt. Konsultiere deinen Arzt für medizinischen Rat."
+            "value": "DIA-ry ist kein Medizinprodukt. Konsultiere deinen Arzt für medizinischen Rat."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "DDiary is not a medical device. Consult your physician for medical advice."
+            "value": "DIA-ry is not a medical device. Consult your physician for medical advice."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "DDiary no es un dispositivo médico. Consulta a tu médico para obtener asesoramiento médico."
+            "value": "DIA-ry no es un dispositivo médico. Consulta a tu médico para obtener asesoramiento médico."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "DDiary n'est pas un dispositif médical. Consultez votre médecin pour tout conseil médical."
+            "value": "DIA-ry n'est pas un dispositif médical. Consultez votre médecin pour tout conseil médical."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "DDiary non è un dispositivo medico. Consulta il tuo medico per consigli medici."
+            "value": "DIA-ry non è un dispositivo medico. Consulta il tuo medico per consigli medici."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "DDiaryは医療機器ではありません。医療上のアドバイスは医師にご相談ください。"
+            "value": "DIA-ryは医療機器ではありません。医療上のアドバイスは医師にご相談ください。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "DDiary는 의료 기기가 아닙니다. 의료 조언은 의사에게 상담하세요."
+            "value": "DIA-ry는 의료 기기가 아닙니다. 의료 조언은 의사에게 상담하세요."
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "DDiary is geen medisch hulpmiddel. Raadpleeg uw arts voor medisch advies."
+            "value": "DIA-ry is geen medisch hulpmiddel. Raadpleeg uw arts voor medisch advies."
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "DDiary nie jest urządzeniem medycznym. Skonsultuj się z lekarzem w sprawie porad medycznych."
+            "value": "DIA-ry nie jest urządzeniem medycznym. Skonsultuj się z lekarzem w sprawie porad medycznych."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "DDiary não é um dispositivo médico. Consulte seu médico para aconselhamento médico."
+            "value": "DIA-ry não é um dispositivo médico. Consulte seu médico para aconselhamento médico."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "DDiary не является медицинским устройством. Обратитесь к врачу за медицинской консультацией."
+            "value": "DIA-ry не является медицинским устройством. Обратитесь к врачу за медицинской консультацией."
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "DDiary är inte en medicinsk enhet. Rådfråga din läkare för medicinsk rådgivning."
+            "value": "DIA-ry är inte en medicinsk enhet. Rådfråga din läkare för medicinsk rådgivning."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "DDiary bir tıbbi cihaz değildir. Tıbbi tavsiye için doktorunuza danışın."
+            "value": "DIA-ry bir tıbbi cihaz değildir. Tıbbi tavsiye için doktorunuza danışın."
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "DDiary не є медичним пристроєм. Зверніться до лікаря за медичною консультацією."
+            "value": "DIA-ry не є медичним пристроєм. Зверніться до лікаря за медичною консультацією."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "DDiary 不是医疗设备。请咨询医生获取医疗建议。"
+            "value": "DIA-ry 不是医疗设备。请咨询医生获取医疗建议。"
           }
         }
       }
@@ -9294,97 +9092,97 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "ملاحظات DDiary"
+            "value": "ملاحظات DIA-ry"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "DDiary Feedback"
+            "value": "DIA-ry Feedback"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "DDiary Feedback"
+            "value": "DIA-ry Feedback"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Comentarios DDiary"
+            "value": "Comentarios DIA-ry"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Commentaires DDiary"
+            "value": "Commentaires DIA-ry"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Feedback DDiary"
+            "value": "Feedback DIA-ry"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "DDiaryへのフィードバック"
+            "value": "DIA-ryへのフィードバック"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "DDiary 피드백"
+            "value": "DIA-ry 피드백"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "DDiary Feedback"
+            "value": "DIA-ry Feedback"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Opinie o DDiary"
+            "value": "Opinie o DIA-ry"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Feedback DDiary"
+            "value": "Feedback DIA-ry"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Обратная связь DDiary"
+            "value": "Обратная связь DIA-ry"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "DDiary Feedback"
+            "value": "DIA-ry Feedback"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "DDiary Geri Bildirimi"
+            "value": "DIA-ry Geri Bildirimi"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Відгук про DDiary"
+            "value": "Відгук про DIA-ry"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "DDiary 反馈"
+            "value": "DIA-ry 反馈"
           }
         }
       }
@@ -10092,6 +9890,107 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在启动 Google 登录…"
+          }
+        }
+      }
+    },
+    "settings.google.summary.syncing": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "جارٍ المزامنة مع Google…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Synchronisierung mit Google läuft…"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Syncing with Google…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sincronizando con Google…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Synchronisation avec Google en cours…"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sincronizzazione con Google in corso…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Googleと同期中…"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Google과 동기화 중…"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Synchroniseren met Google…"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trwa synchronizacja z Google…"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sincronizando com o Google…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Синхронизация с Google…"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Synkroniserar med Google…"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Google ile eşitleniyor…"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Синхронізація з Google…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在与 Google 同步…"
           }
         }
       }
@@ -13530,107 +13429,6 @@
         }
       }
     },
-    "settings.row.save": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "حفظ"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Speichern"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Save"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Guardar"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Enregistrer"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Salva"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "保存"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "저장"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Opslaan"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Zapisz"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Salvar"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Сохранить"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Spara"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kaydet"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Зберегти"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "保存"
-          }
-        }
-      }
-    },
     "settings.row.send_feedback": {
       "extractionState": "manual",
       "localizations": {
@@ -15041,208 +14839,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "单位"
-          }
-        }
-      }
-    },
-    "settings.share.exported_csv": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "CSV مُصدَّر"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Exportierte CSV"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Exported CSV"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "CSV exportado"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "CSV exporté"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "CSV esportato"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "エクスポートしたCSV"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "내보낸 CSV"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Geëxporteerde CSV"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Wyeksportowany CSV"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "CSV exportado"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Экспортированный CSV"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Exporterad CSV"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dışa aktarılan CSV"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Експортований CSV"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已导出的 CSV"
-          }
-        }
-      }
-    },
-    "settings.share.no_file": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "لا يوجد ملف"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Keine Datei"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No file"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sin archivo"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aucun fichier"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nessun file"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ファイルなし"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "파일 없음"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Geen bestand"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Brak pliku"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nenhum arquivo"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Нет файла"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ingen fil"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dosya yok"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Немає файлу"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "无文件"
           }
         }
       }
@@ -17061,6 +16657,208 @@
           "stringUnit": {
             "state": "translated",
             "value": "已逾期"
+          }
+        }
+      }
+    },
+    "today.cycle_switch.accessibility.hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "يفتح قائمة لتغيير هدف الدورة اليومية"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Öffnet ein Menü zum Ändern des Tageszyklus-Ziels"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opens a menu to change the daily cycle target"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abre un menú para cambiar el objetivo del ciclo diario"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvre un menu pour changer la cible du cycle journalier"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apre un menu per cambiare l'obiettivo del ciclo giornaliero"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "デイリーサイクルの対象を変更するメニューを開きます"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "일일 사이클 대상을 변경하는 메뉴를 엽니다"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opent een menu om het doel van de dagelijkse cyclus te wijzigen"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otwiera menu zmiany celu cyklu dziennego"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abre um menu para mudar o alvo do ciclo diário"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открывает меню для смены цели дневного цикла"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Öppnar en meny för att byta mål för dagscykeln"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Günlük döngü hedefini değiştirmek için bir menü açar"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Відкриває меню для зміни цілі денного циклу"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开菜单以更改每日循环目标"
+          }
+        }
+      }
+    },
+    "today.cycle_switch.accessibility.label": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تبديل هدف الدورة اليومية"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ziel des Tageszyklus wechseln"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switch daily cycle target"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cambiar objetivo del ciclo diario"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Changer la cible du cycle journalier"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cambia obiettivo del ciclo giornaliero"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "デイリーサイクルの対象を切り替え"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "일일 사이클 대상 전환"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Doel van dagelijkse cyclus wijzigen"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zmień cel cyklu dziennego"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mudar alvo do ciclo diário"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Переключить цель дневного цикла"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Byt mål för dagscykeln"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Günlük döngü hedefini değiştir"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перемкнути ціль денного циклу"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "切换每日循环目标"
           }
         }
       }
