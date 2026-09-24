@@ -16,7 +16,7 @@ https://circular-drug-3ff.notion.site/DIA-ry-Legal-3338f966e50380bf8a74f62e3d376
 | Usage Data | Product Interaction | Analytics | **Yes** | No | Amplitude + Firebase Analytics |
 | Identifiers | Device ID | Analytics | **Yes** | No | Amplitude device ID + Firebase app-instance ID |
 | Diagnostics | Crash Data | App Functionality | No | No | Firebase Crashlytics |
-| Diagnostics | Other Diagnostic Data | App Functionality | No | No | Crashlytics + Firebase Installations |
+| Diagnostics | Other Diagnostic Data | App Functionality, **Analytics** | No | No | Crashlytics (App Functionality); Firebase Installations and GoogleDataTransport (Analytics) |
 
 "Linked to user" is Yes on the first two because both SDKs attach a persistent per-install
 device identifier to every event. No account identifier is involved — `setUserId` / `setUserID`
@@ -75,6 +75,39 @@ the device. The cost is losing the country breakdown in Amplitude reports.
 
 **Before each submission:** generate the Privacy Report from the archive (Xcode Organizer ->
 Generate Privacy Report) and reconcile the answers above with it.
+
+### Reading the Privacy Report
+
+The report groups entries by the same categories App Store Connect uses. Each data type lists
+every bundle that declares it — so one type can appear several times, once per SDK — with that
+source's purposes and two columns, *Tracking* and *Linked*.
+
+App Store Connect wants one answer per data type, for the **whole app including every SDK** —
+not just what our own manifest declares. Collapse the rows like this:
+
+- **Linked**: Yes if *any* source says Yes.
+- **Tracking**: Yes if *any* source says Yes.
+- **Purposes**: the union of all sources' purposes.
+
+Then apply the two known adjustments, both explained above: drop Coarse Location (Amplitude
+declares it for a configuration we do not run), and remember that Firebase Analytics appears
+only through `DDiary.app`'s own manifest because it ships none of its own.
+
+The report as of Firebase 12.19.2 / Amplitude-Swift 1.15.5, and what it collapses to:
+
+| Report row(s) | Sources | → App Store Connect |
+|---|---|---|
+| Location · Coarse Location · Analytics · Linked | Amplitude | not declared — see "Coarse Location" above |
+| Identifiers · Device ID · Analytics · Linked | Amplitude, DDiary.app | Device ID · Analytics · Linked · not tracking |
+| Usage Data · Product Interaction · Analytics · Linked | Amplitude, DDiary.app | Product Interaction · Analytics · Linked · not tracking |
+| Diagnostics · Crash Data · App Functionality · not linked | Crashlytics | Crash Data · App Functionality · not linked · not tracking |
+| Diagnostics · Other Diagnostic Data · App Functionality / Analytics · not linked | Crashlytics; Installations, GoogleDataTransport | Other Diagnostic Data · App Functionality **and** Analytics · not linked · not tracking |
+
+The Other Diagnostic Data purposes are the easy one to get wrong: Crashlytics declares App
+Functionality, but Installations and GoogleDataTransport declare Analytics, so both must be ticked.
+
+If a future SDK update adds a row that is not in this table, that is a change to review, not a
+formality — rerun the report after every dependency bump.
 
 **The report does not cover Firebase Analytics.** `GoogleAppMeasurement.xcframework`,
 `FirebaseAnalytics.xcframework` and `GoogleAdsOnDeviceConversion.xcframework` ship **no**
