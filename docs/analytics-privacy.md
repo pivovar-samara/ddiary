@@ -165,9 +165,20 @@ definition turns on.
 
 **The counter-argument, stated fairly:** the data does leave the device, it does land with a
 third party, and a reviewer could read "third-party partners" more broadly than we do. If you
-would rather not argue the point at review time, declaring Health & Fitness (App Functionality,
-not linked, not used for tracking) is the conservative answer and costs nothing but a line on the
-product page. Either answer is defensible; what is not defensible is answering without deciding.
+would rather not argue the point at review time, declaring Health & Fitness is the conservative
+answer. Either answer is defensible; what is not defensible is answering without deciding.
+
+**If you do declare it, it has to be *Linked*, not "not linked".** The only reading under which
+this data counts as collected at all is the one that treats Google as our partner — and under
+that reading the data sits in the user's own, named Google account, which is about as linked to
+their identity as data gets. "Collected but not linked" is the one combination with no coherent
+reading behind it: it concedes the collection and then denies its most obvious property. So the
+conservative declaration is *Health & Fitness · App Functionality · Linked · not used for
+tracking*. The cost is that the product page then lists Health & Fitness under "Data Linked to
+You", which on a health diary reads as "the developer has my readings" — the one thing that is
+not true. That cost is why the recommendation above is not to declare.
+
+Decision as of September 2026: **not declared.**
 
 **What would flip this to "collected", so watch for it:**
 
@@ -176,7 +187,13 @@ product page. Either answer is defensible; what is not defensible is answering w
 - writing to a spreadsheet the developer owns or has been shared on;
 - any analytics event carrying a measurement value. `AnalyticsEventFactory` is the only place a
   value becomes an event property, and `normalizeReason` collapses free-form error text to a
-  closed set — that is what keeps this true, and it is why those two stay together.
+  closed set — that is what keeps this true, and it is why those two stay together;
+- any measurement reaching a crash report. Crashlytics records the message of a `fatalError` or
+  `preconditionFailure`, plus any custom keys and logs. Today there is no `fatalError` or
+  `preconditionFailure` in the app at all, no custom keys, no `Crashlytics.log`, and the two
+  `assertionFailure`s that interpolate values carry a date and a cycle key, and are compiled out
+  of Release builds anyway. A crash message like `"invalid systolic \(value)"` would quietly
+  change this answer.
 
 Regardless of how the App Store question is answered, the privacy policy has to describe these
 flows, and it does.
