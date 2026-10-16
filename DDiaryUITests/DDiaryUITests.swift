@@ -320,10 +320,12 @@ final class DDiaryUITests: XCTestCase {
     // Check first, then wait: any XCTest wait (XCTNSPredicateExpectation or XCUIElement's own) takes
     // about a second before its first check, even when the element is already on screen. Across the
     // suite's many lookups that was most of its run time.
+    @MainActor
     private func waitForExistence(_ element: XCUIElement, timeout: TimeInterval) -> Bool {
         element.exists || element.waitForExistence(timeout: timeout)
     }
 
+    @MainActor
     private func waitForNonExistence(_ element: XCUIElement, timeout: TimeInterval) -> Bool {
         !element.exists || element.waitForNonExistence(timeout: timeout)
     }
