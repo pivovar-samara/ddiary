@@ -92,7 +92,6 @@ enum L10n {
 
     // MARK: - Quick Entry
     static let quickEntryActionCancel = tr("quick_entry.action.cancel", "Cancel")
-    static let quickEntryActionSave = tr("quick_entry.action.save", "Save")
     static let quickEntryActionDone = tr("quick_entry.action.done", "Done")
     static let quickEntryAlertErrorTitle = tr("quick_entry.alert.error.title", "Error")
     static let quickEntryAlertOK = tr("quick_entry.alert.ok", "OK")

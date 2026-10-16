@@ -93,8 +93,7 @@ final class DDiaryUITests: XCTestCase {
 
         let bpSaveButton = firstExisting(in: [
             app.buttons[A11y.Action.save],
-            app.navigationBars.buttons[A11y.Action.save],
-            app.buttons["Save"]
+            app.navigationBars.buttons[A11y.Action.save]
         ])
         XCTAssertTrue(waitForExistence(bpSaveButton, timeout: 8), "Save button should exist on BP Quick Entry")
         bpSaveButton.tap()
@@ -117,8 +116,7 @@ final class DDiaryUITests: XCTestCase {
 
         let glucoseSaveButton = firstExisting(in: [
             app.buttons[A11y.Action.save],
-            app.navigationBars.buttons[A11y.Action.save],
-            app.buttons["Save"]
+            app.navigationBars.buttons[A11y.Action.save]
         ])
         XCTAssertTrue(waitForExistence(glucoseSaveButton, timeout: 8), "Save button should exist on Glucose Quick Entry")
         glucoseSaveButton.tap()
@@ -207,8 +205,7 @@ final class DDiaryUITests: XCTestCase {
 
         let saveButton = firstExisting(in: [
             app.buttons[A11y.Action.save],
-            app.navigationBars.buttons[A11y.Action.save],
-            app.buttons["Save"]
+            app.navigationBars.buttons[A11y.Action.save]
         ])
         XCTAssertTrue(waitForExistence(saveButton, timeout: 8), "Save button should exist")
         saveButton.tap()
@@ -219,8 +216,7 @@ final class DDiaryUITests: XCTestCase {
 
         let cancelButton = firstExisting(in: [
             app.buttons[A11y.Action.cancel],
-            app.navigationBars.buttons["Cancel"],
-            app.buttons["Cancel"]
+            app.navigationBars.buttons[A11y.Action.cancel]
         ])
         XCTAssertTrue(waitForExistence(cancelButton, timeout: 8), "Cancel button should exist")
         cancelButton.tap()
@@ -243,8 +239,7 @@ final class DDiaryUITests: XCTestCase {
 
         let saveButton = firstExisting(in: [
             app.buttons[A11y.Action.save],
-            app.navigationBars.buttons[A11y.Action.save],
-            app.buttons["Save"]
+            app.navigationBars.buttons[A11y.Action.save]
         ])
         XCTAssertTrue(waitForExistence(saveButton, timeout: 8), "Save button should exist")
         saveButton.tap()
@@ -258,8 +253,7 @@ final class DDiaryUITests: XCTestCase {
 
         let cancelButton = firstExisting(in: [
             app.buttons[A11y.Action.cancel],
-            app.navigationBars.buttons["Cancel"],
-            app.buttons["Cancel"]
+            app.navigationBars.buttons[A11y.Action.cancel]
         ])
         XCTAssertTrue(waitForExistence(cancelButton, timeout: 8), "Cancel button should exist")
         cancelButton.tap()

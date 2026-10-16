@@ -53,6 +53,7 @@ struct HistoryView: View {
                 historySection(vm)
                 Spacer(minLength: 0)
             }
+            .readableContentWidth()
             .padding()
         }
         .refreshable {

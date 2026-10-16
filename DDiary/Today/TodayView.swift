@@ -121,6 +121,7 @@ public struct TodayView: View {
 
                 Spacer(minLength: 0)
             }
+            .readableContentWidth()
             .padding()
         }
         .accessibilityIdentifier("today.scroll")
