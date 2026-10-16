@@ -93,15 +93,12 @@ public struct BPQuickEntryForm: View {
         }
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
-                Button(L10n.quickEntryActionCancel) { onCancel() }
+                Button(role: .close) { onCancel() }
                     .accessibilityIdentifier("quickEntry.cancel")
             }
             ToolbarItem(placement: .confirmationAction) {
-                Button(L10n.quickEntryActionSave) { save() }
+                Button(role: .confirm) { save() }
                     .disabled(isSaveDisabled)
-                    .buttonStyle(.borderedProminent)
-                    .fontWeight(.semibold)
-                    .tint(.accentColor)
                     .accessibilityIdentifier("quickEntry.save")
             }
             ToolbarItemGroup(placement: .keyboard) {
@@ -173,6 +170,15 @@ public struct BPQuickEntryForm: View {
         }
     }
 
+    /// Return-key navigation for full (iPad-style) keyboards, e.g. on the iPhone Duo inner display.
+    private func nextField(after field: Field) -> Field? {
+        switch field {
+        case .systolic: return .diastolic
+        case .diastolic: return .pulse
+        case .pulse: return nil
+        }
+    }
+
     // MARK: - Field column builder
     @ViewBuilder
     private func fieldColumn(title: String, text: Binding<String>, field: Field, minDigitsToAdvance: Int) -> some View {
@@ -188,6 +194,8 @@ public struct BPQuickEntryForm: View {
                 .font(fieldFont(field))
                 .monospacedDigit()
                 .focused($focusedField, equals: field)
+                .submitLabel(field == .pulse ? .done : .next)
+                .onSubmit { focusedField = nextField(after: field) }
                 .autocorrectionDisabled(true)
                 .textInputAutocapitalization(.never)
                 .accessibilityIdentifier(accessibilityId(for: field))

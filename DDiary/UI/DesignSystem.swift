@@ -53,6 +53,12 @@ enum DS {
         static let inputHeight: CGFloat = 56
     }
 
+    // MARK: Layout
+    enum Layout {
+        /// Max width for scrolling content on wide screens (iPhone Duo inner display, iPad).
+        static let readableContentWidth: CGFloat = 640
+    }
+
     // MARK: Status Keys
     /// A lightweight status key used by the Design System to map semantic colors.
     /// This mirrors the app's slot status semantics without depending on app-specific types.
@@ -127,6 +133,12 @@ extension View {
         padding: CGFloat = DS.Spacing.medium
     ) -> some View {
         modifier(CardContainerModifier(cornerRadius: cornerRadius, padding: padding))
+    }
+
+    /// Caps content at a readable width and centers it; no-op on compact-width screens.
+    func readableContentWidth(_ maxWidth: CGFloat = DS.Layout.readableContentWidth) -> some View {
+        frame(maxWidth: maxWidth)
+            .frame(maxWidth: .infinity)
     }
 }
 

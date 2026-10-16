@@ -383,6 +383,10 @@ struct SettingsView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        // Form adds its own inset-grouped side margins, so allow for them on top of the content cap.
+        .readableContentWidth(DS.Layout.readableContentWidth + DS.Spacing.large * 2)
+        .background(Color(uiColor: .systemBackground))
         .listSectionSpacing(.compact)
         .listRowSeparatorTint(Color(uiColor: .separator).opacity(0.5))
         .environment(\.defaultMinListRowHeight, 38)
@@ -520,7 +524,7 @@ struct SettingsView: View {
             .navigationTitle(sheet.title)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(L10n.quickEntryActionDone) {
+                    Button(role: .confirm) {
                         exportDatePickerSheet = nil
                     }
                 }
@@ -592,7 +596,7 @@ private struct SettingsSectionCard<Content: View, Footer: View>: View {
         } footer: {
             footer()
         }
-        .listRowBackground(Color(uiColor: .secondarySystemGroupedBackground).opacity(0.9))
+        .listRowBackground(Color(uiColor: .secondarySystemBackground))
     }
 }
 

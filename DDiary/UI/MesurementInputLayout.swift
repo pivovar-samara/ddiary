@@ -85,6 +85,7 @@ struct MeasurementInputLayout<Fields: View>: View {
                     .padding(.horizontal)
                 }
                 .padding(.bottom, DS.Spacing.large * 2)
+                .readableContentWidth()
             }
             .scrollDismissesKeyboard(.interactively)
             .onChange(of: isCommentFocused.wrappedValue) { oldValue, newValue in

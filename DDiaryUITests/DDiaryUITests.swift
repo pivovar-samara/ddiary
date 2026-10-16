@@ -64,14 +64,8 @@ final class DDiaryUITests: XCTestCase {
         let app = makeApp()
         app.launch()
 
-        // 2) Navigate to Today (if tab bar exists)
-        if app.tabBars.firstMatch.exists {
-            let todayButton = app.tabBars.buttons[A11y.Tab.today].exists
-            ? app.tabBars.buttons[A11y.Tab.today]
-            : app.tabBars.buttons["Today"]
-            if waitForExistence(todayButton, timeout: 8) { todayButton.tap() }
-        }
-        _ = waitForExistence(app.scrollViews["today.scroll"], timeout: 8)
+        // 2) Navigate to Today
+        navigateToTab(app: app, tabId: A11y.Tab.today, fallbackLabel: "Today")
 
         // 3) Open BP Quick Entry by tapping a Today BP row and enter values
         ensureBPSlotExists(app: app)
@@ -93,8 +87,7 @@ final class DDiaryUITests: XCTestCase {
 
         let bpSaveButton = firstExisting(in: [
             app.buttons[A11y.Action.save],
-            app.navigationBars.buttons[A11y.Action.save],
-            app.buttons["Save"]
+            app.navigationBars.buttons[A11y.Action.save]
         ])
         XCTAssertTrue(waitForExistence(bpSaveButton, timeout: 8), "Save button should exist on BP Quick Entry")
         bpSaveButton.tap()
@@ -117,8 +110,7 @@ final class DDiaryUITests: XCTestCase {
 
         let glucoseSaveButton = firstExisting(in: [
             app.buttons[A11y.Action.save],
-            app.navigationBars.buttons[A11y.Action.save],
-            app.buttons["Save"]
+            app.navigationBars.buttons[A11y.Action.save]
         ])
         XCTAssertTrue(waitForExistence(glucoseSaveButton, timeout: 8), "Save button should exist on Glucose Quick Entry")
         glucoseSaveButton.tap()
@@ -129,7 +121,7 @@ final class DDiaryUITests: XCTestCase {
         navigateToTab(app: app, tabId: A11y.Tab.history, fallbackLabel: "History")
         let historyList = app.otherElements["history.list"]
         let historyScroll = app.scrollViews["history.scroll"]
-        XCTAssertTrue(waitForExistence(historyList, timeout: 10) || waitForExistence(historyScroll, timeout: 10), "History list should be visible")
+        XCTAssertTrue(waitForExistence(historyScroll, timeout: 10) || historyList.exists, "History list should be visible")
 
         // 6) Verify at least one BP and one Glucose entry appear in History using stable row identifiers
         let bpHistoryRow = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", "history.row.bp.")).firstMatch
@@ -167,18 +159,16 @@ final class DDiaryUITests: XCTestCase {
         let app = makeApp()
         app.launch()
 
-        let tabBar = app.tabBars.firstMatch
-        XCTAssertTrue(waitForExistence(tabBar, timeout: 8), "Tab bar should be visible")
+        // Tabs are not always a `tabBars` element: on wide screens (iPhone Duo, iPad) the system
+        // lays them out elsewhere, so look the tab buttons up directly.
+        XCTAssertTrue(waitForExistence(tabButton(in: app, id: A11y.Tab.today, label: "Today"), timeout: 8), "Tab bar should be visible")
 
-        let debugById = tabBar.buttons[A11y.Tab.debug].firstMatch
-        let debugByLabel = tabBar.buttons["Debug"].firstMatch
+        let debugTab = tabButton(in: app, id: A11y.Tab.debug, label: "Debug")
 
         #if DEBUG
-        let isVisibleInDebug = waitForExistence(debugById, timeout: 2) || waitForExistence(debugByLabel, timeout: 2)
-        XCTAssertTrue(isVisibleInDebug, "Debug tab should be visible in Debug builds")
+        XCTAssertTrue(waitForExistence(debugTab, timeout: 2), "Debug tab should be visible in Debug builds")
         #else
-        XCTAssertTrue(waitForNonExistence(debugById, timeout: 2), "Debug tab should be hidden in Production builds")
-        XCTAssertTrue(waitForNonExistence(debugByLabel, timeout: 2), "Debug tab should be hidden in Production builds")
+        XCTAssertTrue(waitForNonExistence(debugTab, timeout: 2), "Debug tab should be hidden in Production builds")
         #endif
     }
 
@@ -207,8 +197,7 @@ final class DDiaryUITests: XCTestCase {
 
         let saveButton = firstExisting(in: [
             app.buttons[A11y.Action.save],
-            app.navigationBars.buttons[A11y.Action.save],
-            app.buttons["Save"]
+            app.navigationBars.buttons[A11y.Action.save]
         ])
         XCTAssertTrue(waitForExistence(saveButton, timeout: 8), "Save button should exist")
         saveButton.tap()
@@ -219,8 +208,7 @@ final class DDiaryUITests: XCTestCase {
 
         let cancelButton = firstExisting(in: [
             app.buttons[A11y.Action.cancel],
-            app.navigationBars.buttons["Cancel"],
-            app.buttons["Cancel"]
+            app.navigationBars.buttons[A11y.Action.cancel]
         ])
         XCTAssertTrue(waitForExistence(cancelButton, timeout: 8), "Cancel button should exist")
         cancelButton.tap()
@@ -243,8 +231,7 @@ final class DDiaryUITests: XCTestCase {
 
         let saveButton = firstExisting(in: [
             app.buttons[A11y.Action.save],
-            app.navigationBars.buttons[A11y.Action.save],
-            app.buttons["Save"]
+            app.navigationBars.buttons[A11y.Action.save]
         ])
         XCTAssertTrue(waitForExistence(saveButton, timeout: 8), "Save button should exist")
         saveButton.tap()
@@ -258,8 +245,7 @@ final class DDiaryUITests: XCTestCase {
 
         let cancelButton = firstExisting(in: [
             app.buttons[A11y.Action.cancel],
-            app.navigationBars.buttons["Cancel"],
-            app.buttons["Cancel"]
+            app.navigationBars.buttons[A11y.Action.cancel]
         ])
         XCTAssertTrue(waitForExistence(cancelButton, timeout: 8), "Cancel button should exist")
         cancelButton.tap()
@@ -331,18 +317,17 @@ final class DDiaryUITests: XCTestCase {
 
     // MARK: - Helpers
 
+    // Check first, then wait: any XCTest wait (XCTNSPredicateExpectation or XCUIElement's own) takes
+    // about a second before its first check, even when the element is already on screen. Across the
+    // suite's many lookups that was most of its run time.
+    @MainActor
     private func waitForExistence(_ element: XCUIElement, timeout: TimeInterval) -> Bool {
-        let predicate = NSPredicate(format: "exists == true")
-        let exp = XCTNSPredicateExpectation(predicate: predicate, object: element)
-        let result = XCTWaiter.wait(for: [exp], timeout: timeout)
-        return result == .completed
+        element.exists || element.waitForExistence(timeout: timeout)
     }
 
+    @MainActor
     private func waitForNonExistence(_ element: XCUIElement, timeout: TimeInterval) -> Bool {
-        let predicate = NSPredicate(format: "exists == false")
-        let exp = XCTNSPredicateExpectation(predicate: predicate, object: element)
-        let result = XCTWaiter.wait(for: [exp], timeout: timeout)
-        return result == .completed
+        !element.exists || element.waitForNonExistence(timeout: timeout)
     }
 
     @MainActor private func firstExisting(in elements: [XCUIElement]) -> XCUIElement {
@@ -374,34 +359,23 @@ final class DDiaryUITests: XCTestCase {
         }
     }
 
+    /// A tab button wherever the system puts the tabs (bottom bar, top bar, side column).
+    @MainActor
+    private func tabButton(in app: XCUIApplication, id: String, label: String) -> XCUIElement {
+        app.buttons.matching(NSPredicate(format: "identifier == %@ OR label == %@", id, label)).firstMatch
+    }
+
     @MainActor
     private func navigateToTab(app: XCUIApplication, tabId: String, fallbackLabel: String) {
-        let tabBar = app.tabBars.firstMatch
-        if waitForExistence(tabBar, timeout: 8) {
-            let tabButton = tabBar.buttons[tabId].firstMatch
-            if tabButton.exists || waitForExistence(tabButton, timeout: 1) {
-                tabButton.tap()
-                waitForScreen(app: app, label: fallbackLabel)
-                return
-            }
-            let fallbackButton = tabBar.buttons[fallbackLabel].firstMatch
-            if fallbackButton.exists || waitForExistence(fallbackButton, timeout: 1) {
-                fallbackButton.tap()
-                waitForScreen(app: app, label: fallbackLabel)
-                return
-            }
-        }
-        let anyButton = app.buttons[fallbackLabel].firstMatch
-        if waitForExistence(anyButton, timeout: 8) {
-            anyButton.tap()
-            waitForScreen(app: app, label: fallbackLabel)
-            return
-        }
-        let sidebarCell = app.cells[fallbackLabel].firstMatch
-        if waitForExistence(sidebarCell, timeout: 8) {
+        let button = tabButton(in: app, id: tabId, label: fallbackLabel)
+        if waitForExistence(button, timeout: 8) {
+            button.tap()
+        } else {
+            let sidebarCell = app.cells[fallbackLabel].firstMatch
+            guard sidebarCell.exists else { return }
             sidebarCell.tap()
-            waitForScreen(app: app, label: fallbackLabel)
         }
+        waitForScreen(app: app, label: fallbackLabel)
     }
 
     @MainActor
@@ -425,7 +399,7 @@ final class DDiaryUITests: XCTestCase {
         let scrollContainer = scrollContainer(in: app)
 
         var swipes = 0
-        while !element.isHittable && swipes < maxSwipes {
+        while !isOnScreen(element) && swipes < maxSwipes {
             if scrollContainer.exists {
                 scrollContainer.swipeUp()
             } else {
@@ -435,7 +409,7 @@ final class DDiaryUITests: XCTestCase {
         }
 
         swipes = 0
-        while !element.isHittable && swipes < maxSwipes {
+        while !isOnScreen(element) && swipes < maxSwipes {
             if scrollContainer.exists {
                 scrollContainer.swipeDown()
             } else {
@@ -445,15 +419,22 @@ final class DDiaryUITests: XCTestCase {
         }
     }
 
+    /// `isHittable` on an element that isn't in the hierarchy spends ~2s retrying the lookup;
+    /// `exists` answers that immediately.
     @MainActor
-    private func scrollToTop(in app: XCUIApplication, maxSwipes: Int = 8) {
+    private func isOnScreen(_ element: XCUIElement) -> Bool {
+        element.exists && element.isHittable
+    }
+
+    @MainActor
+    private func scrollToTop(in app: XCUIApplication, maxSwipes: Int = 3) {
         let scrollContainer = scrollContainer(in: app)
 
         for _ in 0..<maxSwipes {
             if scrollContainer.exists {
-                scrollContainer.swipeDown()
+                scrollContainer.swipeDown(velocity: .fast)
             } else {
-                app.swipeDown()
+                app.swipeDown(velocity: .fast)
             }
         }
     }

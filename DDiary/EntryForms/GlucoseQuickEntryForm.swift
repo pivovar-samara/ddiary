@@ -77,6 +77,8 @@ public struct GlucoseQuickEntryForm: View {
                         .frame(minWidth: 100)
                         .lineLimit(1)
                         .focused($isValueFocused)
+                        .submitLabel(.done)
+                        .onSubmit { isValueFocused = false }
                         .autocorrectionDisabled(true)
                         .textInputAutocapitalization(.never)
                         .accessibilityIdentifier("quickEntry.glucose.valueField")
@@ -123,15 +125,12 @@ public struct GlucoseQuickEntryForm: View {
         }
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
-                Button(L10n.quickEntryActionCancel) { onCancel() }
+                Button(role: .close) { onCancel() }
                     .accessibilityIdentifier("quickEntry.cancel")
             }
             ToolbarItem(placement: .confirmationAction) {
-                Button(L10n.quickEntryActionSave) { save() }
+                Button(role: .confirm) { save() }
                     .disabled(isSaveDisabled)
-                    .buttonStyle(.borderedProminent)
-                    .fontWeight(.semibold)
-                    .tint(.accentColor)
                     .accessibilityIdentifier("quickEntry.save")
             }
             ToolbarItemGroup(placement: .keyboard) {
