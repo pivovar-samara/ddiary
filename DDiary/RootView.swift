@@ -32,6 +32,7 @@ struct RootView: View {
                 .tag(RootTab.today)
                 .tabItem {
                     Label(L10n.tabToday, systemImage: "calendar")
+                        .accessibilityIdentifier("tab.today")
                 }
                 
                 // History
@@ -41,6 +42,7 @@ struct RootView: View {
                 .tag(RootTab.history)
                 .tabItem {
                     Label(L10n.tabHistory, systemImage: "clock")
+                        .accessibilityIdentifier("tab.history")
                 }
                 
                 // Settings
@@ -50,6 +52,7 @@ struct RootView: View {
                 .tag(RootTab.settings)
                 .tabItem {
                     Label(L10n.tabSettings, systemImage: "gear")
+                        .accessibilityIdentifier("tab.settings")
                 }
 
 #if DEBUG
@@ -60,6 +63,7 @@ struct RootView: View {
                 .tag(RootTab.debug)
                 .tabItem {
                     Label(L10n.tabDebug, systemImage: "ladybug")
+                        .accessibilityIdentifier("tab.debug")
                 }
                 }
 #endif

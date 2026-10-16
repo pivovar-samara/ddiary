@@ -130,8 +130,10 @@ struct HistoryView: View {
                     .foregroundStyle(.secondary)
             }
             .cardContainer()
-            .accessibilityIdentifier("history.list")
+            // `.contain` first: an identifier applied before it is copied onto every row,
+            // hiding the rows' own `history.row.*` identifiers.
             .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("history.list")
         } else {
             VStack(alignment: .leading, spacing: DS.Spacing.large) {
                 ForEach(groups, id: \.day) { group in
@@ -160,8 +162,10 @@ struct HistoryView: View {
                     }
                 }
             }
-            .accessibilityIdentifier("history.list")
+            // `.contain` first: an identifier applied before it is copied onto every row,
+            // hiding the rows' own `history.row.*` identifiers.
             .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("history.list")
         }
     }
 
