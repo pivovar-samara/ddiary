@@ -75,6 +75,7 @@ public final class TodayViewModel {
         case screenBecameVisible
         case settingsSaved
         case quickEntryDismissed
+        case dayRolledOver
         case manual
     }
 
@@ -93,6 +94,8 @@ public final class TodayViewModel {
     public private(set) var isDailyCycleModeEnabled: Bool = false
     public private(set) var availableCycleSwitchTargets: [MealSlot] = []
     public private(set) var errorMessage: String? = nil
+    /// When the shown slots go stale because the next logical day begins.
+    public private(set) var nextDayRolloverDate: Date? = nil
     private var isRefreshInProgress: Bool = false
     private var hasPendingRefresh: Bool = false
     private var isPreparingManualGlucoseEntry: Bool = false
@@ -268,6 +271,7 @@ public final class TodayViewModel {
         
         let overview = await getTodayOverviewUseCase.compute()
         isDailyCycleModeEnabled = overview.isDailyCycleModeEnabled
+        nextDayRolloverDate = overview.nextDayRolloverDate
         let now = Date()
 
         // BP slots

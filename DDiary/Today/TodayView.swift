@@ -161,6 +161,18 @@ public struct TodayView: View {
         .onReceive(NotificationCenter.default.publisher(for: .settingsDidSave)) { _ in
             Task { await vm.refreshIfNeeded(reason: .settingsSaved) }
         }
+        .task(id: bvm.nextDayRolloverDate) {
+            // Swap in the next day's slots at the rollover moment while the screen stays open.
+            guard let rollover = bvm.nextDayRolloverDate else { return }
+            let delay = rollover.timeIntervalSinceNow
+            guard delay > 0 else { return }
+            do {
+                try await Task.sleep(for: .seconds(delay))
+            } catch {
+                return
+            }
+            await vm.refreshIfNeeded(reason: .dayRolledOver)
+        }
         .onReceive(NotificationCenter.default.publisher(for: .notificationQuickEntryRequested)) { _ in
             Task { @MainActor in
                 handleNotificationQuickEntryIfNeeded(vm: vm)

@@ -179,6 +179,9 @@ public final class UserSettings {
     /// Per-day step overrides keyed by "yyyy-MM-dd". Written when the user explicitly shifts
     /// today's slot via `shiftTodayForward` / `setTodayTarget`. Pruned to ~30 days.
     var cycleOverrides: [String: Int] = [:]
+    /// Minutes past midnight at which the Today screen switches to the next day's slots.
+    /// Until then the previous day's slots stay visible and can still be filled. See `DayBoundary`.
+    var dayRolloverMinutes: Int = 0
 
     init(
         id: UUID = UserSettings.singletonRecordID,
@@ -206,7 +209,8 @@ public final class UserSettings {
         enableDailyCycleMode: Bool,
         currentCycleIndex: Int,
         dailyCycleAnchorDate: Date?,
-        cycleOverrides: [String: Int] = [:]
+        cycleOverrides: [String: Int] = [:],
+        dayRolloverMinutes: Int = 0
     ) {
         self.id = id
         self.singletonKey = singletonKey
@@ -234,6 +238,7 @@ public final class UserSettings {
         self.currentCycleIndex = currentCycleIndex
         self.dailyCycleAnchorDate = dailyCycleAnchorDate
         self.cycleOverrides = cycleOverrides
+        self.dayRolloverMinutes = dayRolloverMinutes
     }
 }
 
