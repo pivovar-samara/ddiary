@@ -99,6 +99,12 @@ struct SettingsView: View {
                     isOn: $bvm.bedtimeSlotEnabled,
                     toggleAccessibilityId: "settings.bedtimeSlotEnabled"
                 )
+                SettingsRow(title: L10n.settingsRowDayRollover) {
+                    TimeOfDayPicker(minutesSinceMidnight: $bvm.dayRolloverMinutes)
+                        .accessibilityIdentifier("settings.dayRollover")
+                }
+            } footer: {
+                Text(L10n.settingsFooterDayRollover)
             }
 
             // Blood Pressure Reminders

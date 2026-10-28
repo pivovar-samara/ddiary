@@ -34,15 +34,19 @@ public struct TodayOverview: Sendable, Equatable {
     public let bpSlots: [BPScheduledSlot]
     public let glucoseSlots: [GlucosePlannedSlot]
     public let isDailyCycleModeEnabled: Bool
+    /// When the overview goes stale because the next logical day begins; `nil` when unknown.
+    public let nextDayRolloverDate: Date?
 
     public init(
         bpSlots: [BPScheduledSlot],
         glucoseSlots: [GlucosePlannedSlot],
-        isDailyCycleModeEnabled: Bool = false
+        isDailyCycleModeEnabled: Bool = false,
+        nextDayRolloverDate: Date? = nil
     ) {
         self.bpSlots = bpSlots
         self.glucoseSlots = glucoseSlots
         self.isDailyCycleModeEnabled = isDailyCycleModeEnabled
+        self.nextDayRolloverDate = nextDayRolloverDate
     }
 }
 
@@ -61,8 +65,10 @@ public final class GetTodayOverviewUseCase {
         self.settingsRepository = settingsRepository
     }
 
-    /// Computes today's planned slots from `UserSettings` and marks slots as completed when
-    /// a matching measurement exists within a tolerance window.
+    /// Computes the planned slots of the logical day containing `today` from `UserSettings` and marks
+    /// slots as completed when a matching measurement exists within that day's window.
+    /// The logical day begins at `UserSettings.dayRolloverMinutes` (see `DayBoundary`), so shortly
+    /// after midnight the previous day's slots can still be shown and filled.
     public func compute(today: Date = Date()) async -> TodayOverview {
         let calendar = Calendar.current
 
@@ -75,19 +81,22 @@ public final class GetTodayOverviewUseCase {
             return Self.defaultOverview(for: today, calendar: calendar)
         }
 
-        let cycleAnchorDate: Date? = await persistCycleAnchorIfNeeded(settings: settings, today: today, calendar: calendar)
+        let boundary = DayBoundary(settings: settings, calendar: calendar)
+        let day = boundary.logicalDay(containing: today)
+        let nextDayRolloverDate = boundary.nextRollover(after: today)
 
-        let dayRange = Self.dayRange(for: today, calendar: calendar)
+        let cycleAnchorDate: Date? = await persistCycleAnchorIfNeeded(settings: settings, today: day, calendar: calendar)
+
+        let window = boundary.window(for: day)
+        // The repository range is inclusive on both ends.
+        let dayRange = (start: window.start, end: window.end.addingTimeInterval(-1))
 
         // Build BP scheduled dates from minutes since midnight only when reminders
-        // are active for today's weekday.
+        // are active for the logical day's weekday.
         let bpDates: [Date]
-        if Self.isBloodPressureReminderActive(on: today, activeWeekdays: settings.bpActiveWeekdays, calendar: calendar) {
+        if Self.isBloodPressureReminderActive(on: day, activeWeekdays: settings.bpActiveWeekdays, calendar: calendar) {
             bpDates = settings.bpTimes.compactMap { minutes in
-                let hour = minutes / 60
-                let minute = minutes % 60
-                let comps = DateComponents(hour: hour, minute: minute)
-                return Self.date(on: today, using: comps, calendar: calendar)
+                boundary.slotDate(on: day, hour: minutes / 60, minute: minutes % 60)
             }.sorted()
         } else {
             bpDates = []
@@ -95,10 +104,11 @@ public final class GetTodayOverviewUseCase {
 
         // Build Glucose planned slots from meal times and toggles
         var glucosePlanned: [(slot: GlucosePlannedSlot, baseDate: Date)] = Self.plannedGlucoseSlots(
-            on: today,
+            on: day,
             settings: settings,
             cycleAnchorDate: cycleAnchorDate,
-            calendar: calendar
+            calendar: calendar,
+            boundary: boundary
         ).map { ($0, $0.date) }
 
         glucosePlanned.sort { $0.baseDate < $1.baseDate }
@@ -122,7 +132,8 @@ public final class GetTodayOverviewUseCase {
             return TodayOverview(
                 bpSlots: bpSlots,
                 glucoseSlots: glSlots,
-                isDailyCycleModeEnabled: settings.enableDailyCycleMode
+                isDailyCycleModeEnabled: settings.enableDailyCycleMode,
+                nextDayRolloverDate: nextDayRolloverDate
             )
         }
 
@@ -196,12 +207,13 @@ public final class GetTodayOverviewUseCase {
         return TodayOverview(
             bpSlots: bpSlots,
             glucoseSlots: glSlots,
-            isDailyCycleModeEnabled: settings.enableDailyCycleMode
+            isDailyCycleModeEnabled: settings.enableDailyCycleMode,
+            nextDayRolloverDate: nextDayRolloverDate
         )
     }
 
     /// Returns the planned glucose slot nearest in time to `referenceDate`, considering the previous,
-    /// current and next calendar day. Widening the window past the current day is what lets a neighbouring
+    /// current and next logical day (see `DayBoundary`). Widening the window past the current day is what lets a neighbouring
     /// day's slot win at all: with a bedtime slot at 22:00 and breakfast at 08:00, an entry at 00:30 picks
     /// the previous day's bedtime (2h30m) over the coming breakfast (7h30m). Which slot wins is always
     /// just "the nearest one" — the same entry at 04:00 picks breakfast, and with the bedtime slot
@@ -214,21 +226,23 @@ public final class GetTodayOverviewUseCase {
     public func nearestGlucoseSlot(to referenceDate: Date = Date()) async throws -> GlucosePlannedSlot? {
         let calendar = Calendar.current
         let settings = try await settingsRepository.getOrCreate()
+        let boundary = DayBoundary(settings: settings, calendar: calendar)
+        let referenceDay = boundary.logicalDay(containing: referenceDate)
         let cycleAnchorDate = Self.resolvedCycleAnchor(
             settings: settings,
-            referenceDate: referenceDate,
+            referenceDate: referenceDay,
             calendar: calendar
         )
 
-        let startOfReferenceDay = calendar.startOfDay(for: referenceDate)
-        let days = [-1, 0, 1].compactMap { calendar.date(byAdding: .day, value: $0, to: startOfReferenceDay) }
+        let days = [-1, 0, 1].compactMap { calendar.date(byAdding: .day, value: $0, to: referenceDay) }
         let candidates = days
             .flatMap {
                 Self.plannedGlucoseSlots(
                     on: $0,
                     settings: settings,
                     cycleAnchorDate: cycleAnchorDate,
-                    calendar: calendar
+                    calendar: calendar,
+                    boundary: boundary
                 )
             }
             .sorted { $0.date < $1.date }
@@ -246,16 +260,19 @@ public final class GetTodayOverviewUseCase {
         return calendar.date(from: day)
     }
 
-    /// Builds the planned glucose slots for an arbitrary calendar day from `UserSettings`.
+    /// Builds the planned glucose slots for an arbitrary logical day from `UserSettings`.
     /// Pure: no repository access and no persistence, so it is safe to call for several days in a row.
     /// - Parameter cycleAnchorDate: resolved read-only by the caller from the *reference* day via
     ///   `resolvedCycleAnchor(settings:referenceDate:calendar:)`, never from `day` itself.
+    /// - Parameter boundary: moves slots whose meal time is earlier than the day rollover onto the
+    ///   next calendar date; `nil` keeps every slot on `day` itself.
     /// - Returns: slots sorted by date.
     static func plannedGlucoseSlots(
         on day: Date,
         settings: UserSettings,
         cycleAnchorDate: Date?,
-        calendar: Calendar
+        calendar: Calendar,
+        boundary: DayBoundary? = nil
     ) -> [GlucosePlannedSlot] {
         var planned: [GlucosePlannedSlot] = []
         if settings.enableDailyCycleMode {
@@ -311,7 +328,34 @@ public final class GetTodayOverviewUseCase {
                 planned.append(GlucosePlannedSlot(mealSlot: .none, measurementType: .bedtime, date: bedtime, completed: false, matchedMeasurementId: nil))
             }
         }
+        if let boundary {
+            planned = planned.map { Self.movedIntoLogicalDay($0, boundary: boundary, calendar: calendar) }
+        }
         return planned.sorted { $0.date < $1.date }
+    }
+
+    /// Moves a slot built on the logical day's calendar date to the next date when its meal time
+    /// falls before the rollover. An after-meal slot follows its meal: it is judged by the meal time
+    /// two hours earlier, so a 23:00 dinner keeps its 01:00 after-meal slot on the same logical day.
+    private static func movedIntoLogicalDay(
+        _ slot: GlucosePlannedSlot,
+        boundary: DayBoundary,
+        calendar: Calendar
+    ) -> GlucosePlannedSlot {
+        let mealDate = slot.measurementType == .afterMeal2h
+            ? calendar.date(byAdding: .hour, value: -2, to: slot.date) ?? slot.date
+            : slot.date
+        let components = calendar.dateComponents([.hour, .minute], from: mealDate)
+        let mealMinutes = (components.hour ?? 0) * 60 + (components.minute ?? 0)
+        guard boundary.isBeforeRollover(mealMinutes),
+              let moved = calendar.date(byAdding: .day, value: 1, to: slot.date) else { return slot }
+        return GlucosePlannedSlot(
+            mealSlot: slot.mealSlot,
+            measurementType: slot.measurementType,
+            date: moved,
+            completed: slot.completed,
+            matchedMeasurementId: slot.matchedMeasurementId
+        )
     }
 
     /// Resolves the daily-cycle anchor without writing it back. `persistCycleAnchorIfNeeded` uses the
@@ -344,12 +388,6 @@ public final class GetTodayOverviewUseCase {
             }
             return dl < dr
         }.map { candidates[$0] }
-    }
-
-    private static func dayRange(for date: Date, calendar: Calendar) -> (start: Date, end: Date) {
-        let start = calendar.startOfDay(for: date)
-        let end = calendar.date(byAdding: DateComponents(day: 1, second: -1), to: start) ?? start
-        return (start, end)
     }
 
     private static func isBloodPressureReminderActive(

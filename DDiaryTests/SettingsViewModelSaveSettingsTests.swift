@@ -167,6 +167,21 @@ final class SettingsViewModelSaveSettingsTests: XCTestCase {
         XCTAssertEqual(settingsRepository.savedSettings?.enableAfterMeal2h, false)
     }
 
+    func test_saveSettings_persistsDayRolloverMinutes() async throws {
+        let settingsRepository = SpySettingsRepository()
+        let sut = makeSUT(
+            settingsRepository: settingsRepository,
+            measurementsRepository: MockMeasurementsRepository(),
+            schedulesUpdater: SpySchedulesUpdater()
+        )
+
+        sut.dayRolloverMinutes = 3 * 60 + 30
+
+        await sut.saveSettings()
+
+        XCTAssertEqual(settingsRepository.savedSettings?.dayRolloverMinutes, 3 * 60 + 30)
+    }
+
     func test_scheduleAutoSave_beforeInitialLoad_doesNotPersist() async throws {
         let settingsRepository = SpySettingsRepository()
         let updater = SpySchedulesUpdater()

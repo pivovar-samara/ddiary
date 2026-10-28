@@ -189,6 +189,8 @@ enum L10n {
     static let settingsRowDinner = tr("settings.row.dinner", "Dinner")
     static let settingsRowBedtime = tr("settings.row.bedtime", "Bedtime")
     static let settingsRowBedtimeSlotEnabled = tr("settings.row.bedtime_slot_enabled", "Bedtime slot enabled")
+    static let settingsRowDayRollover = tr("settings.row.day_rollover", "New day starts at")
+    static let settingsFooterDayRollover = tr("settings.footer.day_rollover", "Until this time, Today keeps showing the previous day's slots so you can still fill them in.")
     static let settingsRowNoTimesConfigured = tr("settings.row.no_times_configured", "No times configured")
     static let settingsRowAddTime = tr("settings.row.add_time", "Add time")
     static let settingsRowActiveWeekdays = tr("settings.row.active_weekdays", "Active weekdays")

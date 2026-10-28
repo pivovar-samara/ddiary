@@ -65,6 +65,8 @@ final class SettingsViewModel {
     var bedtimeSlotEnabled: Bool = false
     var bedtimeHour: Int = 22
     var bedtimeMinute: Int = 0
+    /// Minutes past midnight at which Today switches to the next day's slots.
+    var dayRolloverMinutes: Int = 0
 
     // Blood pressure reminder times (minutes since midnight) and active weekdays (1...7)
     var bpTimes: [Int] = []
@@ -183,6 +185,7 @@ final class SettingsViewModel {
             bedtimeSlotEnabled = settings.bedtimeSlotEnabled
             bedtimeHour = settings.bedtimeHour
             bedtimeMinute = settings.bedtimeMinute
+            dayRolloverMinutes = settings.dayRolloverMinutes
 
             bpTimes = settings.bpTimes
             bpActiveWeekdays = settings.bpActiveWeekdays
@@ -239,6 +242,7 @@ final class SettingsViewModel {
             "\(dinnerHour):\(dinnerMinute)",
             "\(bedtimeHour):\(bedtimeMinute)",
             "\(bedtimeSlotEnabled)",
+            "\(dayRolloverMinutes)",
             bpTimesSignature,
             weekdaysSignature,
             "\(enableBeforeMeal)",
@@ -363,6 +367,7 @@ final class SettingsViewModel {
             settings.bedtimeSlotEnabled = bedtimeSlotEnabled
             settings.bedtimeHour = bedtimeHour
             settings.bedtimeMinute = bedtimeMinute
+            settings.dayRolloverMinutes = dayRolloverMinutes
 
             settings.bpTimes = bpTimes
             settings.bpActiveWeekdays = bpActiveWeekdays
