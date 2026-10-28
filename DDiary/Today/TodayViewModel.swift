@@ -390,7 +390,8 @@ public final class TodayViewModel {
     /// upcoming breakfast.
     /// - Parameter referenceDate: injectable for tests; production callers use the current time.
     /// - Note: When the schedule cannot be read the sheet stays closed and `errorMessage` is set. The
-    ///   derived tag is not editable afterwards, so guessing one is worse than asking the user to retry.
+    ///   derived tag is only a default the user can change in the form, but a wrong guess would be
+    ///   saved silently by anyone who doesn't look, so asking the user to retry is still safer.
     public func prepareManualGlucoseQuickEntry(referenceDate: Date = Date()) async {
         guard !isPreparingManualGlucoseEntry, !presentGlucoseQuickEntry else { return }
         isPreparingManualGlucoseEntry = true

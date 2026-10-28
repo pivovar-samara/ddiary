@@ -106,6 +106,7 @@ enum L10n {
 
     static let quickEntryGlucoseTitle = tr("quick_entry.glucose.title", "Glucose")
     static let quickEntryGlucoseValuePlaceholder = tr("quick_entry.glucose.value_placeholder", "Value")
+    static let quickEntryGlucoseTypePicker = tr("quick_entry.glucose.type_picker", "Measurement type")
     static let unitMmolL = tr("unit.mmol_l", "mmol/L")
     static let unitMgDL = tr("unit.mg_dl", "mg/dL")
     static let measurementCommentPlaceholder = tr("measurement.comment.placeholder", "Comment")
