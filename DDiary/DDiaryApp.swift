@@ -171,10 +171,13 @@ struct DDiaryApp: App {
         FirebaseBootstrap.configureIfNeeded(environment: analyticsEnvironment)
 
         #if DEBUG
-        // Must finish before the real CloudKit-backed container starts mirroring.
-        CloudKitSchemaInitializer.runIfRequested(
-            containerIdentifier: PersistenceConstants.cloudKitContainerIdentifier
-        )
+        // Must finish before the real CloudKit-backed container starts mirroring. Test runs inherit
+        // the scheme's launch arguments, so they must never reach CloudKit through this path.
+        if !analyticsEnvironment.isUnitTesting && !analyticsEnvironment.isUITesting {
+            CloudKitSchemaInitializer.runIfRequested(
+                containerIdentifier: PersistenceConstants.cloudKitContainerIdentifier
+            )
+        }
         #endif
 
         self.launchState = AppBootstrapper.makeLaunchState(

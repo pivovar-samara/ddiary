@@ -63,8 +63,8 @@ enum CloudKitSchemaInitializer {
                 for store in container.persistentStoreCoordinator.persistentStores {
                     try container.persistentStoreCoordinator.remove(store)
                 }
+                logger.notice("CloudKit Development schema initialized for \(containerIdentifier, privacy: .public)")
             }
-            logger.notice("CloudKit Development schema initialized for \(containerIdentifier, privacy: .public)")
         } catch {
             logger.error("CloudKit schema initialization failed. error=\(String(describing: error), privacy: .public)")
         }
