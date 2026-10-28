@@ -170,6 +170,16 @@ struct DDiaryApp: App {
         // crash-prone stretch of launch — it already needs a two-level fallback.
         FirebaseBootstrap.configureIfNeeded(environment: analyticsEnvironment)
 
+        #if DEBUG
+        // Must finish before the real CloudKit-backed container starts mirroring. Test runs inherit
+        // the scheme's launch arguments, so they must never reach CloudKit through this path.
+        if !analyticsEnvironment.isUnitTesting && !analyticsEnvironment.isUITesting {
+            CloudKitSchemaInitializer.runIfRequested(
+                containerIdentifier: PersistenceConstants.cloudKitContainerIdentifier
+            )
+        }
+        #endif
+
         self.launchState = AppBootstrapper.makeLaunchState(
             isUITesting: analyticsEnvironment.isUITesting,
             usesPrettyData: analyticsEnvironment.isPrettyData,
