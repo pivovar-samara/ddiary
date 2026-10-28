@@ -101,6 +101,8 @@ final class DDiaryUITests: XCTestCase {
 
         let glucoseField = app.textFields[A11y.Field.glucose]
         XCTAssertTrue(waitForExistence(glucoseField, timeout: 8), "Glucose value field should exist")
+        let typePicker = app.descendants(matching: .any)["quickEntry.glucose.typePicker"].firstMatch
+        XCTAssertTrue(typePicker.exists, "Glucose measurement type picker should exist")
         // Enter a value that matches the current unit to avoid out-of-range warnings
         let unitLabel = app.staticTexts["quickEntry.glucose.unitLabel"]
         XCTAssertTrue(waitForExistence(unitLabel, timeout: 8), "Glucose unit label should exist")

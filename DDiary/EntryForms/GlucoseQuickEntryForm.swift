@@ -27,6 +27,7 @@ public struct GlucoseQuickEntryForm: View {
     @State private var unusualConfirmMessage: String? = nil
     @State private var hasAttemptedSave: Bool = false
     @State private var existingMeasurement: GlucoseMeasurement? = nil
+    @State private var selectedKind: GlucoseMeasurementKind?
     @State private var glucoseMin: Double = GlucoseConstraints.mmolRange.lowerBound
     @State private var glucoseMax: Double = GlucoseConstraints.mmolRange.upperBound
     @FocusState private var isValueFocused: Bool
@@ -49,6 +50,17 @@ public struct GlucoseQuickEntryForm: View {
         self.plannedScheduledDate = plannedScheduledDate
         self.onCancel = onCancel
         self.onSaved = onSaved
+        self._selectedKind = State(initialValue: Self.kind(mealSlot: mealSlot, measurementType: measurementType))
+    }
+
+    /// The tag the form was opened with; changing away from it turns a planned entry into a manual one.
+    private var originalKind: GlucoseMeasurementKind? {
+        Self.kind(mealSlot: mealSlot, measurementType: measurementType)
+    }
+
+    private static func kind(mealSlot: MealSlot?, measurementType: GlucoseMeasurementType?) -> GlucoseMeasurementKind? {
+        guard let mealSlot, let measurementType else { return nil }
+        return GlucoseMeasurementKind(mealSlot: mealSlot, measurementType: measurementType)
     }
 
     private var isSaveDisabled: Bool {
@@ -68,6 +80,16 @@ public struct GlucoseQuickEntryForm: View {
             commentFieldAnchorId: "glucose.comment.field"
         ) {
             VStack(alignment: .center, spacing: DS.Spacing.small) {
+                if selectedKind != nil {
+                    Picker(L10n.quickEntryGlucoseTypePicker, selection: $selectedKind) {
+                        ForEach(GlucoseMeasurementKind.allCases) { kind in
+                            Text(kind.title).tag(Optional(kind))
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .accessibilityIdentifier("quickEntry.glucose.typePicker")
+                }
+
                 HStack(alignment: .firstTextBaseline, spacing: DS.Spacing.small) {
                     TextField(L10n.quickEntryGlucoseValuePlaceholder, text: $valueText)
                         .keyboardType(.decimalPad)
@@ -164,14 +186,6 @@ public struct GlucoseQuickEntryForm: View {
         }
     }
 
-    private func title(for type: GlucoseMeasurementType) -> String {
-        switch type {
-        case .beforeMeal: return L10n.settingsRowBeforeMeal
-        case .afterMeal2h: return L10n.settingsRowAfterMeal2h
-        case .bedtime: return L10n.settingsRowBedtime
-        }
-    }
-
     // MARK: - Validation helpers
     private func sanitizeInput(_ text: String) -> String {
         // Normalize decimal separator to "." and allow only digits and one "."
@@ -234,6 +248,7 @@ public struct GlucoseQuickEntryForm: View {
                 self.comment = m.comment ?? ""
                 self.showCommentField = !(m.comment ?? "").isEmpty
                 self.unit = m.unit
+                self.selectedKind = GlucoseMeasurementKind(mealSlot: m.mealSlot, measurementType: m.measurementType)
             }
         } catch {
             // Ignore; leave as new entry
@@ -258,7 +273,7 @@ public struct GlucoseQuickEntryForm: View {
     }
 
     private func performSaveGlucose(value: Double) {
-        guard let ms = mealSlot, let mt = measurementType else { return }
+        guard let kind = selectedKind else { return }
         isSaving = true
         Task {
             do {
@@ -267,17 +282,21 @@ public struct GlucoseQuickEntryForm: View {
                         measurement: existing,
                         value: value,
                         unit: unit,
-                        measurementType: mt,
-                        mealSlot: ms,
+                        measurementType: kind.measurementType,
+                        mealSlot: kind.mealSlot,
                         comment: comment.isEmpty ? nil : comment
                     )
                 } else {
                     try await container.logGlucoseMeasurementUseCase.execute(
                         value: value,
-                        measurementType: mt,
-                        mealSlot: ms,
+                        measurementType: kind.measurementType,
+                        mealSlot: kind.mealSlot,
                         comment: comment.isEmpty ? nil : comment,
-                        plannedScheduledDate: plannedScheduledDate
+                        plannedScheduledDate: GlucoseMeasurementKind.plannedScheduledDate(
+                            plannedScheduledDate,
+                            original: originalKind,
+                            selected: kind
+                        )
                     )
                 }
                 #if canImport(UIKit)
