@@ -47,7 +47,9 @@ public final class RescheduleGlucoseCycleUseCase {
             guard order.contains(meal) else { return }
             guard let targetStep = step(for: meal) else { return }
             let calendar = Calendar.current
-            guard applyAnchorUpdate(to: settings, step: targetStep, today: today, calendar: calendar) else { return }
+            // "Today" is the logical day the Today screen shows, which may still be yesterday's date.
+            let logicalToday = DayBoundary(settings: settings, calendar: calendar).logicalDay(containing: today)
+            guard applyAnchorUpdate(to: settings, step: targetStep, today: logicalToday, calendar: calendar) else { return }
             try await settingsRepository.save(settings)
             await analyticsRepository.logScheduleUpdated(kind: .glucose)
         } catch {
@@ -63,11 +65,13 @@ public final class RescheduleGlucoseCycleUseCase {
             guard settings.enableDailyCycleMode else { return [] }
 
             let calendar = Calendar.current
-            let referenceDay = calendar.startOfDay(for: today)
+            // "Today" is the logical day the Today screen shows, which may still be yesterday's date.
+            let logicalToday = DayBoundary(settings: settings, calendar: calendar).logicalDay(containing: today)
+            let referenceDay = calendar.startOfDay(for: logicalToday)
             let anchorDate = settings.dailyCycleAnchorDate
                 ?? GlucoseCyclePlanner.fallbackAnchorDate(
                     currentCycleIndex: settings.currentCycleIndex,
-                    referenceDate: today,
+                    referenceDate: logicalToday,
                     calendar: calendar
                 )
             let currentStep = GlucoseCyclePlanner.step(
@@ -99,7 +103,9 @@ public final class RescheduleGlucoseCycleUseCase {
 
             guard let targetStep = step(for: meal) else { return false }
             let calendar = Calendar.current
-            guard applyAnchorUpdate(to: settings, step: targetStep, today: today, calendar: calendar) else { return false }
+            // "Today" is the logical day the Today screen shows, which may still be yesterday's date.
+            let logicalToday = DayBoundary(settings: settings, calendar: calendar).logicalDay(containing: today)
+            guard applyAnchorUpdate(to: settings, step: targetStep, today: logicalToday, calendar: calendar) else { return false }
             try await settingsRepository.save(settings)
             await analyticsRepository.logScheduleUpdated(kind: .glucose)
             return true
@@ -115,11 +121,13 @@ public final class RescheduleGlucoseCycleUseCase {
             let settings = try await settingsRepository.getOrCreate()
             guard settings.enableDailyCycleMode else { return nil }
             let calendar = Calendar.current
-            let referenceDay = calendar.startOfDay(for: today)
+            // "Today" is the logical day the Today screen shows, which may still be yesterday's date.
+            let logicalToday = DayBoundary(settings: settings, calendar: calendar).logicalDay(containing: today)
+            let referenceDay = calendar.startOfDay(for: logicalToday)
             let anchorDate = settings.dailyCycleAnchorDate
                 ?? GlucoseCyclePlanner.fallbackAnchorDate(
                     currentCycleIndex: settings.currentCycleIndex,
-                    referenceDate: today,
+                    referenceDate: logicalToday,
                     calendar: calendar
                 )
             let currentStep = GlucoseCyclePlanner.step(
@@ -143,11 +151,13 @@ public final class RescheduleGlucoseCycleUseCase {
             let settings = try await settingsRepository.getOrCreate()
             guard settings.enableDailyCycleMode else { return false }
             let calendar = Calendar.current
-            let referenceDay = calendar.startOfDay(for: today)
+            // "Today" is the logical day the Today screen shows, which may still be yesterday's date.
+            let logicalToday = DayBoundary(settings: settings, calendar: calendar).logicalDay(containing: today)
+            let referenceDay = calendar.startOfDay(for: logicalToday)
             let anchorDate = settings.dailyCycleAnchorDate
                 ?? GlucoseCyclePlanner.fallbackAnchorDate(
                     currentCycleIndex: settings.currentCycleIndex,
-                    referenceDate: today,
+                    referenceDate: logicalToday,
                     calendar: calendar
                 )
             let currentStep = GlucoseCyclePlanner.step(
@@ -162,7 +172,7 @@ public final class RescheduleGlucoseCycleUseCase {
             guard let currentIndex = order.firstIndex(of: currentSlot) else { return false }
             let nextSlot = order[(currentIndex + 1) % order.count]
             guard let nextStep = step(for: nextSlot) else { return false }
-            guard applyAnchorUpdate(to: settings, step: nextStep, today: today, calendar: calendar) else { return false }
+            guard applyAnchorUpdate(to: settings, step: nextStep, today: logicalToday, calendar: calendar) else { return false }
             try await settingsRepository.save(settings)
             return true
         } catch {

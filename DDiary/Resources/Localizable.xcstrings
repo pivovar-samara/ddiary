@@ -9187,6 +9187,107 @@
         }
       }
     },
+    "settings.footer.day_rollover": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "حتى هذا الوقت، تبقى فترات اليوم السابق على شاشة اليوم ويمكنك تعبئتها."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bis zu dieser Uhrzeit zeigt „Heute“ weiterhin die Slots des Vortags, damit du sie noch ausfüllen kannst."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Until this time, Today keeps showing the previous day's slots so you can still fill them in."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hasta esta hora, Hoy sigue mostrando las franjas del día anterior para que aún puedas completarlas."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jusqu'à cette heure, Aujourd'hui affiche encore les créneaux de la veille pour que vous puissiez les remplir."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fino a quest'ora, Oggi continua a mostrare le fasce del giorno precedente così puoi ancora compilarle."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この時刻までは「今日」に前日のスロットが表示され、引き続き入力できます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 시간까지는 오늘 화면에 전날 슬롯이 계속 표시되어 아직 입력할 수 있습니다."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tot dit tijdstip toont Vandaag nog de slots van de vorige dag, zodat je ze nog kunt invullen."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Do tej godziny ekran Dziś nadal pokazuje sloty z poprzedniego dnia, aby można je było uzupełnić."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Até este horário, Hoje continua mostrando os slots do dia anterior para que você ainda possa preenchê-los."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "До этого времени на экране «Сегодня» остаются слоты предыдущего дня — их ещё можно заполнить."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fram till den här tiden visar Idag fortfarande föregående dags slots så att du kan fylla i dem."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu saate kadar Bugün ekranı önceki günün slotlarını göstermeye devam eder, böylece onları hâlâ doldurabilirsin."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "До цього часу на екрані «Сьогодні» лишаються слоти попереднього дня — їх ще можна заповнити."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在此时间之前，“今天”页面仍显示前一天的时段，你仍可以填写。"
+          }
+        }
+      }
+    },
     "settings.google.error.spreadsheet_creation_failed_format": {
       "extractionState": "manual",
       "localizations": {
@@ -11708,6 +11809,107 @@
           "stringUnit": {
             "state": "translated",
             "value": "今天是"
+          }
+        }
+      }
+    },
+    "settings.row.day_rollover": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "يبدأ اليوم الجديد في"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neuer Tag beginnt um"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New day starts at"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El nuevo día empieza a las"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le nouveau jour commence à"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il nuovo giorno inizia alle"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新しい日の開始時刻"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "새로운 하루 시작 시간"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nieuwe dag begint om"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nowy dzień zaczyna się o"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O novo dia começa às"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Новый день начинается в"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ny dag börjar"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yeni gün başlangıcı"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Новий день починається о"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新一天开始时间"
           }
         }
       }

@@ -424,6 +424,29 @@ final class RescheduleGlucoseCycleUseCaseTests: XCTestCase {
         XCTAssertEqual(settingsRepository.saveCount, 1)
     }
 
+    func test_setTodayTarget_beforeDayRollover_updatesPreviousLogicalDay() async throws {
+        let settings = UserSettings.default()
+        settings.enableDailyCycleMode = true
+        settings.dayRolloverMinutes = 4 * 60
+        let calendar = Calendar.current
+        let monday = try XCTUnwrap(gregorian.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 12, minute: 0)))
+        let tuesdayNight = try XCTUnwrap(gregorian.date(from: DateComponents(year: 2026, month: 2, day: 17, hour: 2, minute: 0)))
+        // Monday is a lunch day (step 1).
+        settings.dailyCycleAnchorDate = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: monday))
+
+        let sut = RescheduleGlucoseCycleUseCase(
+            settingsRepository: SpyCycleSettingsRepository(settings: settings),
+            analyticsRepository: MockAnalyticsRepository()
+        )
+
+        let shifted = await sut.setTodayTarget(.dinner, today: tuesdayNight)
+
+        XCTAssertTrue(shifted)
+        // Before the rollover "today" is still Monday, so Monday becomes the dinner day.
+        let expectedAnchor = calendar.date(byAdding: .day, value: -2, to: calendar.startOfDay(for: monday))
+        XCTAssertEqual(settings.dailyCycleAnchorDate, expectedAnchor)
+    }
+
     func test_setTodayTarget_rescheduleTodayFromLunchToDinner_tomorrowIsBedtime() async throws {
         // Regression: rescheduling today must propagate to subsequent days.
         let settings = UserSettings.default()
