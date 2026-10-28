@@ -282,6 +282,47 @@ final class SwiftDataSettingsRepositoryTests: XCTestCase {
         XCTAssertEqual(all.count, 1)
         XCTAssertEqual(all.first?.id, anchored.id)
     }
+
+    func test_save_whenSingletonExists_copiesDayRolloverMinutes() async throws {
+        let container = try makeInMemoryModelContainer()
+        let context = ModelContext(container)
+        let repository = SwiftDataSettingsRepository(modelContext: context)
+
+        _ = try await repository.getOrCreate()
+
+        let detached = UserSettings.default()
+        detached.id = UUID()
+        detached.dayRolloverMinutes = 4 * 60
+
+        try await repository.save(detached)
+
+        let stored = try await repository.getOrCreate()
+        XCTAssertEqual(stored.dayRolloverMinutes, 4 * 60)
+    }
+
+    func test_getOrCreate_prefersRecordCustomizedOnlyByDayRollover() async throws {
+        let container = try makeInMemoryModelContainer()
+        let context = ModelContext(container)
+        let repository = SwiftDataSettingsRepository(modelContext: context)
+
+        // The default record carries the singleton ID, which wins every other tie.
+        let placeholder = UserSettings.default()
+
+        let customized = UserSettings.default()
+        customized.id = UUID()
+        customized.dayRolloverMinutes = 4 * 60
+
+        context.insert(placeholder)
+        context.insert(customized)
+        try context.save()
+
+        let resolved = try await repository.getOrCreate()
+        XCTAssertEqual(resolved.id, customized.id)
+        XCTAssertEqual(resolved.dayRolloverMinutes, 4 * 60)
+
+        let all = try context.fetch(FetchDescriptor<UserSettings>())
+        XCTAssertEqual(all.count, 1)
+    }
 }
 
 @MainActor

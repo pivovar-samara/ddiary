@@ -134,6 +134,7 @@ private extension SwiftDataSettingsRepository {
         if settings.enableDailyCycleMode != defaults.enableDailyCycleMode { score += 1 }
         if settings.currentCycleIndex != defaults.currentCycleIndex { score += 1 }
         if settings.dailyCycleAnchorDate != defaults.dailyCycleAnchorDate { score += 1 }
+        if settings.dayRolloverMinutes != defaults.dayRolloverMinutes { score += 1 }
 
         return score
     }
@@ -171,5 +172,6 @@ private extension SwiftDataSettingsRepository {
         target.enableDailyCycleMode = source.enableDailyCycleMode
         target.currentCycleIndex = source.currentCycleIndex
         target.dailyCycleAnchorDate = source.dailyCycleAnchorDate
+        target.dayRolloverMinutes = source.dayRolloverMinutes
     }
 }
