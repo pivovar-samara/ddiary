@@ -190,7 +190,7 @@ struct SilentNotificationsRepository: NotificationsRepository, Sendable {
     ) async {}
     func cancel(withIdentifier _: String) async {}
     func cancelPlannedBloodPressureNotification(at _: Date) async {}
-    func cancelPlannedGlucoseNotification(measurementType _: GlucoseMeasurementType, at _: Date) async {}
+    func cancelPlannedGlucoseNotification(measurementType _: GlucoseMeasurementType, mealSlot _: MealSlot, at _: Date) async {}
     func scheduledReminders(on _: Date) async -> [ScheduledReminder] { [] }
     func cancelAll() async {}
     func cancelAllExceptOneOffRequests() async {}

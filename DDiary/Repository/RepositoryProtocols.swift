@@ -194,8 +194,12 @@ public protocol NotificationsRepository: Sendable {
 
     /// Mark a planned glucose slot as completed.
     /// Removes matching one-off/repeating pending and delivered reminders, their snoozed copies,
-    /// and, for after-meal slots, the shifted one-off scheduled for that time.
-    func cancelPlannedGlucoseNotification(measurementType: GlucoseMeasurementType, at scheduledDate: Date) async
+    /// and, for after-meal slots, the shifted one-off scheduled for that meal and time.
+    func cancelPlannedGlucoseNotification(
+        measurementType: GlucoseMeasurementType,
+        mealSlot: MealSlot,
+        at scheduledDate: Date
+    ) async
 
     /// Returns reminders that are currently pending or delivered for the specified calendar day.
     /// Used by Today screen computation to stay aligned with real notification state.
@@ -298,7 +302,7 @@ public extension NotificationsRepository {
         guard shiftedAfterDate > Date() else { return }
         guard abs(shiftedAfterDate.timeIntervalSince(originalAfterDate)) >= 60 else { return }
 
-        await cancelPlannedGlucoseNotification(measurementType: .afterMeal2h, at: originalAfterDate)
+        await cancelPlannedGlucoseNotification(measurementType: .afterMeal2h, mealSlot: mealSlot, at: originalAfterDate)
 
         let payload: (title: String, body: String)
         switch mealSlot {

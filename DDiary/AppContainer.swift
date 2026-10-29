@@ -160,9 +160,10 @@ struct AppContainer {
             scheduleGoogleSyncIfConnected: { [syncWithGoogleUseCase] in
                 syncWithGoogleUseCase.scheduleSyncIfConnected()
             },
-            cancelPlannedNotification: { [notificationsRepository] measurementType, scheduledDate in
+            cancelPlannedNotification: { [notificationsRepository] measurementType, mealSlot, scheduledDate in
                 await notificationsRepository.cancelPlannedGlucoseNotification(
                     measurementType: measurementType,
+                    mealSlot: mealSlot,
                     at: scheduledDate
                 )
             },

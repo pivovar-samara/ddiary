@@ -519,10 +519,11 @@ public final class TodayViewModel {
 
         var processedGlucoseSlots: Set<String> = []
         for slot in overview.glucoseSlots where slot.completed {
-            let key = "\(slot.measurementType.rawValue)|\(Int(slot.date.timeIntervalSince1970))"
+            let key = "\(slot.measurementType.rawValue)|\(slot.mealSlot.rawValue)|\(Int(slot.date.timeIntervalSince1970))"
             guard processedGlucoseSlots.insert(key).inserted else { continue }
             await notificationsRepository.cancelPlannedGlucoseNotification(
                 measurementType: slot.measurementType,
+                mealSlot: slot.mealSlot,
                 at: slot.date
             )
         }

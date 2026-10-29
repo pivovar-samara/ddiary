@@ -275,6 +275,7 @@ final class UserNotificationsRepositoryTests: XCTestCase {
 
         await repository.cancelPlannedGlucoseNotification(
             measurementType: .beforeMeal,
+            mealSlot: .breakfast,
             at: scheduledDate
         )
 
@@ -296,6 +297,7 @@ final class UserNotificationsRepositoryTests: XCTestCase {
 
         await repository.cancelPlannedGlucoseNotification(
             measurementType: .beforeMeal,
+            mealSlot: .breakfast,
             at: scheduledDate
         )
 
@@ -359,7 +361,7 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         center.pendingRequests[afterMealSnoozeID] = makeRequest(id: afterMealSnoozeID)
         center.deliveredIdentifiers = [deliveredSnoozeID]
 
-        await repository.cancelPlannedGlucoseNotification(measurementType: .beforeMeal, at: scheduledDate)
+        await repository.cancelPlannedGlucoseNotification(measurementType: .beforeMeal, mealSlot: .lunch, at: scheduledDate)
 
         XCTAssertNil(center.pendingRequests[pendingSnoozeID])
         XCTAssertFalse(center.deliveredIdentifiers.contains(deliveredSnoozeID))
@@ -381,11 +383,50 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         center.pendingRequests[otherShiftedID] = makeRequest(id: otherShiftedID)
         center.deliveredIdentifiers = [shiftedSnoozeID]
 
-        await repository.cancelPlannedGlucoseNotification(measurementType: .afterMeal2h, at: shiftedDate)
+        await repository.cancelPlannedGlucoseNotification(measurementType: .afterMeal2h, mealSlot: .lunch, at: shiftedDate)
 
         XCTAssertNil(center.pendingRequests[shiftedID])
         XCTAssertFalse(center.deliveredIdentifiers.contains(shiftedSnoozeID))
         XCTAssertNotNil(center.pendingRequests[otherShiftedID], "another slot's shifted reminder must survive")
+    }
+
+    func test_cancelPlannedGlucoseNotification_afterMeal_keepsAnotherMealsShiftedReminderAtSameTime() async {
+        let center = FakeNotificationCenter()
+        let repository = UserNotificationsRepository(center: center)
+        let scheduledDate = Calendar.current.date(
+            from: DateComponents(year: 2026, month: 2, day: 16, hour: 15, minute: 0)
+        ) ?? Date()
+        let lunchShiftedID = "ddiary.glucose.after.shifted.lunch.d20260216.1500"
+        let breakfastShiftedID = "ddiary.glucose.after.shifted.breakfast.d20260216.1500"
+        let breakfastSnoozeID = breakfastShiftedID + ".snooze.15"
+        center.pendingRequests[lunchShiftedID] = makeRequest(id: lunchShiftedID)
+        center.pendingRequests[breakfastShiftedID] = makeRequest(id: breakfastShiftedID)
+        center.deliveredIdentifiers = [breakfastSnoozeID]
+
+        await repository.cancelPlannedGlucoseNotification(measurementType: .afterMeal2h, mealSlot: .lunch, at: scheduledDate)
+
+        XCTAssertNil(center.pendingRequests[lunchShiftedID])
+        XCTAssertNotNil(center.pendingRequests[breakfastShiftedID], "breakfast's shifted reminder must survive")
+        XCTAssertTrue(center.deliveredIdentifiers.contains(breakfastSnoozeID), "breakfast's snooze must survive")
+    }
+
+    func test_rescheduleShiftedAfterMeal2hNotification_keepsAnotherMealsShiftedReminderAtOriginalTime() async {
+        let center = FakeNotificationCenter()
+        let repository = UserNotificationsRepository(center: center)
+        let calendar = Calendar.current
+        let originalAfterDate = calendar.date(byAdding: .hour, value: 2, to: Date()) ?? Date()
+        let shiftedAfterDate = originalAfterDate.addingTimeInterval(30 * 60)
+        let breakfastShiftedID = shiftedAfterID(mealSlot: .breakfast, day: originalAfterDate, calendar: calendar)
+        center.pendingRequests[breakfastShiftedID] = makeRequest(id: breakfastShiftedID)
+
+        await repository.rescheduleShiftedAfterMeal2hNotification(
+            mealSlot: .lunch,
+            originalAfterDate: originalAfterDate,
+            shiftedAfterDate: shiftedAfterDate
+        )
+
+        XCTAssertNotNil(center.pendingRequests[breakfastShiftedID], "breakfast's shifted reminder must survive")
+        XCTAssertNotNil(center.pendingRequests[shiftedAfterID(mealSlot: .lunch, day: shiftedAfterDate, calendar: calendar)])
     }
 
     func test_cancelPlannedGlucoseNotification_beforeMeal_keepsShiftedAfterMealOneOff() async {
@@ -397,7 +438,7 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         let shiftedID = "ddiary.glucose.after.shifted.lunch.d20260216.1530"
         center.pendingRequests[shiftedID] = makeRequest(id: shiftedID)
 
-        await repository.cancelPlannedGlucoseNotification(measurementType: .beforeMeal, at: scheduledDate)
+        await repository.cancelPlannedGlucoseNotification(measurementType: .beforeMeal, mealSlot: .lunch, at: scheduledDate)
 
         XCTAssertNotNil(center.pendingRequests[shiftedID])
     }

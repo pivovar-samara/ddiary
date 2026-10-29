@@ -378,7 +378,7 @@ private final class SpyNotificationsRepository: NotificationsRepository, @unchec
         canceledBPDates.append(scheduledDate)
     }
 
-    func cancelPlannedGlucoseNotification(measurementType: GlucoseMeasurementType, at scheduledDate: Date) async {
+    func cancelPlannedGlucoseNotification(measurementType: GlucoseMeasurementType, mealSlot: MealSlot, at scheduledDate: Date) async {
         canceledGlucose.append(CanceledGlucoseSlot(measurementType: measurementType, date: scheduledDate))
     }
 

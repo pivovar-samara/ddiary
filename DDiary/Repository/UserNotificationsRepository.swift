@@ -498,11 +498,12 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         let components = calendar.dateComponents([.hour, .minute], from: scheduledDate)
         let repeatingID = identifier(prefix: IDs.bpPrefix, components: components, weekday: weekday)
         let dayID = cycleIdentifier(prefix: IDs.bpPrefix, at: scheduledDate, calendar: calendar)
-        await removePlannedSlotNotifications(baseIDs: [repeatingID, dayID], shiftedSlotToken: nil)
+        await removePlannedSlotNotifications(baseIDs: [repeatingID, dayID])
     }
 
     public func cancelPlannedGlucoseNotification(
         measurementType: GlucoseMeasurementType,
+        mealSlot: MealSlot,
         at scheduledDate: Date
     ) async {
         let calendar = self.calendar
@@ -510,12 +511,16 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         let components = calendar.dateComponents([.hour, .minute], from: scheduledDate)
         let repeatingID = identifier(prefix: prefix, components: components)
         let cycleID = cycleIdentifier(prefix: prefix, at: scheduledDate, calendar: calendar)
-        // An after-meal slot may have been moved to a shifted one-off whose identifier
-        // carries the same day/time token, so it has to go too once the value is logged.
-        let shiftedSlotToken = measurementType == .afterMeal2h
-            ? slotToken(at: scheduledDate, calendar: calendar)
-            : nil
-        await removePlannedSlotNotifications(baseIDs: [cycleID, repeatingID], shiftedSlotToken: shiftedSlotToken)
+        var baseIDs: Set<String> = [cycleID, repeatingID]
+        // An after-meal slot may have been moved to a shifted one-off for the same meal and time,
+        // so it has to go too once the value is logged. Another meal's shifted reminder that
+        // happens to share the time must survive.
+        if measurementType == .afterMeal2h, mealSlot != .none {
+            baseIDs.insert(
+                "\(IDs.glucoseAfterPrefix)shifted.\(mealSlot.rawValue).\(slotToken(at: scheduledDate, calendar: calendar))"
+            )
+        }
+        await removePlannedSlotNotifications(baseIDs: baseIDs)
     }
 
     public func scheduledReminders(on day: Date) async -> [ScheduledReminder] {
@@ -989,15 +994,11 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
     }
 
     /// Removes pending and delivered notifications of a planned slot that has just been logged:
-    /// the slot's own requests (`baseIDs`), their snoozed copies (`<id>.snooze.N`, possibly chained),
-    /// and — when `shiftedSlotToken` is set — the shifted after-meal one-off for that time.
-    private func removePlannedSlotNotifications(baseIDs: Set<String>, shiftedSlotToken: String?) async {
-        let shiftedPrefix = IDs.glucoseAfterPrefix + "shifted."
+    /// the slot's own requests (`baseIDs`) and their snoozed copies (`<id>.snooze.N`, possibly chained).
+    private func removePlannedSlotNotifications(baseIDs: Set<String>) async {
         let belongsToSlot: (String) -> Bool = { id in
             let root = id.range(of: ".snooze.").map { String(id[..<$0.lowerBound]) } ?? id
-            if baseIDs.contains(root) { return true }
-            guard let shiftedSlotToken else { return false }
-            return root.hasPrefix(shiftedPrefix) && root.hasSuffix("." + shiftedSlotToken)
+            return baseIDs.contains(root)
         }
 
         let pendingToRemove = await center.pendingRequestIdentifiers().filter(belongsToSlot)
