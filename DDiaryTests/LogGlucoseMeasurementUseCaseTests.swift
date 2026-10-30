@@ -103,7 +103,7 @@ final class LogGlucoseMeasurementUseCaseTests: XCTestCase {
             measurementsRepository: measurements,
             settingsRepository: settings,
             analyticsRepository: analytics,
-            cancelPlannedNotification: { canceled.append(($0, $1)) }
+            cancelPlannedNotification: { canceled.append(($0, $2)) }
         )
 
         try await sut.execute(

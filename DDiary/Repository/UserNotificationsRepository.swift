@@ -498,13 +498,12 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         let components = calendar.dateComponents([.hour, .minute], from: scheduledDate)
         let repeatingID = identifier(prefix: IDs.bpPrefix, components: components, weekday: weekday)
         let dayID = cycleIdentifier(prefix: IDs.bpPrefix, at: scheduledDate, calendar: calendar)
-        let ids = [repeatingID, dayID]
-        center.removePendingNotificationRequests(withIdentifiers: ids)
-        center.removeDeliveredNotifications(withIdentifiers: ids)
+        await removePlannedSlotNotifications(baseIDs: [repeatingID, dayID])
     }
 
     public func cancelPlannedGlucoseNotification(
         measurementType: GlucoseMeasurementType,
+        mealSlot: MealSlot,
         at scheduledDate: Date
     ) async {
         let calendar = self.calendar
@@ -512,20 +511,16 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         let components = calendar.dateComponents([.hour, .minute], from: scheduledDate)
         let repeatingID = identifier(prefix: prefix, components: components)
         let cycleID = cycleIdentifier(prefix: prefix, at: scheduledDate, calendar: calendar)
-
-        let pendingIDs = Set(await center.pendingRequestIdentifiers())
-        let deliveredIDs = Set(await center.deliveredNotificationIdentifiers())
-
-        let candidateIDs = Set([cycleID, repeatingID])
-        let pendingToRemove = pendingIDs.intersection(candidateIDs)
-        if !pendingToRemove.isEmpty {
-            center.removePendingNotificationRequests(withIdentifiers: Array(pendingToRemove))
+        var baseIDs: Set<String> = [cycleID, repeatingID]
+        // An after-meal slot may have been moved to a shifted one-off for the same meal and time,
+        // so it has to go too once the value is logged. Another meal's shifted reminder that
+        // happens to share the time must survive.
+        if measurementType == .afterMeal2h, mealSlot != .none {
+            baseIDs.insert(
+                "\(IDs.glucoseAfterPrefix)shifted.\(mealSlot.rawValue).\(slotToken(at: scheduledDate, calendar: calendar))"
+            )
         }
-
-        let deliveredToRemove = deliveredIDs.intersection(candidateIDs)
-        if !deliveredToRemove.isEmpty {
-            center.removeDeliveredNotifications(withIdentifiers: Array(deliveredToRemove))
-        }
+        await removePlannedSlotNotifications(baseIDs: baseIDs)
     }
 
     public func scheduledReminders(on day: Date) async -> [ScheduledReminder] {
@@ -984,13 +979,37 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
     }
 
     private func cycleIdentifier(prefix: String, at date: Date, calendar: Calendar) -> String {
+        prefix + slotToken(at: date, calendar: calendar)
+    }
+
+    /// Day/time part of dated identifiers: `dYYYYMMDD.HHMM`.
+    private func slotToken(at date: Date, calendar: Calendar) -> String {
         let parts = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
         let y = parts.year ?? 0
         let mo = parts.month ?? 0
         let d = parts.day ?? 0
         let h = parts.hour ?? 0
         let m = parts.minute ?? 0
-        return "\(prefix)d\(String(format: "%04d", y))\(String(format: "%02d", mo))\(String(format: "%02d", d)).\(String(format: "%02d", h))\(String(format: "%02d", m))"
+        return "d\(String(format: "%04d", y))\(String(format: "%02d", mo))\(String(format: "%02d", d)).\(String(format: "%02d", h))\(String(format: "%02d", m))"
+    }
+
+    /// Removes pending and delivered notifications of a planned slot that has just been logged:
+    /// the slot's own requests (`baseIDs`) and their snoozed copies (`<id>.snooze.N`, possibly chained).
+    private func removePlannedSlotNotifications(baseIDs: Set<String>) async {
+        let belongsToSlot: (String) -> Bool = { id in
+            let root = id.range(of: ".snooze.").map { String(id[..<$0.lowerBound]) } ?? id
+            return baseIDs.contains(root)
+        }
+
+        let pendingToRemove = await center.pendingRequestIdentifiers().filter(belongsToSlot)
+        if !pendingToRemove.isEmpty {
+            center.removePendingNotificationRequests(withIdentifiers: pendingToRemove)
+        }
+
+        let deliveredToRemove = await center.deliveredNotificationIdentifiers().filter(belongsToSlot)
+        if !deliveredToRemove.isEmpty {
+            center.removeDeliveredNotifications(withIdentifiers: deliveredToRemove)
+        }
     }
 
     private func glucosePrefix(for measurementType: GlucoseMeasurementType) -> String {

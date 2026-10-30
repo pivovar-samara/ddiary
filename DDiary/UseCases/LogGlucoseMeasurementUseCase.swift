@@ -9,7 +9,7 @@ public final class LogGlucoseMeasurementUseCase {
     private let settingsRepository: SettingsRepository
     private let analyticsRepository: AnalyticsRepository
     private let scheduleGoogleSyncIfConnected: @MainActor () -> Void
-    private let cancelPlannedNotification: @MainActor (GlucoseMeasurementType, Date) async -> Void
+    private let cancelPlannedNotification: @MainActor (GlucoseMeasurementType, MealSlot, Date) async -> Void
     private let rescheduleShiftedAfterMealNotification: @MainActor (MealSlot, Date, Date) async -> Void
 
     public init(
@@ -17,7 +17,7 @@ public final class LogGlucoseMeasurementUseCase {
         settingsRepository: SettingsRepository,
         analyticsRepository: AnalyticsRepository,
         scheduleGoogleSyncIfConnected: @escaping @MainActor () -> Void = {},
-        cancelPlannedNotification: @escaping @MainActor (GlucoseMeasurementType, Date) async -> Void = { _, _ in },
+        cancelPlannedNotification: @escaping @MainActor (GlucoseMeasurementType, MealSlot, Date) async -> Void = { _, _, _ in },
         rescheduleShiftedAfterMealNotification: @escaping @MainActor (MealSlot, Date, Date) async -> Void = { _, _, _ in }
     ) {
         self.measurementsRepository = measurementsRepository
@@ -75,7 +75,7 @@ public final class LogGlucoseMeasurementUseCase {
         scheduleGoogleSyncIfConnected()
 
         if let plannedScheduledDate {
-            await cancelPlannedNotification(measurementType, plannedScheduledDate)
+            await cancelPlannedNotification(measurementType, mealSlot, plannedScheduledDate)
             await rescheduleAfterMealNotificationIfNeeded(
                 measurementType: measurementType,
                 mealSlot: mealSlot,

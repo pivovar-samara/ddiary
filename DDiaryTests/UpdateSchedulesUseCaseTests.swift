@@ -318,7 +318,7 @@ private final class SpyNotificationsRepository: NotificationsRepository {
 
     func cancelPlannedBloodPressureNotification(at scheduledDate: Date) async {}
 
-    func cancelPlannedGlucoseNotification(measurementType: GlucoseMeasurementType, at scheduledDate: Date) async {}
+    func cancelPlannedGlucoseNotification(measurementType: GlucoseMeasurementType, mealSlot: MealSlot, at scheduledDate: Date) async {}
 
     func scheduledReminders(on day: Date) async -> [ScheduledReminder] { [] }
 
