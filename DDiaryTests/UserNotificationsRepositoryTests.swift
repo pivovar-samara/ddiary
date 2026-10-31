@@ -208,10 +208,10 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         XCTAssertTrue(removedPending.contains("ddiary.glucose.after.legacy"))
         XCTAssertTrue(removedPending.contains("ddiary.glucose.bedtime.legacy"))
 
-        let removedDelivered = Set(center.removedDeliveredIdentifiers.flatMap { $0 })
-        XCTAssertTrue(removedDelivered.contains("ddiary.glucose.before.legacy"))
-        XCTAssertTrue(removedDelivered.contains("ddiary.glucose.after.legacy"))
-        XCTAssertTrue(removedDelivered.contains("ddiary.glucose.bedtime.legacy"))
+        XCTAssertTrue(
+            center.removedDeliveredIdentifiers.flatMap { $0 }.isEmpty,
+            "A reschedule must leave delivered reminders to removeStaleDeliveredNotifications"
+        )
     }
 
     func test_rescheduleGlucose_capsWindowUsingRemainingPendingCapacity() async throws {
@@ -1035,10 +1035,10 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         XCTAssertNil(center.pendingRequests[glucoseID], "Regular glucose notification should be removed")
         XCTAssertNotNil(center.pendingRequests[snoozeID], "Snoozed notification must be preserved")
         XCTAssertNotNil(center.pendingRequests[shiftedID], "Shifted notification must be preserved")
-        XCTAssertTrue(center.deliveredIdentifiers.isEmpty, "Delivered notifications should be cleared")
+        XCTAssertEqual(center.deliveredIdentifiers, ["ddiary.bp.delivered"], "Delivered notifications must be left untouched")
     }
 
-    func test_cancelAllExceptOneOffRequests_withNoSnoozedOrShifted_clearsAllPendingAndDelivered() async {
+    func test_cancelAllExceptOneOffRequests_withNoSnoozedOrShifted_clearsAllPendingAndKeepsDelivered() async {
         let center = FakeNotificationCenter()
         let calendar = Calendar.current
         let bpDay = calendar.date(from: DateComponents(year: 2099, month: 6, day: 1)) ?? Date()
@@ -1061,74 +1061,163 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         await repository.cancelAllExceptOneOffRequests()
 
         XCTAssertTrue(center.pendingRequests.isEmpty)
-        XCTAssertTrue(center.deliveredIdentifiers.isEmpty)
+        XCTAssertEqual(center.deliveredIdentifiers, ["ddiary.bp.delivered"])
     }
 
-    func test_cancelAllExceptOneOffRequests_keepsTodaysDeliveredAndRemovesPastDays() async {
+    func test_rescheduleBloodPressure_leavesDeliveredUntouched() async throws {
         let center = FakeNotificationCenter()
         let calendar = Calendar.current
-        let referenceNow = calendar.date(
-            from: DateComponents(year: 2026, month: 2, day: 16, hour: 12, minute: 0)
-        ) ?? Date()
-        let today = calendar.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 9, minute: 0)) ?? Date()
-        let yesterday = calendar.date(from: DateComponents(year: 2026, month: 2, day: 15, hour: 21, minute: 0)) ?? Date()
-        let todayID = cycleID(prefix: UserNotificationsRepository.IDs.bpPrefix, day: today, hour: 9, minute: 0, calendar: calendar)
-        let yesterdayID = cycleID(prefix: UserNotificationsRepository.IDs.bpPrefix, day: yesterday, hour: 21, minute: 0, calendar: calendar)
-        center.deliveredRecordsByID[todayID] = makeDeliveredRecord(id: todayID, scheduledDate: today)
-        center.deliveredRecordsByID[yesterdayID] = makeDeliveredRecord(id: yesterdayID, scheduledDate: yesterday)
-        center.deliveredIdentifiers = [todayID, yesterdayID]
-
-        let repository = UserNotificationsRepository(center: center, calendar: calendar, now: { referenceNow })
-        await repository.cancelAllExceptOneOffRequests()
-
-        XCTAssertEqual(center.deliveredIdentifiers, [todayID], "Only today's delivered reminder must survive")
-    }
-
-    func test_rescheduleBloodPressure_keepsTodaysDeliveredAndRemovesPastDays() async throws {
-        let center = FakeNotificationCenter()
-        let calendar = Calendar.current
-        let referenceNow = calendar.date(
-            from: DateComponents(year: 2026, month: 2, day: 16, hour: 12, minute: 0)
-        ) ?? Date()
-        let today = calendar.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 9, minute: 0)) ?? Date()
-        let yesterday = calendar.date(from: DateComponents(year: 2026, month: 2, day: 15, hour: 9, minute: 0)) ?? Date()
-        let todayID = cycleID(prefix: UserNotificationsRepository.IDs.bpPrefix, day: today, hour: 9, minute: 0, calendar: calendar)
-        let todaySnoozeID = todayID + ".snooze.15"
-        let yesterdayID = cycleID(prefix: UserNotificationsRepository.IDs.bpPrefix, day: yesterday, hour: 9, minute: 0, calendar: calendar)
-        center.deliveredRecordsByID[todayID] = makeDeliveredRecord(id: todayID, scheduledDate: today)
-        center.deliveredRecordsByID[todaySnoozeID] = makeDeliveredRecord(
-            id: todaySnoozeID,
-            scheduledDate: today.addingTimeInterval(15 * 60)
-        )
-        center.deliveredRecordsByID[yesterdayID] = makeDeliveredRecord(id: yesterdayID, scheduledDate: yesterday)
-        center.deliveredIdentifiers = [todayID, todaySnoozeID, yesterdayID]
-
+        let referenceNow = date(2026, 2, 16, 12, 0, calendar: calendar)
+        let yesterdayID = addDeliveredBP(at: date(2026, 2, 15, 9, 0, calendar: calendar), to: center, calendar: calendar)
+        let todayID = addDeliveredBP(at: date(2026, 2, 16, 9, 0, calendar: calendar), to: center, calendar: calendar)
         let repository = UserNotificationsRepository(
             center: center,
             calendar: calendar,
             now: { referenceNow },
             schedulingWindowDays: 1
         )
+
         try await repository.rescheduleBloodPressure(times: [540], activeWeekdays: Set(1...7))
 
-        XCTAssertEqual(center.deliveredIdentifiers, [todayID, todaySnoozeID])
+        XCTAssertEqual(center.deliveredIdentifiers, [todayID, yesterdayID])
     }
 
     func test_cancelBloodPressure_removesTodaysDeliveredToo() async {
         let center = FakeNotificationCenter()
         let calendar = Calendar.current
-        let referenceNow = calendar.date(
-            from: DateComponents(year: 2026, month: 2, day: 16, hour: 12, minute: 0)
-        ) ?? Date()
-        let today = calendar.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 9, minute: 0)) ?? Date()
-        let todayID = cycleID(prefix: UserNotificationsRepository.IDs.bpPrefix, day: today, hour: 9, minute: 0, calendar: calendar)
-        center.deliveredRecordsByID[todayID] = makeDeliveredRecord(id: todayID, scheduledDate: today)
-        center.deliveredIdentifiers = [todayID]
-
+        let referenceNow = date(2026, 2, 16, 12, 0, calendar: calendar)
+        _ = addDeliveredBP(at: date(2026, 2, 16, 9, 0, calendar: calendar), to: center, calendar: calendar)
         let repository = UserNotificationsRepository(center: center, calendar: calendar, now: { referenceNow })
+
         await repository.cancelBloodPressure()
 
         XCTAssertTrue(center.deliveredIdentifiers.isEmpty)
+    }
+
+    // MARK: - removeStaleDeliveredNotifications
+
+    func test_removeStaleDeliveredNotifications_removesOnlyRemindersPlannedBeforeCutoff() async {
+        let center = FakeNotificationCenter()
+        let calendar = Calendar.current
+        let yesterdayID = addDeliveredBP(at: date(2026, 2, 15, 21, 0, calendar: calendar), to: center, calendar: calendar)
+        let todayID = addDeliveredBP(at: date(2026, 2, 16, 9, 0, calendar: calendar), to: center, calendar: calendar)
+        let todaySnoozeID = todayID + ".snooze.15"
+        center.deliveredRecordsByID[todaySnoozeID] = makeDeliveredRecord(
+            id: todaySnoozeID,
+            scheduledDate: date(2026, 2, 16, 9, 15, calendar: calendar)
+        )
+        center.deliveredIdentifiers.insert(todaySnoozeID)
+        let repository = UserNotificationsRepository(center: center, calendar: calendar)
+
+        await repository.removeStaleDeliveredNotifications(
+            plannedBefore: date(2026, 2, 16, 0, 0, calendar: calendar),
+            removingBloodPressure: false,
+            removingGlucoseTypes: []
+        )
+
+        XCTAssertFalse(center.deliveredIdentifiers.contains(yesterdayID))
+        XCTAssertEqual(center.deliveredIdentifiers, [todayID, todaySnoozeID])
+    }
+
+    func test_removeStaleDeliveredNotifications_removesTodaysRemindersOfDisabledKinds() async {
+        let center = FakeNotificationCenter()
+        let calendar = Calendar.current
+        let today = date(2026, 2, 16, 8, 0, calendar: calendar)
+        let beforeID = cycleID(prefix: UserNotificationsRepository.IDs.glucoseBeforePrefix, day: today, hour: 8, minute: 0, calendar: calendar)
+        let afterID = cycleID(prefix: UserNotificationsRepository.IDs.glucoseAfterPrefix, day: today, hour: 10, minute: 0, calendar: calendar)
+        center.deliveredRecordsByID[beforeID] = makeDeliveredRecord(id: beforeID, scheduledDate: today)
+        center.deliveredRecordsByID[afterID] = makeDeliveredRecord(id: afterID, scheduledDate: today.addingTimeInterval(2 * 60 * 60))
+        center.deliveredIdentifiers = [beforeID, afterID]
+        let bpID = addDeliveredBP(at: date(2026, 2, 16, 9, 0, calendar: calendar), to: center, calendar: calendar)
+        let repository = UserNotificationsRepository(center: center, calendar: calendar)
+
+        await repository.removeStaleDeliveredNotifications(
+            plannedBefore: date(2026, 2, 16, 0, 0, calendar: calendar),
+            removingBloodPressure: true,
+            removingGlucoseTypes: [.beforeMeal]
+        )
+
+        XCTAssertEqual(center.deliveredIdentifiers, [afterID])
+        XCTAssertFalse(center.deliveredIdentifiers.contains(bpID))
+    }
+
+    func test_removeStaleDeliveredNotificationsFromSettings_beforeRollover_keepsPreviousLogicalDay() async {
+        let center = FakeNotificationCenter()
+        let calendar = Calendar.current
+        let settings = activeBPSettings(rolloverMinutes: 4 * 60)
+        let staleID = addDeliveredBP(at: date(2026, 2, 15, 3, 0, calendar: calendar), to: center, calendar: calendar)
+        let eveningID = addDeliveredBP(at: date(2026, 2, 15, 21, 0, calendar: calendar), to: center, calendar: calendar)
+        let repository = UserNotificationsRepository(center: center, calendar: calendar)
+
+        await repository.removeStaleDeliveredNotifications(
+            settings: settings,
+            now: date(2026, 2, 16, 2, 0, calendar: calendar)
+        )
+
+        XCTAssertFalse(center.deliveredIdentifiers.contains(staleID), "03:00 belongs to the logical day before Feb 15")
+        XCTAssertEqual(center.deliveredIdentifiers, [eveningID], "Feb 15 is still shown on Today until 04:00")
+    }
+
+    func test_removeStaleDeliveredNotificationsFromSettings_afterRollover_removesPreviousLogicalDay() async {
+        let center = FakeNotificationCenter()
+        let calendar = Calendar.current
+        let settings = activeBPSettings(rolloverMinutes: 4 * 60)
+        let eveningID = addDeliveredBP(at: date(2026, 2, 15, 21, 0, calendar: calendar), to: center, calendar: calendar)
+        let nightID = addDeliveredBP(at: date(2026, 2, 16, 3, 0, calendar: calendar), to: center, calendar: calendar)
+        let morningID = addDeliveredBP(at: date(2026, 2, 16, 4, 30, calendar: calendar), to: center, calendar: calendar)
+        let repository = UserNotificationsRepository(center: center, calendar: calendar)
+
+        await repository.removeStaleDeliveredNotifications(
+            settings: settings,
+            now: date(2026, 2, 16, 5, 0, calendar: calendar)
+        )
+
+        XCTAssertFalse(center.deliveredIdentifiers.contains(eveningID))
+        XCTAssertFalse(center.deliveredIdentifiers.contains(nightID), "03:00 is still part of the Feb 15 logical day")
+        XCTAssertEqual(center.deliveredIdentifiers, [morningID])
+    }
+
+    func test_removeStaleDeliveredNotificationsFromSettings_disabledBloodPressure_removesTodaysReminders() async {
+        let center = FakeNotificationCenter()
+        let calendar = Calendar.current
+        let settings = activeBPSettings(rolloverMinutes: 0)
+        settings.bpActiveWeekdays = []
+        _ = addDeliveredBP(at: date(2026, 2, 16, 9, 0, calendar: calendar), to: center, calendar: calendar)
+        let repository = UserNotificationsRepository(center: center, calendar: calendar)
+
+        await repository.removeStaleDeliveredNotifications(
+            settings: settings,
+            now: date(2026, 2, 16, 12, 0, calendar: calendar)
+        )
+
+        XCTAssertTrue(center.deliveredIdentifiers.isEmpty)
+    }
+
+    private func activeBPSettings(rolloverMinutes: Int) -> UserSettings {
+        let settings = UserSettings.default()
+        settings.bpTimes = [3 * 60, 4 * 60 + 30, 9 * 60, 21 * 60]
+        settings.bpActiveWeekdays = Set(1...7)
+        settings.dayRolloverMinutes = rolloverMinutes
+        return settings
+    }
+
+    private func date(_ year: Int, _ month: Int, _ day: Int, _ hour: Int, _ minute: Int, calendar: Calendar) -> Date {
+        calendar.date(from: DateComponents(year: year, month: month, day: day, hour: hour, minute: minute)) ?? Date()
+    }
+
+    /// Adds a delivered BP reminder planned at `scheduledDate` and returns its identifier.
+    private func addDeliveredBP(at scheduledDate: Date, to center: FakeNotificationCenter, calendar: Calendar) -> String {
+        let parts = calendar.dateComponents([.hour, .minute], from: scheduledDate)
+        let id = cycleID(
+            prefix: UserNotificationsRepository.IDs.bpPrefix,
+            day: scheduledDate,
+            hour: parts.hour ?? 0,
+            minute: parts.minute ?? 0,
+            calendar: calendar
+        )
+        center.deliveredRecordsByID[id] = makeDeliveredRecord(id: id, scheduledDate: scheduledDate)
+        center.deliveredIdentifiers.insert(id)
+        return id
     }
 
     private func makeDeliveredRecord(id: String, scheduledDate: Date) -> DeliveredNotificationRecord {
