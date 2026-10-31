@@ -428,34 +428,43 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
 
     public func removeDeliveredNotifications(notMatching openSlots: [ScheduledReminder]) async {
         let calendar = self.calendar
-        var keptIDs: Set<String> = []
-        var keptShiftedPrefixes: [String] = []
+        // Dated identifiers name one occurrence, so they are matched as is.
+        var keptDatedIDs: Set<String> = []
+        // Legacy repeating identifiers carry only the time (and weekday), so they are kept only
+        // for deliveries on the calendar date of a matching open slot.
+        var keptRepeatingDays: [String: Set<Date>] = [:]
         for slot in openSlots {
             let components = calendar.dateComponents([.hour, .minute], from: slot.date)
             let prefix: String
+            let repeatingID: String
             switch slot.kind {
             case .bloodPressure:
                 prefix = IDs.bpPrefix
                 let weekday = calendar.component(.weekday, from: slot.date)
-                keptIDs.insert(identifier(prefix: prefix, components: components, weekday: weekday))
+                repeatingID = identifier(prefix: prefix, components: components, weekday: weekday)
             case .glucose(let mealSlot, let measurementType):
                 prefix = glucosePrefix(for: measurementType)
-                keptIDs.insert(identifier(prefix: prefix, components: components))
-                // A shifted after-meal reminder may fire at any time of its meal's day.
+                repeatingID = identifier(prefix: prefix, components: components)
                 if measurementType == .afterMeal2h, mealSlot != .none {
-                    let dayToken = slotToken(at: slot.date, calendar: calendar).prefix(9)
-                    keptShiftedPrefixes.append("\(IDs.glucoseAfterPrefix)shifted.\(mealSlot.rawValue).\(dayToken).")
+                    keptDatedIDs.insert(
+                        "\(IDs.glucoseAfterPrefix)shifted.\(mealSlot.rawValue).\(slotToken(at: slot.date, calendar: calendar))"
+                    )
                 }
             }
-            keptIDs.insert(cycleIdentifier(prefix: prefix, at: slot.date, calendar: calendar))
+            keptDatedIDs.insert(cycleIdentifier(prefix: prefix, at: slot.date, calendar: calendar))
+            keptRepeatingDays[repeatingID, default: []].insert(calendar.startOfDay(for: slot.date))
         }
 
         let reminderPrefixes = [IDs.bpPrefix, IDs.glucoseBeforePrefix, IDs.glucoseAfterPrefix, IDs.glucoseBedtimePrefix]
-        let staleIDs = await center.deliveredNotificationIdentifiers().filter { id in
-            guard reminderPrefixes.contains(where: { id.hasPrefix($0) }) else { return false }
-            let root = rootIdentifier(id)
-            return !keptIDs.contains(root) && !keptShiftedPrefixes.contains(where: { root.hasPrefix($0) })
-        }
+        let staleIDs = await center.deliveredNotificationRecords()
+            .filter { record in
+                guard reminderPrefixes.contains(where: { record.identifier.hasPrefix($0) }) else { return false }
+                let root = rootIdentifier(record.identifier)
+                if keptDatedIDs.contains(root) { return false }
+                let occurrenceDay = calendar.startOfDay(for: record.scheduledDate ?? record.deliveredDate)
+                return keptRepeatingDays[root]?.contains(occurrenceDay) != true
+            }
+            .map(\.identifier)
         guard !staleIDs.isEmpty else { return }
         center.removeDeliveredNotifications(withIdentifiers: staleIDs)
     }

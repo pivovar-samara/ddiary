@@ -1155,6 +1155,56 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         XCTAssertTrue(center.deliveredIdentifiers.isEmpty)
     }
 
+    func test_removeDeliveredNotifications_legacyRepeatingReminder_keptOnlyForSlotDay() async {
+        let center = FakeNotificationCenter()
+        let calendar = Calendar.current
+        let repeatingID = "\(UserNotificationsRepository.IDs.glucoseBeforePrefix)1300"
+        let yesterdayRepeatingID = repeatingID + ".snooze.15"
+        center.deliveredRecordsByID[repeatingID] = DeliveredNotificationRecord(
+            identifier: repeatingID,
+            deliveredDate: date(2026, 2, 16, 13, 1, calendar: calendar),
+            scheduledDate: nil,
+            categoryIdentifier: UserNotificationsRepository.IDs.glucoseBeforeCategory,
+            title: "",
+            mealSlotRawValue: nil,
+            measurementTypeRawValue: nil
+        )
+        center.deliveredRecordsByID[yesterdayRepeatingID] = makeDeliveredRecord(
+            id: yesterdayRepeatingID,
+            scheduledDate: date(2026, 2, 15, 13, 15, calendar: calendar)
+        )
+        center.deliveredIdentifiers = [repeatingID, yesterdayRepeatingID]
+        let repository = UserNotificationsRepository(center: center, calendar: calendar)
+
+        await repository.removeDeliveredNotifications(notMatching: [
+            ScheduledReminder(
+                kind: .glucose(mealSlot: .lunch, measurementType: .beforeMeal),
+                date: date(2026, 2, 16, 13, 0, calendar: calendar)
+            ),
+        ])
+
+        XCTAssertEqual(center.deliveredIdentifiers, [repeatingID], "Yesterday's copy of the repeating reminder must go")
+    }
+
+    func test_removeDeliveredNotifications_shiftedAfterMealOfPreviousLogicalDay_isRemovedAfterRollover() async {
+        let center = FakeNotificationCenter()
+        let calendar = Calendar.current
+        // Rollover 04:00: yesterday's before-dinner logged at 03:00 shifted its after-meal reminder
+        // to 05:00. At 06:00 Today's own after-dinner slot is at 22:00.
+        let staleShiftedID = shiftedAfterID(mealSlot: .dinner, day: date(2026, 2, 16, 5, 0, calendar: calendar), calendar: calendar)
+        center.deliveredIdentifiers = [staleShiftedID, staleShiftedID + ".snooze.15"]
+        let repository = UserNotificationsRepository(center: center, calendar: calendar)
+
+        await repository.removeDeliveredNotifications(notMatching: [
+            ScheduledReminder(
+                kind: .glucose(mealSlot: .dinner, measurementType: .afterMeal2h),
+                date: date(2026, 2, 16, 22, 0, calendar: calendar)
+            ),
+        ])
+
+        XCTAssertTrue(center.deliveredIdentifiers.isEmpty)
+    }
+
     func test_removeDeliveredNotifications_keepsShiftedAfterMealOfOpenSlotOnly() async {
         let center = FakeNotificationCenter()
         let calendar = Calendar.current
@@ -1164,8 +1214,12 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         center.deliveredIdentifiers = [breakfastShiftedID, lunchShiftedID]
         let repository = UserNotificationsRepository(center: center, calendar: calendar)
 
+        // The overview keeps the seconds of the before-meal entry the slot was moved after.
         await repository.removeDeliveredNotifications(notMatching: [
-            ScheduledReminder(kind: .glucose(mealSlot: .breakfast, measurementType: .afterMeal2h), date: shiftedDate),
+            ScheduledReminder(
+                kind: .glucose(mealSlot: .breakfast, measurementType: .afterMeal2h),
+                date: shiftedDate.addingTimeInterval(50)
+            ),
         ])
 
         XCTAssertEqual(center.deliveredIdentifiers, [breakfastShiftedID])

@@ -39,7 +39,32 @@ final class GetTodayOverviewUseCaseCycleTests: XCTestCase {
         let expectedAfterLunch = try XCTUnwrap(Calendar.current.date(byAdding: .hour, value: 2, to: beforeLunchTimestamp))
 
         XCTAssertEqual(afterLunch.date, expectedAfterLunch)
+        XCTAssertEqual(afterLunch.plannedDate, try date(year: 2025, month: 1, day: 1, hour: 15, minute: 0))
         XCTAssertEqual(beforeLunch.date, try date(year: 2025, month: 1, day: 1, hour: 13, minute: 0))
+        XCTAssertEqual(beforeLunch.plannedDate, beforeLunch.date)
+        XCTAssertFalse(overview.isFallback)
+    }
+
+    func test_whenMeasurementsCannotBeRead_overviewIsFallback() async throws {
+        let sut = GetTodayOverviewUseCase(
+            measurementsRepository: FailingMeasurementsRepository(),
+            settingsRepository: MockSettingsRepository()
+        )
+
+        let overview = await sut.compute(today: try date(year: 2025, month: 1, day: 1, hour: 9, minute: 0))
+
+        XCTAssertTrue(overview.isFallback)
+    }
+
+    func test_whenSettingsCannotBeRead_overviewIsFallback() async throws {
+        let sut = GetTodayOverviewUseCase(
+            measurementsRepository: MockMeasurementsRepository(),
+            settingsRepository: FailingSettingsRepository()
+        )
+
+        let overview = await sut.compute(today: try date(year: 2025, month: 1, day: 1, hour: 9, minute: 0))
+
+        XCTAssertTrue(overview.isFallback)
     }
 
     func test_nonCycle_afterMealSlotStaysPlannedWhenNoBeforeMealLogged() async throws {
@@ -332,4 +357,25 @@ final class GetTodayOverviewUseCaseCycleTests: XCTestCase {
         let components = DateComponents(year: year, month: month, day: day, hour: hour, minute: minute)
         return try XCTUnwrap(Calendar.current.date(from: components))
     }
+}
+
+private final class FailingSettingsRepository: SettingsRepository {
+    func getOrCreate() async throws -> UserSettings { throw TestError.forced }
+    func save(_ settings: UserSettings) async throws {}
+    func update(_ settings: UserSettings) async throws {}
+}
+
+private final class FailingMeasurementsRepository: MeasurementsRepository {
+    func insertBP(_ measurement: BPMeasurement) async throws {}
+    func updateBP(_ measurement: BPMeasurement) async throws {}
+    func deleteBP(_ measurement: BPMeasurement) async throws {}
+    func bpMeasurement(id: UUID) async throws -> BPMeasurement? { nil }
+    func bpMeasurements(from: Date, to: Date) async throws -> [BPMeasurement] { throw TestError.forced }
+    func pendingOrFailedBPSync() async throws -> [BPMeasurement] { [] }
+    func insertGlucose(_ measurement: GlucoseMeasurement) async throws {}
+    func updateGlucose(_ measurement: GlucoseMeasurement) async throws {}
+    func deleteGlucose(_ measurement: GlucoseMeasurement) async throws {}
+    func glucoseMeasurement(id: UUID) async throws -> GlucoseMeasurement? { nil }
+    func glucoseMeasurements(from: Date, to: Date) async throws -> [GlucoseMeasurement] { throw TestError.forced }
+    func pendingOrFailedGlucoseSync() async throws -> [GlucoseMeasurement] { [] }
 }
