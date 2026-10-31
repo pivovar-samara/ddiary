@@ -1064,6 +1064,85 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         XCTAssertTrue(center.deliveredIdentifiers.isEmpty)
     }
 
+    func test_cancelAllExceptOneOffRequests_keepsTodaysDeliveredAndRemovesPastDays() async {
+        let center = FakeNotificationCenter()
+        let calendar = Calendar.current
+        let referenceNow = calendar.date(
+            from: DateComponents(year: 2026, month: 2, day: 16, hour: 12, minute: 0)
+        ) ?? Date()
+        let today = calendar.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 9, minute: 0)) ?? Date()
+        let yesterday = calendar.date(from: DateComponents(year: 2026, month: 2, day: 15, hour: 21, minute: 0)) ?? Date()
+        let todayID = cycleID(prefix: UserNotificationsRepository.IDs.bpPrefix, day: today, hour: 9, minute: 0, calendar: calendar)
+        let yesterdayID = cycleID(prefix: UserNotificationsRepository.IDs.bpPrefix, day: yesterday, hour: 21, minute: 0, calendar: calendar)
+        center.deliveredRecordsByID[todayID] = makeDeliveredRecord(id: todayID, scheduledDate: today)
+        center.deliveredRecordsByID[yesterdayID] = makeDeliveredRecord(id: yesterdayID, scheduledDate: yesterday)
+        center.deliveredIdentifiers = [todayID, yesterdayID]
+
+        let repository = UserNotificationsRepository(center: center, calendar: calendar, now: { referenceNow })
+        await repository.cancelAllExceptOneOffRequests()
+
+        XCTAssertEqual(center.deliveredIdentifiers, [todayID], "Only today's delivered reminder must survive")
+    }
+
+    func test_rescheduleBloodPressure_keepsTodaysDeliveredAndRemovesPastDays() async throws {
+        let center = FakeNotificationCenter()
+        let calendar = Calendar.current
+        let referenceNow = calendar.date(
+            from: DateComponents(year: 2026, month: 2, day: 16, hour: 12, minute: 0)
+        ) ?? Date()
+        let today = calendar.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 9, minute: 0)) ?? Date()
+        let yesterday = calendar.date(from: DateComponents(year: 2026, month: 2, day: 15, hour: 9, minute: 0)) ?? Date()
+        let todayID = cycleID(prefix: UserNotificationsRepository.IDs.bpPrefix, day: today, hour: 9, minute: 0, calendar: calendar)
+        let todaySnoozeID = todayID + ".snooze.15"
+        let yesterdayID = cycleID(prefix: UserNotificationsRepository.IDs.bpPrefix, day: yesterday, hour: 9, minute: 0, calendar: calendar)
+        center.deliveredRecordsByID[todayID] = makeDeliveredRecord(id: todayID, scheduledDate: today)
+        center.deliveredRecordsByID[todaySnoozeID] = makeDeliveredRecord(
+            id: todaySnoozeID,
+            scheduledDate: today.addingTimeInterval(15 * 60)
+        )
+        center.deliveredRecordsByID[yesterdayID] = makeDeliveredRecord(id: yesterdayID, scheduledDate: yesterday)
+        center.deliveredIdentifiers = [todayID, todaySnoozeID, yesterdayID]
+
+        let repository = UserNotificationsRepository(
+            center: center,
+            calendar: calendar,
+            now: { referenceNow },
+            schedulingWindowDays: 1
+        )
+        try await repository.rescheduleBloodPressure(times: [540], activeWeekdays: Set(1...7))
+
+        XCTAssertEqual(center.deliveredIdentifiers, [todayID, todaySnoozeID])
+    }
+
+    func test_cancelBloodPressure_removesTodaysDeliveredToo() async {
+        let center = FakeNotificationCenter()
+        let calendar = Calendar.current
+        let referenceNow = calendar.date(
+            from: DateComponents(year: 2026, month: 2, day: 16, hour: 12, minute: 0)
+        ) ?? Date()
+        let today = calendar.date(from: DateComponents(year: 2026, month: 2, day: 16, hour: 9, minute: 0)) ?? Date()
+        let todayID = cycleID(prefix: UserNotificationsRepository.IDs.bpPrefix, day: today, hour: 9, minute: 0, calendar: calendar)
+        center.deliveredRecordsByID[todayID] = makeDeliveredRecord(id: todayID, scheduledDate: today)
+        center.deliveredIdentifiers = [todayID]
+
+        let repository = UserNotificationsRepository(center: center, calendar: calendar, now: { referenceNow })
+        await repository.cancelBloodPressure()
+
+        XCTAssertTrue(center.deliveredIdentifiers.isEmpty)
+    }
+
+    private func makeDeliveredRecord(id: String, scheduledDate: Date) -> DeliveredNotificationRecord {
+        DeliveredNotificationRecord(
+            identifier: id,
+            deliveredDate: scheduledDate,
+            scheduledDate: scheduledDate,
+            categoryIdentifier: UserNotificationsRepository.IDs.bpCategory,
+            title: L10n.notificationBPTitle,
+            mealSlotRawValue: nil,
+            measurementTypeRawValue: nil
+        )
+    }
+
     private func makeRequest(id: String) -> UNNotificationRequest {
         UNNotificationRequest(
             identifier: id,

@@ -424,7 +424,7 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         let allPendingIDs = await center.pendingRequestIdentifiers()
         let toRemove = allPendingIDs.filter { !shouldPreservePendingRequestOnStartup($0) }
         center.removePendingNotificationRequests(withIdentifiers: toRemove)
-        center.removeAllDeliveredNotifications()
+        await removeDeliveredFromPastDays { _ in true }
     }
 
     // MARK: - One-off helpers (snooze / cancel by id)
@@ -1121,10 +1121,32 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
                 prefixes.contains(where: { id.hasPrefix($0) })
                     && !(preservingOneOff && shouldPreservePendingRequestOnStartup(id))
             }
-        let deliveredIDs = await center.deliveredNotificationIdentifiers()
-            .filter { id in prefixes.contains(where: { id.hasPrefix($0) }) }
         center.removePendingNotificationRequests(withIdentifiers: pendingIDs)
-        center.removeDeliveredNotifications(withIdentifiers: deliveredIDs)
+
+        let matchesPrefix: (String) -> Bool = { id in prefixes.contains(where: { id.hasPrefix($0) }) }
+        if preservingOneOff {
+            // A reschedule keeps today's delivered reminders: the ones whose slot is still
+            // without a value must stay in Notification Center. Logged slots are cleared
+            // separately via `cancelPlanned*Notification`.
+            await removeDeliveredFromPastDays(matching: matchesPrefix)
+        } else {
+            let deliveredIDs = await center.deliveredNotificationIdentifiers().filter(matchesPrefix)
+            center.removeDeliveredNotifications(withIdentifiers: deliveredIDs)
+        }
+    }
+
+    /// Removes delivered notifications planned before today — those slots are no longer shown
+    /// on the Today screen, so they are dropped whether or not a value was logged for them.
+    private func removeDeliveredFromPastDays(matching shouldConsider: (String) -> Bool) async {
+        let todayStart = calendar.startOfDay(for: now())
+        let staleIDs = await center.deliveredNotificationRecords()
+            .filter { record in
+                shouldConsider(record.identifier)
+                    && (record.scheduledDate ?? record.deliveredDate) < todayStart
+            }
+            .map(\.identifier)
+        guard !staleIDs.isEmpty else { return }
+        center.removeDeliveredNotifications(withIdentifiers: staleIDs)
     }
 }
 

@@ -210,7 +210,8 @@ public protocol NotificationsRepository: Sendable {
 
     /// Cancel all scheduled notifications except user-triggered one-offs (snooze/shifted).
     /// Preserves pending requests whose identifiers contain `.snooze.` or `.shifted.`.
-    /// Delivered notifications are always cleared regardless of identifier.
+    /// Delivered notifications are cleared only for past days; today's delivered reminders stay,
+    /// since a slot without a logged value should keep its notification.
     func cancelAllExceptOneOffRequests() async
 
     // MARK: Badge management
