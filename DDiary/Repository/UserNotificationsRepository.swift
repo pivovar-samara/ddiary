@@ -430,9 +430,10 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         let calendar = self.calendar
         // Dated identifiers name one occurrence, so they are matched as is.
         var keptDatedIDs: Set<String> = []
-        // Legacy repeating identifiers carry only the time (and weekday), so they are kept only
-        // for deliveries on the calendar date of a matching open slot.
-        var keptRepeatingDays: [String: Set<Date>] = [:]
+        // Legacy repeating identifiers carry only the time (and weekday), so a delivery is kept only
+        // when it happened within a day from a matching open slot's time: the slot's own firing and
+        // its snoozes, even past midnight, fall in there, while earlier days' copies do not.
+        var keptRepeatingStarts: [String: [Date]] = [:]
         for slot in openSlots {
             let components = calendar.dateComponents([.hour, .minute], from: slot.date)
             let prefix: String
@@ -452,7 +453,8 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
                 }
             }
             keptDatedIDs.insert(cycleIdentifier(prefix: prefix, at: slot.date, calendar: calendar))
-            keptRepeatingDays[repeatingID, default: []].insert(calendar.startOfDay(for: slot.date))
+            let slotMinute = calendar.date(from: calendar.dateComponents([.year, .month, .day, .hour, .minute], from: slot.date)) ?? slot.date
+            keptRepeatingStarts[repeatingID, default: []].append(slotMinute)
         }
 
         let reminderPrefixes = [IDs.bpPrefix, IDs.glucoseBeforePrefix, IDs.glucoseAfterPrefix, IDs.glucoseBedtimePrefix]
@@ -461,8 +463,11 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
                 guard reminderPrefixes.contains(where: { record.identifier.hasPrefix($0) }) else { return false }
                 let root = rootIdentifier(record.identifier)
                 if keptDatedIDs.contains(root) { return false }
-                let occurrenceDay = calendar.startOfDay(for: record.scheduledDate ?? record.deliveredDate)
-                return keptRepeatingDays[root]?.contains(occurrenceDay) != true
+                let occurrence = record.scheduledDate ?? record.deliveredDate
+                let starts = keptRepeatingStarts[root] ?? []
+                return !starts.contains { start in
+                    occurrence >= start && occurrence < (calendar.date(byAdding: .day, value: 1, to: start) ?? start)
+                }
             }
             .map(\.identifier)
         guard !staleIDs.isEmpty else { return }

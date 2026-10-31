@@ -1186,6 +1186,32 @@ final class UserNotificationsRepositoryTests: XCTestCase {
         XCTAssertEqual(center.deliveredIdentifiers, [repeatingID], "Yesterday's copy of the repeating reminder must go")
     }
 
+    func test_removeDeliveredNotifications_legacyRepeatingSnoozedPastMidnight_isKeptForOpenSlot() async {
+        let center = FakeNotificationCenter()
+        let calendar = Calendar.current
+        // Rollover 04:00: Feb 15's 23:50 bedtime slot is still open at 00:30; its legacy repeating
+        // reminder was snoozed to 00:05 and then again to 00:20.
+        let repeatingID = "\(UserNotificationsRepository.IDs.glucoseBedtimePrefix)2350"
+        let snoozeID = repeatingID + ".snooze.15"
+        let chainedSnoozeID = snoozeID + ".snooze.15"
+        center.deliveredRecordsByID[snoozeID] = makeDeliveredRecord(id: snoozeID, scheduledDate: date(2026, 2, 16, 0, 5, calendar: calendar))
+        center.deliveredRecordsByID[chainedSnoozeID] = makeDeliveredRecord(
+            id: chainedSnoozeID,
+            scheduledDate: date(2026, 2, 16, 0, 20, calendar: calendar)
+        )
+        center.deliveredIdentifiers = [snoozeID, chainedSnoozeID]
+        let repository = UserNotificationsRepository(center: center, calendar: calendar)
+
+        await repository.removeDeliveredNotifications(notMatching: [
+            ScheduledReminder(
+                kind: .glucose(mealSlot: .none, measurementType: .bedtime),
+                date: date(2026, 2, 15, 23, 50, calendar: calendar)
+            ),
+        ])
+
+        XCTAssertEqual(center.deliveredIdentifiers, [snoozeID, chainedSnoozeID])
+    }
+
     func test_removeDeliveredNotifications_shiftedAfterMealOfPreviousLogicalDay_isRemovedAfterRollover() async {
         let center = FakeNotificationCenter()
         let calendar = Calendar.current
