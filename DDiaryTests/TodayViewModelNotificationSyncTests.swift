@@ -95,6 +95,61 @@ final class TodayViewModelNotificationSyncTests: XCTestCase {
         XCTAssertTrue(notifications.canceledGlucose.isEmpty)
     }
 
+    func test_refresh_keepsDeliveredRemindersAtPlannedAndMovedTimeOfOpenAfterMealSlot() async throws {
+        let measurements = MockMeasurementsRepository()
+        let settings = MockSettingsRepository()
+        let notifications = SpyNotificationsRepository()
+        let calendar = Calendar.current
+        let nowComponents = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: Date())
+        let plannedLunch = try XCTUnwrap(calendar.date(from: nowComponents))
+
+        let userSettings = try await settings.getOrCreate()
+        userSettings.enableDailyCycleMode = false
+        userSettings.bpTimes = []
+        userSettings.enableBeforeMeal = true
+        userSettings.enableAfterMeal2h = true
+        userSettings.bedtimeSlotEnabled = false
+        userSettings.lunchHour = nowComponents.hour ?? 0
+        userSettings.lunchMinute = nowComponents.minute ?? 0
+
+        // A sub-minute move: the scheduler keeps the reminder at the planned time.
+        try await measurements.insertGlucose(
+            GlucoseMeasurement(
+                id: UUID(),
+                timestamp: plannedLunch.addingTimeInterval(30),
+                value: 5.5,
+                unit: .mmolL,
+                measurementType: .beforeMeal,
+                mealSlot: .lunch,
+                comment: nil
+            )
+        )
+
+        let viewModel = makeViewModel(measurements: measurements, settings: settings, notifications: notifications)
+        await viewModel.refresh()
+
+        let openSlots = try XCTUnwrap(notifications.reconciledOpenSlots.last)
+        let afterLunchDates = openSlots
+            .filter { $0.kind == .glucose(mealSlot: .lunch, measurementType: .afterMeal2h) }
+            .map(\.date)
+        let plannedAfterLunch = plannedLunch.addingTimeInterval(2 * 60 * 60)
+        XCTAssertEqual(Set(afterLunchDates), [plannedAfterLunch, plannedAfterLunch.addingTimeInterval(30)])
+        XCTAssertFalse(openSlots.contains { $0.kind == .glucose(mealSlot: .lunch, measurementType: .beforeMeal) })
+    }
+
+    func test_refresh_whenMeasurementsCannotBeRead_doesNotReconcileDeliveredReminders() async throws {
+        let notifications = SpyNotificationsRepository()
+        let viewModel = makeViewModel(
+            measurements: FailingReadMeasurementsRepository(),
+            settings: MockSettingsRepository(),
+            notifications: notifications
+        )
+
+        await viewModel.refresh()
+
+        XCTAssertTrue(notifications.reconciledOpenSlots.isEmpty)
+    }
+
     func test_presentQuickEntryFromNotification_bloodPressureFallsBackToNearestSlotDate() async throws {
         let measurements = MockMeasurementsRepository()
         let settings = MockSettingsRepository()
@@ -257,8 +312,8 @@ final class TodayViewModelNotificationSyncTests: XCTestCase {
     }
 
     private func makeViewModel(
-        measurements: MockMeasurementsRepository,
-        settings: MockSettingsRepository,
+        measurements: any MeasurementsRepository,
+        settings: any SettingsRepository,
         notifications: SpyNotificationsRepository,
         schedulesUpdater: (any SchedulesUpdating)? = nil
     ) -> TodayViewModel {
@@ -290,6 +345,21 @@ final class TodayViewModelNotificationSyncTests: XCTestCase {
             notificationsRepository: notifications
         )
     }
+}
+
+private final class FailingReadMeasurementsRepository: MeasurementsRepository {
+    func insertBP(_ measurement: BPMeasurement) async throws {}
+    func updateBP(_ measurement: BPMeasurement) async throws {}
+    func deleteBP(_ measurement: BPMeasurement) async throws {}
+    func bpMeasurement(id: UUID) async throws -> BPMeasurement? { nil }
+    func bpMeasurements(from: Date, to: Date) async throws -> [BPMeasurement] { throw TestError.forced }
+    func pendingOrFailedBPSync() async throws -> [BPMeasurement] { [] }
+    func insertGlucose(_ measurement: GlucoseMeasurement) async throws {}
+    func updateGlucose(_ measurement: GlucoseMeasurement) async throws {}
+    func deleteGlucose(_ measurement: GlucoseMeasurement) async throws {}
+    func glucoseMeasurement(id: UUID) async throws -> GlucoseMeasurement? { nil }
+    func glucoseMeasurements(from: Date, to: Date) async throws -> [GlucoseMeasurement] { throw TestError.forced }
+    func pendingOrFailedGlucoseSync() async throws -> [GlucoseMeasurement] { [] }
 }
 
 @MainActor
