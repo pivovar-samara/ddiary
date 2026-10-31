@@ -527,5 +527,15 @@ public final class TodayViewModel {
                 at: slot.date
             )
         }
+
+        // The fallback overview (settings unavailable) has no rollover date and does not reflect
+        // the real schedule, so it must not decide which delivered reminders are obsolete.
+        guard overview.nextDayRolloverDate != nil else { return }
+        let openSlots =
+            overview.bpSlots.filter { !$0.completed }.map { ScheduledReminder(kind: .bloodPressure, date: $0.date) }
+            + overview.glucoseSlots.filter { !$0.completed }.map {
+                ScheduledReminder(kind: .glucose(mealSlot: $0.mealSlot, measurementType: $0.measurementType), date: $0.date)
+            }
+        await notificationsRepository.removeDeliveredNotifications(notMatching: openSlots)
     }
 }

@@ -210,18 +210,13 @@ public protocol NotificationsRepository: Sendable {
 
     /// Cancel all scheduled notifications except user-triggered one-offs (snooze/shifted).
     /// Preserves pending requests whose identifiers contain `.snooze.` or `.shifted.`.
-    /// Delivered notifications are left untouched; see `removeStaleDeliveredNotifications`.
+    /// Delivered notifications are left untouched; see `removeDeliveredNotifications(notMatching:)`.
     func cancelAllExceptOneOffRequests() async
 
-    /// Removes delivered notifications planned before `cutoff` (the start of the logical day the
-    /// Today screen shows), plus every delivered notification of a kind that is no longer scheduled.
-    /// Delivered reminders of the current logical day for active kinds stay, so an unlogged slot
-    /// keeps its notification; logged slots are cleared via `cancelPlanned*Notification`.
-    func removeStaleDeliveredNotifications(
-        plannedBefore cutoff: Date,
-        removingBloodPressure: Bool,
-        removingGlucoseTypes: Set<GlucoseMeasurementType>
-    ) async
+    /// Removes every delivered BP/glucose reminder that does not belong to one of `openSlots`
+    /// (the Today screen's slots still without a value), including their snoozed copies.
+    /// This drops reminders of past logical days, logged slots, and slots that settings removed.
+    func removeDeliveredNotifications(notMatching openSlots: [ScheduledReminder]) async
 
     // MARK: Badge management
 
@@ -235,11 +230,7 @@ public protocol NotificationsRepository: Sendable {
 public extension NotificationsRepository {
     func setBadgeCount(_ count: Int) async {}
 
-    func removeStaleDeliveredNotifications(
-        plannedBefore _: Date,
-        removingBloodPressure _: Bool,
-        removingGlucoseTypes _: Set<GlucoseMeasurementType>
-    ) async {}
+    func removeDeliveredNotifications(notMatching _: [ScheduledReminder]) async {}
 }
 
 // MARK: - Convenience APIs from UserSettings (MainActor-only)
@@ -353,32 +344,8 @@ public extension NotificationsRepository {
     /// Call this after saving settings or after first authorization is granted.
     func scheduleAllNotifications(settings: UserSettings) async throws {
         await cancelAllExceptOneOffRequests()
-        await removeStaleDeliveredNotifications(settings: settings)
         try await scheduleBPNotifications(settings: settings)
         try await scheduleGlucoseNotifications(settings: settings)
-    }
-
-    /// Drops delivered reminders the Today screen no longer shows: those from before the current
-    /// logical day (`DayBoundary`) and those of reminder kinds the settings have turned off.
-    func removeStaleDeliveredNotifications(settings: UserSettings, now: Date = Date()) async {
-        let boundary = DayBoundary(settings: settings)
-        let cutoff = boundary.window(for: boundary.logicalDay(containing: now)).start
-        let isBloodPressureActive = !settings.bpTimes.isEmpty
-            && settings.bpActiveWeekdays.contains(where: { (1...7).contains($0) })
-
-        // Cycle mode plans every glucose kind on some day, so none of them is off there.
-        var disabledGlucoseTypes: Set<GlucoseMeasurementType> = []
-        if !settings.enableDailyCycleMode {
-            if !settings.enableBeforeMeal { disabledGlucoseTypes.insert(.beforeMeal) }
-            if !settings.enableAfterMeal2h { disabledGlucoseTypes.insert(.afterMeal2h) }
-            if !settings.bedtimeSlotEnabled { disabledGlucoseTypes.insert(.bedtime) }
-        }
-
-        await removeStaleDeliveredNotifications(
-            plannedBefore: cutoff,
-            removingBloodPressure: !isBloodPressureActive,
-            removingGlucoseTypes: disabledGlucoseTypes
-        )
     }
 
     /// Schedules a debug-only BP notification that matches production category/content.

@@ -426,19 +426,36 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         center.removePendingNotificationRequests(withIdentifiers: toRemove)
     }
 
-    func removeStaleDeliveredNotifications(
-        plannedBefore cutoff: Date,
-        removingBloodPressure: Bool,
-        removingGlucoseTypes: Set<GlucoseMeasurementType>
-    ) async {
-        let disabledPrefixes = (removingBloodPressure ? [IDs.bpPrefix] : [])
-            + removingGlucoseTypes.map { glucosePrefix(for: $0) }
-        let staleIDs = await center.deliveredNotificationRecords()
-            .filter { record in
-                (record.scheduledDate ?? record.deliveredDate) < cutoff
-                    || disabledPrefixes.contains(where: { record.identifier.hasPrefix($0) })
+    public func removeDeliveredNotifications(notMatching openSlots: [ScheduledReminder]) async {
+        let calendar = self.calendar
+        var keptIDs: Set<String> = []
+        var keptShiftedPrefixes: [String] = []
+        for slot in openSlots {
+            let components = calendar.dateComponents([.hour, .minute], from: slot.date)
+            let prefix: String
+            switch slot.kind {
+            case .bloodPressure:
+                prefix = IDs.bpPrefix
+                let weekday = calendar.component(.weekday, from: slot.date)
+                keptIDs.insert(identifier(prefix: prefix, components: components, weekday: weekday))
+            case .glucose(let mealSlot, let measurementType):
+                prefix = glucosePrefix(for: measurementType)
+                keptIDs.insert(identifier(prefix: prefix, components: components))
+                // A shifted after-meal reminder may fire at any time of its meal's day.
+                if measurementType == .afterMeal2h, mealSlot != .none {
+                    let dayToken = slotToken(at: slot.date, calendar: calendar).prefix(9)
+                    keptShiftedPrefixes.append("\(IDs.glucoseAfterPrefix)shifted.\(mealSlot.rawValue).\(dayToken).")
+                }
             }
-            .map(\.identifier)
+            keptIDs.insert(cycleIdentifier(prefix: prefix, at: slot.date, calendar: calendar))
+        }
+
+        let reminderPrefixes = [IDs.bpPrefix, IDs.glucoseBeforePrefix, IDs.glucoseAfterPrefix, IDs.glucoseBedtimePrefix]
+        let staleIDs = await center.deliveredNotificationIdentifiers().filter { id in
+            guard reminderPrefixes.contains(where: { id.hasPrefix($0) }) else { return false }
+            let root = rootIdentifier(id)
+            return !keptIDs.contains(root) && !keptShiftedPrefixes.contains(where: { root.hasPrefix($0) })
+        }
         guard !staleIDs.isEmpty else { return }
         center.removeDeliveredNotifications(withIdentifiers: staleIDs)
     }
@@ -1012,10 +1029,7 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
     /// Removes pending and delivered notifications of a planned slot that has just been logged:
     /// the slot's own requests (`baseIDs`) and their snoozed copies (`<id>.snooze.N`, possibly chained).
     private func removePlannedSlotNotifications(baseIDs: Set<String>) async {
-        let belongsToSlot: (String) -> Bool = { id in
-            let root = id.range(of: ".snooze.").map { String(id[..<$0.lowerBound]) } ?? id
-            return baseIDs.contains(root)
-        }
+        let belongsToSlot: (String) -> Bool = { id in baseIDs.contains(rootIdentifier(id)) }
 
         let pendingToRemove = await center.pendingRequestIdentifiers().filter(belongsToSlot)
         if !pendingToRemove.isEmpty {
@@ -1026,6 +1040,11 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         if !deliveredToRemove.isEmpty {
             center.removeDeliveredNotifications(withIdentifiers: deliveredToRemove)
         }
+    }
+
+    /// Identifier of the planned reminder a snoozed copy (`<id>.snooze.N`, possibly chained) came from.
+    private func rootIdentifier(_ id: String) -> String {
+        id.range(of: ".snooze.").map { String(id[..<$0.lowerBound]) } ?? id
     }
 
     private func glucosePrefix(for measurementType: GlucoseMeasurementType) -> String {
@@ -1140,7 +1159,7 @@ struct UserNotificationsRepository: NotificationsRepository, Sendable {
         center.removePendingNotificationRequests(withIdentifiers: pendingIDs)
 
         // A reschedule leaves delivered reminders alone: today's unlogged ones must stay in
-        // Notification Center. `removeStaleDeliveredNotifications` drops the stale ones.
+        // Notification Center. `removeDeliveredNotifications(notMatching:)` drops the rest.
         guard !preservingOneOff else { return }
         let deliveredIDs = await center.deliveredNotificationIdentifiers()
             .filter { id in prefixes.contains(where: { id.hasPrefix($0) }) }

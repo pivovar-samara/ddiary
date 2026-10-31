@@ -45,34 +45,6 @@ final class UpdateSchedulesUseCaseTests: XCTestCase {
             "cancelAll must not be called directly — it would destroy snoozed notifications")
     }
 
-    func test_scheduleFromCurrentSettings_removesStaleDeliveredFromLogicalDayStartAndDisabledKinds() async throws {
-        let settings = UserSettings.default()
-        settings.bpTimes = [540]
-        settings.bpActiveWeekdays = []
-        settings.enableDailyCycleMode = false
-        settings.enableBeforeMeal = false
-        settings.enableAfterMeal2h = true
-        settings.bedtimeSlotEnabled = false
-        settings.dayRolloverMinutes = 4 * 60
-        let notificationsRepository = SpyNotificationsRepository()
-        let sut = UpdateSchedulesUseCase(
-            settingsRepository: FixedSettingsRepository(settings: settings),
-            notificationsRepository: notificationsRepository,
-            analyticsRepository: MockAnalyticsRepository()
-        )
-
-        let before = Date()
-        try await sut.scheduleFromCurrentSettings()
-
-        let boundary = DayBoundary(rolloverMinutes: 4 * 60)
-        XCTAssertEqual(
-            notificationsRepository.staleDeliveredCutoffs,
-            [boundary.window(for: boundary.logicalDay(containing: before)).start]
-        )
-        XCTAssertEqual(notificationsRepository.staleDeliveredRemovesBloodPressure, true)
-        XCTAssertEqual(notificationsRepository.staleDeliveredRemovedGlucoseTypes, [.beforeMeal, .bedtime])
-    }
-
     func test_scheduleFromCurrentSettings_reschedulesBloodPressure_withCorrectTimesAndWeekdays() async throws {
         let settings = UserSettings.default()
         settings.bpTimes = [540, 1260]
@@ -268,9 +240,6 @@ private final class SpyNotificationsRepository: NotificationsRepository {
     private(set) var glucoseCycleConfiguration: GlucoseCycleConfiguration?
     private(set) var glucoseCycleStartDate: Date?
     private(set) var glucoseCycleNumberOfDays: Int?
-    private(set) var staleDeliveredCutoffs: [Date] = []
-    private(set) var staleDeliveredRemovesBloodPressure: Bool?
-    private(set) var staleDeliveredRemovedGlucoseTypes: Set<GlucoseMeasurementType>?
 
     func requestAuthorization() async throws -> Bool {
         requestAuthorizationCallCount += 1
@@ -346,16 +315,6 @@ private final class SpyNotificationsRepository: NotificationsRepository {
     ) async {}
 
     func cancel(withIdentifier id: String) async {}
-
-    func removeStaleDeliveredNotifications(
-        plannedBefore cutoff: Date,
-        removingBloodPressure: Bool,
-        removingGlucoseTypes: Set<GlucoseMeasurementType>
-    ) async {
-        staleDeliveredCutoffs.append(cutoff)
-        staleDeliveredRemovesBloodPressure = removingBloodPressure
-        staleDeliveredRemovedGlucoseTypes = removingGlucoseTypes
-    }
 
     func cancelPlannedBloodPressureNotification(at scheduledDate: Date) async {}
 

@@ -58,6 +58,9 @@ final class TodayViewModelNotificationSyncTests: XCTestCase {
         XCTAssertEqual(notifications.canceledGlucose.count, 1)
         XCTAssertEqual(notifications.canceledGlucose[0].measurementType, .bedtime)
         XCTAssertTrue(calendar.isDate(notifications.canceledGlucose[0].date, equalTo: plannedDate, toGranularity: .minute))
+        // Only the unlogged BP slot keeps its delivered reminder.
+        XCTAssertEqual(notifications.reconciledOpenSlots.count, 1)
+        XCTAssertEqual(notifications.reconciledOpenSlots.first?.map(\.kind), [.bloodPressure])
     }
 
     func test_refresh_whenNoCompletedSlots_doesNotCancelNotifications() async throws {
@@ -309,6 +312,7 @@ private final class SpyNotificationsRepository: NotificationsRepository, @unchec
 
     private(set) var canceledBPDates: [Date] = []
     private(set) var canceledGlucose: [CanceledGlucoseSlot] = []
+    private(set) var reconciledOpenSlots: [[ScheduledReminder]] = []
 
     func requestAuthorization() async throws -> Bool { true }
 
@@ -383,6 +387,10 @@ private final class SpyNotificationsRepository: NotificationsRepository, @unchec
     }
 
     func scheduledReminders(on day: Date) async -> [ScheduledReminder] { [] }
+
+    func removeDeliveredNotifications(notMatching openSlots: [ScheduledReminder]) async {
+        reconciledOpenSlots.append(openSlots)
+    }
 
     func cancelAll() async {}
 }
