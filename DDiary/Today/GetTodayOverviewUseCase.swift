@@ -18,13 +18,24 @@ public struct GlucosePlannedSlot: Sendable, Equatable {
     public let mealSlot: MealSlot
     public let measurementType: GlucoseMeasurementType
     public let date: Date
+    /// Time from the schedule, before an after-meal slot is moved to follow its before-meal entry.
+    /// Equals `date` for slots that were not moved.
+    public let plannedDate: Date
     public let completed: Bool
     public let matchedMeasurementId: UUID?
 
-    public init(mealSlot: MealSlot, measurementType: GlucoseMeasurementType, date: Date, completed: Bool, matchedMeasurementId: UUID?) {
+    public init(
+        mealSlot: MealSlot,
+        measurementType: GlucoseMeasurementType,
+        date: Date,
+        plannedDate: Date? = nil,
+        completed: Bool,
+        matchedMeasurementId: UUID?
+    ) {
         self.mealSlot = mealSlot
         self.measurementType = measurementType
         self.date = date
+        self.plannedDate = plannedDate ?? date
         self.completed = completed
         self.matchedMeasurementId = matchedMeasurementId
     }
@@ -36,17 +47,22 @@ public struct TodayOverview: Sendable, Equatable {
     public let isDailyCycleModeEnabled: Bool
     /// When the overview goes stale because the next logical day begins; `nil` when unknown.
     public let nextDayRolloverDate: Date?
+    /// `true` when settings or measurements could not be read, so slots fall back to defaults,
+    /// lack completion and after-meal adjustments, and must not drive notification cleanup.
+    public let isFallback: Bool
 
     public init(
         bpSlots: [BPScheduledSlot],
         glucoseSlots: [GlucosePlannedSlot],
         isDailyCycleModeEnabled: Bool = false,
-        nextDayRolloverDate: Date? = nil
+        nextDayRolloverDate: Date? = nil,
+        isFallback: Bool = false
     ) {
         self.bpSlots = bpSlots
         self.glucoseSlots = glucoseSlots
         self.isDailyCycleModeEnabled = isDailyCycleModeEnabled
         self.nextDayRolloverDate = nextDayRolloverDate
+        self.isFallback = isFallback
     }
 }
 
@@ -133,7 +149,8 @@ public final class GetTodayOverviewUseCase {
                 bpSlots: bpSlots,
                 glucoseSlots: glSlots,
                 isDailyCycleModeEnabled: settings.enableDailyCycleMode,
-                nextDayRolloverDate: nextDayRolloverDate
+                nextDayRolloverDate: nextDayRolloverDate,
+                isFallback: true
             )
         }
 
@@ -153,6 +170,7 @@ public final class GetTodayOverviewUseCase {
                         mealSlot: pair.slot.mealSlot,
                         measurementType: pair.slot.measurementType,
                         date: adjustedDate,
+                        plannedDate: pair.slot.plannedDate,
                         completed: pair.slot.completed,
                         matchedMeasurementId: pair.slot.matchedMeasurementId
                     ),
@@ -198,9 +216,9 @@ public final class GetTodayOverviewUseCase {
                 abs(lhs.element.timestamp.timeIntervalSince(baseDate)) < abs(rhs.element.timestamp.timeIntervalSince(baseDate))
             }) {
                 let matched = unmatchedGlucose.remove(at: nearest.offset)
-                return GlucosePlannedSlot(mealSlot: slot.mealSlot, measurementType: slot.measurementType, date: baseDate, completed: true, matchedMeasurementId: matched.id)
+                return GlucosePlannedSlot(mealSlot: slot.mealSlot, measurementType: slot.measurementType, date: baseDate, plannedDate: slot.plannedDate, completed: true, matchedMeasurementId: matched.id)
             } else {
-                return GlucosePlannedSlot(mealSlot: slot.mealSlot, measurementType: slot.measurementType, date: baseDate, completed: false, matchedMeasurementId: nil)
+                return GlucosePlannedSlot(mealSlot: slot.mealSlot, measurementType: slot.measurementType, date: baseDate, plannedDate: slot.plannedDate, completed: false, matchedMeasurementId: nil)
             }
         }
 
@@ -498,7 +516,8 @@ public final class GetTodayOverviewUseCase {
         return TodayOverview(
             bpSlots: bpSlots,
             glucoseSlots: glucose.sorted { $0.date < $1.date },
-            isDailyCycleModeEnabled: false
+            isDailyCycleModeEnabled: false,
+            isFallback: true
         )
     }
 }

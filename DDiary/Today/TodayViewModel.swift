@@ -527,5 +527,20 @@ public final class TodayViewModel {
                 at: slot.date
             )
         }
+
+        // A fallback overview does not reflect the real schedule or logged values, so it must not
+        // decide which delivered reminders are obsolete.
+        guard !overview.isFallback else { return }
+        var openSlots = overview.bpSlots.filter { !$0.completed }.map { ScheduledReminder(kind: .bloodPressure, date: $0.date) }
+        for slot in overview.glucoseSlots where !slot.completed {
+            let kind = ScheduledReminder.Kind.glucose(mealSlot: slot.mealSlot, measurementType: slot.measurementType)
+            openSlots.append(ScheduledReminder(kind: kind, date: slot.date))
+            // A moved after-meal slot may still be reminded at its planned time: the scheduler
+            // skips sub-minute moves and moves into the past.
+            if slot.plannedDate != slot.date {
+                openSlots.append(ScheduledReminder(kind: kind, date: slot.plannedDate))
+            }
+        }
+        await notificationsRepository.removeDeliveredNotifications(notMatching: openSlots)
     }
 }

@@ -210,8 +210,13 @@ public protocol NotificationsRepository: Sendable {
 
     /// Cancel all scheduled notifications except user-triggered one-offs (snooze/shifted).
     /// Preserves pending requests whose identifiers contain `.snooze.` or `.shifted.`.
-    /// Delivered notifications are always cleared regardless of identifier.
+    /// Delivered notifications are left untouched; see `removeDeliveredNotifications(notMatching:)`.
     func cancelAllExceptOneOffRequests() async
+
+    /// Removes every delivered BP/glucose reminder that does not belong to one of `openSlots`
+    /// (the Today screen's slots still without a value), including their snoozed copies.
+    /// This drops reminders of past logical days, logged slots, and slots that settings removed.
+    func removeDeliveredNotifications(notMatching openSlots: [ScheduledReminder]) async
 
     // MARK: Badge management
 
@@ -224,6 +229,8 @@ public protocol NotificationsRepository: Sendable {
 /// so conforming types do not inherit main-actor isolation on their matching witness.
 public extension NotificationsRepository {
     func setBadgeCount(_ count: Int) async {}
+
+    func removeDeliveredNotifications(notMatching _: [ScheduledReminder]) async {}
 }
 
 // MARK: - Convenience APIs from UserSettings (MainActor-only)
