@@ -85,3 +85,7 @@ DDiary/Resources/GoogleService-Info.plist
 # Environment files
 .env
 .env.*
+
+# Python
+__pycache__/
+*.pyc

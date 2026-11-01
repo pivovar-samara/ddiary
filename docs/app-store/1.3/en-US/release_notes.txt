@@ -1,0 +1,4 @@
+• New day starts at — a new setting for night owls. Until the time you choose, the Today screen keeps the previous day's slots, so you can still fill in a late measurement.
+• Change the measurement type right in the glucose entry form: before or after any meal, or bedtime.
+• Smarter reminders: once you log a slot, its snoozed and rescheduled reminders go away, and today's pending reminders are no longer lost when you reopen the app.
+• Notification Center tidies itself up: reminders for measurements you've already logged are cleared.

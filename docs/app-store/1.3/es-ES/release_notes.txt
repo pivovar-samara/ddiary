@@ -1,0 +1,4 @@
+• El nuevo día empieza a las: un nuevo ajuste para quienes se acuestan tarde. Hasta la hora que elijas, la pantalla «Hoy» sigue mostrando las mediciones del día anterior para que puedas registrar una medición tardía.
+• Ahora puedes cambiar el tipo de medición directamente en el formulario de glucosa: antes o después de cualquier comida, o antes de dormir.
+• Recordatorios más inteligentes: en cuanto registras una medición, desaparecen sus recordatorios pospuestos y reprogramados, y los recordatorios de hoy ya no se pierden al volver a abrir la app.
+• El Centro de notificaciones se ordena solo: se eliminan los recordatorios de las mediciones que ya registraste.

@@ -1,0 +1,4 @@
+• Le nouveau jour commence à : un nouveau réglage pour les couche-tard. Jusqu'à l'heure choisie, l'écran « Aujourd'hui » affiche encore les mesures de la veille, pour que vous puissiez saisir une mesure tardive.
+• Le type de mesure se change désormais directement dans le formulaire de glycémie : avant ou après chaque repas, ou au coucher.
+• Des rappels plus intelligents : dès qu'une mesure est saisie, ses rappels reportés ou décalés disparaissent, et les rappels du jour ne sont plus perdus quand vous rouvrez l'app.
+• Le Centre de notifications fait le ménage tout seul : les rappels des mesures déjà saisies sont supprimés.

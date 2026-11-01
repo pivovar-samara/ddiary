@@ -1,0 +1,4 @@
+• Il nuovo giorno inizia alle: una nuova impostazione per i nottambuli. Fino all'orario scelto, la schermata «Oggi» mostra ancora le misurazioni del giorno precedente, così puoi inserire una misurazione tardiva.
+• Ora puoi cambiare il tipo di misurazione direttamente nel modulo della glicemia: prima o dopo qualsiasi pasto, oppure prima di dormire.
+• Promemoria più intelligenti: appena registri una misurazione, i suoi promemoria posticipati e spostati scompaiono, e i promemoria di oggi non vanno più persi quando riapri l'app.
+• Il Centro Notifiche si riordina da solo: i promemoria delle misurazioni già registrate vengono rimossi.

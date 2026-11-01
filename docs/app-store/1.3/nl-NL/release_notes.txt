@@ -1,0 +1,4 @@
+• Nieuwe dag begint om: een nieuwe instelling voor nachtbrakers. Tot het gekozen tijdstip toont het scherm 'Vandaag' nog de metingen van de vorige dag, zodat je een late meting alsnog kunt invullen.
+• Het type meting wijzig je nu direct in het glucoseformulier: voor of na elke maaltijd, of voor het slapengaan.
+• Slimmere herinneringen: zodra je een meting invoert, verdwijnen de uitgestelde en verplaatste herinneringen ervoor, en de herinneringen van vandaag gaan niet meer verloren als je de app opnieuw opent.
+• Het berichtencentrum ruimt zichzelf op: herinneringen voor metingen die je al hebt ingevoerd, worden verwijderd.

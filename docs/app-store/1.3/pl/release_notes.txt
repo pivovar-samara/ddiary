@@ -1,0 +1,4 @@
+• Nowy dzień zaczyna się o – nowe ustawienie dla nocnych marków. Do wybranej godziny ekran „Dzisiaj” wciąż pokazuje pomiary z poprzedniego dnia, więc możesz jeszcze uzupełnić późny pomiar.
+• Rodzaj pomiaru glukozy zmienisz teraz bezpośrednio w formularzu: przed posiłkiem lub po nim albo przed snem.
+• Mądrzejsze przypomnienia: gdy tylko zapiszesz pomiar, jego odłożone i przesunięte przypomnienia znikają, a dzisiejsze przypomnienia nie giną już po ponownym otwarciu aplikacji.
+• Centrum powiadomień samo robi porządek: przypomnienia o już zapisanych pomiarach są usuwane.

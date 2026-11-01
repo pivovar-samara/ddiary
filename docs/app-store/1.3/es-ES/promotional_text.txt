@@ -1,0 +1,1 @@
+Registra la tensión arterial y la glucosa en un par de toques. Novedad en 1.3: elige cuándo empieza tu día y las mediciones nocturnas irán al día correcto.

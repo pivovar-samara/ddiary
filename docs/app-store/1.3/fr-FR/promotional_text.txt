@@ -1,0 +1,1 @@
+Notez tension et glycémie en quelques touches. Nouveau dans la 1.3 : choisissez l'heure de début de votre journée pour classer les mesures tardives au bon jour.

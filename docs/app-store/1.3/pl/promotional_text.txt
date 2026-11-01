@@ -1,0 +1,1 @@
+Zapisuj ciśnienie i glukozę w kilka sekund. Nowość w 1.3: wybierz, kiedy zaczyna się Twój dzień, a późne pomiary trafią do właściwego dnia.

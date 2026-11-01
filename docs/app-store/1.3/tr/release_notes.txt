@@ -1,0 +1,4 @@
+• Yeni gün başlangıcı: geç yatanlar için yeni bir ayar. Seçtiğiniz saate kadar “Bugün” ekranı önceki günün ölçümlerini göstermeye devam eder, böylece geç yapılan bir ölçümü hâlâ girebilirsiniz.
+• Ölçüm türünü artık doğrudan şeker giriş formunda değiştirebilirsiniz: herhangi bir öğünden önce ya da sonra veya yatmadan önce.
+• Daha akıllı hatırlatmalar: bir ölçümü kaydettiğiniz anda ertelenen ve kaydırılan hatırlatmaları kaybolur, bugünün hatırlatmaları da uygulamayı yeniden açtığınızda artık kaybolmaz.
+• Bildirim Merkezi kendini toparlar: zaten kaydettiğiniz ölçümlerin hatırlatmaları silinir.
