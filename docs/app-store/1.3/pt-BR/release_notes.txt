@@ -1,0 +1,4 @@
+• O novo dia começa às: um novo ajuste para quem dorme tarde. Até o horário escolhido, a tela “Hoje” continua mostrando as medições do dia anterior, para você ainda registrar uma medição tardia.
+• Agora dá para mudar o tipo de medição direto no formulário de glicose: antes ou depois de qualquer refeição, ou antes de dormir.
+• Lembretes mais inteligentes: assim que você registra uma medição, os lembretes adiados e reagendados dela somem, e os lembretes de hoje não se perdem mais ao reabrir o app.
+• A Central de Notificações se organiza sozinha: lembretes de medições já registradas são removidos.

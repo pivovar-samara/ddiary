@@ -1,0 +1,1 @@
+Blutdruck und Blutzucker mit wenigen Tippern erfassen. Neu in 1.3: Lege fest, wann dein Tag beginnt – späte Messungen landen so am richtigen Tag.

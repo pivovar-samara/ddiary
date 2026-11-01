@@ -1,0 +1,4 @@
+• Ny dag börjar – en ny inställning för nattugglor. Fram till den tid du väljer visar skärmen ”Idag” fortfarande föregående dags mätningar, så att du kan fylla i en sen mätning.
+• Mättypen kan nu ändras direkt i glukosformuläret: före eller efter valfri måltid, eller vid sänggåendet.
+• Smartare påminnelser: så fort du loggar en mätning försvinner dess snoozade och flyttade påminnelser, och dagens påminnelser försvinner inte längre när du öppnar appen igen.
+• Notiscentret städar upp själv: påminnelser om mätningar du redan har loggat tas bort.

@@ -1,0 +1,1 @@
+Registre pressão arterial e glicose em poucos toques. Novo na 1.3: escolha quando seu dia começa e as medições tarde da noite vão para o dia certo.

@@ -1,0 +1,4 @@
+• Neuer Tag beginnt um – eine neue Einstellung für Nachteulen. Bis zur gewählten Uhrzeit zeigt der Bildschirm „Heute“ noch die Messungen des Vortags, sodass du eine späte Messung nachtragen kannst.
+• Die Messart lässt sich jetzt direkt im Blutzucker-Formular ändern: vor oder nach jeder Mahlzeit oder vor dem Schlafengehen.
+• Klügere Erinnerungen: Sobald eine Messung eingetragen ist, verschwinden ihre verschobenen und zurückgestellten Erinnerungen, und die heutigen Erinnerungen gehen beim erneuten Öffnen der App nicht mehr verloren.
+• Die Mitteilungszentrale räumt sich selbst auf: Erinnerungen an bereits eingetragene Messungen werden entfernt.
