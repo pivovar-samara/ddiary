@@ -131,9 +131,11 @@ public struct TodayView: View {
                     Button(L10n.settingsRowBloodPressure) {
                         presentManualBPQuickEntry(vm: vm)
                     }
+                    .accessibilityIdentifier("today.addMeasurement.bp")
                     Button(L10n.settingsRowGlucose) {
                         Task { await presentManualGlucoseQuickEntry(vm: vm) }
                     }
+                    .accessibilityIdentifier("today.addMeasurement.glucose")
                 } label: {
                     Image(systemName: "plus")
                 }
