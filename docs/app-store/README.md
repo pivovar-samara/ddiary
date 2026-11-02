@@ -40,4 +40,4 @@ scripts/asc_screenshots.py 1.3 --device ipad                          # dry run:
 scripts/asc_screenshots.py 1.3 --device ipad --locales en,ru --apply  # upload, then delete the old ones
 ```
 
-An interrupted run can be repeated: screenshots already uploaded with the same content are reused.
+An interrupted run can be repeated: screenshots already uploaded with the same content are reused. The old screenshots stay until the new ones are processed; if both do not fit in one set (10 max), the script stops before changing anything, and `--delete-first` removes the old ones before uploading.

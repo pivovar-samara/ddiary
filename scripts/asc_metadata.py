@@ -85,10 +85,14 @@ def make_token() -> str:
 
 
 class Client:
-    def __init__(self, token: str):
-        self.token = token
+    """Signs a fresh token before the current one runs out, so long runs (uploads, polling) keep working."""
+
+    def __init__(self):
+        self.token, self.issued = make_token(), time.time()
 
     def request(self, method: str, path: str, params=None, body=None):
+        if time.time() - self.issued > 10 * 60:
+            self.token, self.issued = make_token(), time.time()
         url = API + path
         if params:
             url += "?" + urllib.parse.urlencode(params)
@@ -154,7 +158,7 @@ def main():
     args = parser.parse_args()
 
     texts = load_texts(args.version, args.locales.split(",") if args.locales else None)
-    api = Client(make_token())
+    api = Client()
 
     apps = api.get("/v1/apps", **{"filter[bundleId]": BUNDLE_ID})["data"]
     if not apps:

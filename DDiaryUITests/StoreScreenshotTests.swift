@@ -71,19 +71,15 @@ final class StoreScreenshotTests: XCTestCase {
         let bpItem = app.buttons["today.addMeasurement.bp"]
         XCTAssertTrue(bpItem.waitForExistence(timeout: 5))
         bpItem.tap()
-        let systolic = app.textFields["quickEntry.bp.systolicField"]
-        XCTAssertTrue(systolic.waitForExistence(timeout: 8))
-        // On a cold start the keyboard can swallow the first keystrokes, so check the field and retype.
-        for _ in 0..<3 where (systolic.value as? String) != "118" {
-            if (systolic.value(forKey: "hasKeyboardFocus") as? Bool) != true { systolic.tap() }
-            _ = app.keyboards.firstMatch.waitForExistence(timeout: 5)
-            settle(seconds: 0.8)
-            app.typeText("118")
-            app.typeText("75")
-            app.typeText("63")
-            settle()
+        let entries = [("systolic", "118"), ("diastolic", "75"), ("pulse", "63")]
+            .map { (app.textFields["quickEntry.bp.\($0.0)Field"], $0.1) }
+        XCTAssertTrue(entries[0].0.waitForExistence(timeout: 8))
+        for (field, value) in entries {
+            enter(value, into: field, app: app)
         }
-        XCTAssertEqual(systolic.value as? String, "118")
+        for (field, value) in entries {
+            XCTAssertEqual(field.value as? String, value)
+        }
         try save(dir, "2_entry")
         app.buttons["quickEntry.cancel"].tap()
         XCTAssertTrue(app.buttons["today.addMeasurement"].waitForExistence(timeout: 8))
@@ -112,6 +108,21 @@ final class StoreScreenshotTests: XCTestCase {
         try save(dir, "5_google")
 
         app.terminate()
+    }
+
+    /// Replaces the field's text with `value`, retrying: on a cold start the keyboard can swallow keystrokes.
+    @MainActor
+    private func enter(_ value: String, into field: XCUIElement, app: XCUIApplication) {
+        for _ in 0..<3 where (field.value as? String) != value {
+            if (field.value(forKey: "hasKeyboardFocus") as? Bool) != true { field.tap() }
+            _ = app.keyboards.firstMatch.waitForExistence(timeout: 5)
+            settle(seconds: 0.8)
+            // An empty field reports its "0" placeholder; one extra delete is harmless there.
+            let current = (field.value as? String) ?? ""
+            app.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: current.count))
+            app.typeText(value)
+            settle()
+        }
     }
 
     /// Drags the settings list without momentum until `anchor` sits at `toY` points.

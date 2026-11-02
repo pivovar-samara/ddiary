@@ -26,7 +26,7 @@ import time
 import urllib.request
 from pathlib import Path
 
-from asc_metadata import BUNDLE_ID, EDITABLE_STATES, ROOT, Client, make_token
+from asc_metadata import BUNDLE_ID, EDITABLE_STATES, ROOT, Client
 
 # Localization folder name -> App Store Connect locale code, where they differ.
 ASC_LOCALES = {"en": "en-US", "de": "de-DE", "es": "es-ES", "fr": "fr-FR", "nl": "nl-NL", "ar": "ar-SA"}
@@ -136,11 +136,13 @@ def main():
     parser.add_argument("--locales", help="Comma-separated localization folders (en,ru,pt-BR,...); default: all")
     parser.add_argument("--display-type", help="Override the screenshot display type, e.g. APP_IPHONE_65")
     parser.add_argument("--apply", action="store_true", help="Upload and replace (default is a dry run)")
+    parser.add_argument("--delete-first", action="store_true",
+                        help="With --apply: delete old screenshots before uploading when both do not fit in a set")
     args = parser.parse_args()
 
     display_type = args.display_type or DEVICES[args.device][1]
     screens = load_screens(args.version, args.device, args.locales.split(",") if args.locales else None)
-    api = Client(make_token())
+    api = Client()
 
     apps = api.get("/v1/apps", **{"filter[bundleId]": BUNDLE_ID})["data"]
     if not apps:
@@ -190,14 +192,8 @@ def main():
     # and a slow one no longer holds up (or aborts) the remaining locales.
     work = []
     with tempfile.TemporaryDirectory() as tmp:
+        staged, overflow = [], []
         for locale, loc_id, set_id, old, files in plan:
-            if set_id is None:
-                set_id = api.request("POST", "/v1/appScreenshotSets", body={"data": {
-                    "type": "appScreenshotSets",
-                    "attributes": {"screenshotDisplayType": display_type},
-                    "relationships": {"appStoreVersionLocalization": {
-                        "data": {"type": "appStoreVersionLocalizations", "id": loc_id}}},
-                }})["data"]["id"]
             # A screenshot already in the set with the same bytes (from an interrupted run) is reused.
             reusable = {attrs.get("sourceFileChecksum"): shot_id for shot_id, attrs in old
                         if (attrs.get("assetDeliveryState") or {}).get("state") != "FAILED"}
@@ -205,8 +201,24 @@ def main():
             checksums = [hashlib.md5(p.read_bytes()).hexdigest() for p in sources]
             keep = {reusable[c] for c in checksums if c in reusable}
             stale = [shot_id for shot_id, _ in old if shot_id not in keep]
-            # Keep the old screenshots until the new ones are processed, unless the set would overflow.
+            # The old screenshots stay until the new ones are processed; that needs room for both in the set.
             if len(old) + len(files) - len(keep) > MAX_PER_SET:
+                overflow.append(locale)
+            staged.append((locale, loc_id, set_id, files, reusable, sources, checksums, keep, stale))
+        if overflow and not args.delete_first:
+            sys.exit(f"Old and new screenshots do not fit in one set (max {MAX_PER_SET}) for: "
+                     f"{', '.join(overflow)}. Nothing was changed. Re-run with --delete-first to remove "
+                     "the old ones before uploading; an upload failure then leaves those sets incomplete.")
+
+        for locale, loc_id, set_id, files, reusable, sources, checksums, keep, stale in staged:
+            if set_id is None:
+                set_id = api.request("POST", "/v1/appScreenshotSets", body={"data": {
+                    "type": "appScreenshotSets",
+                    "attributes": {"screenshotDisplayType": display_type},
+                    "relationships": {"appStoreVersionLocalization": {
+                        "data": {"type": "appStoreVersionLocalizations", "id": loc_id}}},
+                }})["data"]["id"]
+            if locale in overflow:
                 for shot_id in stale:
                     api.request("DELETE", f"/v1/appScreenshots/{shot_id}")
                 stale = []
