@@ -7,7 +7,12 @@ final class PrettyDataSeederTests: XCTestCase {
     func test_seedShowcase_createsPrettyDataPack() throws {
         let container = try makeInMemoryModelContainer()
 
-        try PrettyDataSeeder.seed(.showcase, into: container, now: referenceNow)
+        try PrettyDataSeeder.seed(
+            .showcase,
+            into: container,
+            now: referenceNow,
+            locale: Locale(identifier: "en_GB")
+        )
 
         let context = ModelContext(container)
         let settings = try XCTUnwrap(try context.fetch(FetchDescriptor<UserSettings>()).first)
@@ -43,6 +48,25 @@ final class PrettyDataSeederTests: XCTestCase {
         XCTAssertTrue(bpMeasurements.contains(where: { $0.comment == "Утреннее измерение" }))
         XCTAssertTrue(bpMeasurements.contains(where: { $0.comment == "В очереди на синхронизацию" }))
         XCTAssertFalse(bpMeasurements.contains(where: { $0.comment == "Morning check" }))
+    }
+
+    func test_seedShowcase_usesMgDL_whenRegionReportsMgDL() throws {
+        let container = try makeInMemoryModelContainer()
+
+        try PrettyDataSeeder.seed(
+            .showcase,
+            into: container,
+            now: referenceNow,
+            locale: Locale(identifier: "en_US")
+        )
+
+        let context = ModelContext(container)
+        let settings = try XCTUnwrap(try context.fetch(FetchDescriptor<UserSettings>()).first)
+        let glucoseMeasurements = try context.fetch(FetchDescriptor<GlucoseMeasurement>())
+
+        XCTAssertEqual(settings.glucoseUnit, .mgdL)
+        XCTAssertTrue(glucoseMeasurements.allSatisfy { $0.unit == .mgdL })
+        XCTAssertTrue(glucoseMeasurements.contains(where: { $0.value == 101 }))
     }
 
     private var referenceNow: Date {

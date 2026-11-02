@@ -52,9 +52,14 @@ private extension PrettyDataSeeder {
     ) throws {
         let startOfToday = calendar.startOfDay(for: now)
         let copy = localizedCopy(for: locale)
+        let glucoseUnit = Self.glucoseUnit(for: locale)
+        // Seed presets are written in mmol/L; mg/dL regions get the same readings converted.
+        let glucose: (Double) -> Double = { mmol in
+            glucoseUnit == .mmolL ? mmol : (mmol * 18).rounded()
+        }
 
         let settings = UserSettings.default()
-        settings.glucoseUnit = .mmolL
+        settings.glucoseUnit = glucoseUnit
         settings.bpSystolicMin = 95
         settings.bpSystolicMax = 135
         settings.bpDiastolicMin = 65
@@ -143,8 +148,8 @@ private extension PrettyDataSeeder {
             context.insert(
                 GlucoseMeasurement(
                     timestamp: date(on: day, hour: 7, minute: 54, calendar: calendar),
-                    value: glucosePreset.before,
-                    unit: .mmolL,
+                    value: glucose(glucosePreset.before),
+                    unit: glucoseUnit,
                     measurementType: .beforeMeal,
                     mealSlot: .breakfast,
                     comment: dayOffset == 5 ? copy.lightBreakfast : nil,
@@ -157,8 +162,8 @@ private extension PrettyDataSeeder {
             context.insert(
                 GlucoseMeasurement(
                     timestamp: date(on: day, hour: 10, minute: 2, calendar: calendar),
-                    value: glucosePreset.after,
-                    unit: .mmolL,
+                    value: glucose(glucosePreset.after),
+                    unit: glucoseUnit,
                     measurementType: .afterMeal2h,
                     mealSlot: .breakfast,
                     comment: nil,
@@ -172,8 +177,8 @@ private extension PrettyDataSeeder {
                 context.insert(
                     GlucoseMeasurement(
                         timestamp: date(on: day, hour: 18, minute: 52, calendar: calendar),
-                        value: dinnerBefore,
-                        unit: .mmolL,
+                        value: glucose(dinnerBefore),
+                        unit: glucoseUnit,
                         measurementType: .beforeMeal,
                         mealSlot: .dinner,
                         comment: nil,
@@ -188,8 +193,8 @@ private extension PrettyDataSeeder {
                 context.insert(
                     GlucoseMeasurement(
                         timestamp: date(on: day, hour: 20, minute: 58, calendar: calendar),
-                        value: dinnerAfter,
-                        unit: .mmolL,
+                        value: glucose(dinnerAfter),
+                        unit: glucoseUnit,
                         measurementType: .afterMeal2h,
                         mealSlot: .dinner,
                         comment: nil,
@@ -204,8 +209,8 @@ private extension PrettyDataSeeder {
                 context.insert(
                     GlucoseMeasurement(
                         timestamp: date(on: day, hour: 22, minute: 24, calendar: calendar),
-                        value: bedtime,
-                        unit: .mmolL,
+                        value: glucose(bedtime),
+                        unit: glucoseUnit,
                         measurementType: .bedtime,
                         mealSlot: .none,
                         comment: nil,
@@ -233,8 +238,8 @@ private extension PrettyDataSeeder {
         context.insert(
             GlucoseMeasurement(
                 timestamp: date(on: startOfToday, hour: 7, minute: 56, calendar: calendar),
-                value: 5.6,
-                unit: .mmolL,
+                value: glucose(5.6),
+                unit: glucoseUnit,
                 measurementType: .beforeMeal,
                 mealSlot: .breakfast,
                 comment: nil,
@@ -255,6 +260,17 @@ private extension PrettyDataSeeder {
                 googleSyncStatus: .pending
             )
         )
+    }
+
+    /// Regions where glucose is usually reported in mmol/L; everywhere else uses mg/dL.
+    static let mmolRegions: Set<String> = [
+        "RU", "UA", "BY", "KZ", "NL", "SE", "NO", "DK", "FI", "GB", "IE",
+        "CN", "HK", "CA", "AU", "NZ", "ZA",
+    ]
+
+    static func glucoseUnit(for locale: Locale) -> GlucoseUnit {
+        guard let region = locale.region?.identifier else { return .mmolL }
+        return mmolRegions.contains(region) ? .mmolL : .mgdL
     }
 
     static func localizedCopy(for locale: Locale) -> LocalizedCopy {
