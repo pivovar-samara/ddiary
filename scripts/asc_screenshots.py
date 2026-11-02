@@ -194,9 +194,10 @@ def main():
     with tempfile.TemporaryDirectory() as tmp:
         staged, overflow = [], []
         for locale, loc_id, set_id, old, files in plan:
-            # Failed uploads from an earlier run are deleted before uploading and take no room in the set.
+            # Failed uploads and reservations an interrupted run never finished are deleted before
+            # uploading and take no room in the set.
             failed = [shot_id for shot_id, attrs in old
-                      if (attrs.get("assetDeliveryState") or {}).get("state") == "FAILED"]
+                      if (attrs.get("assetDeliveryState") or {}).get("state") in ("FAILED", "AWAITING_UPLOAD")]
             old = [(shot_id, attrs) for shot_id, attrs in old if shot_id not in failed]
             # A screenshot already in the set with the same bytes (from an interrupted run) is reused.
             reusable = {attrs.get("sourceFileChecksum"): shot_id for shot_id, attrs in old}
