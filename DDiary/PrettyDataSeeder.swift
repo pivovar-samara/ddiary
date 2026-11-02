@@ -10,7 +10,7 @@ enum PrettyDataSeeder {
     static func seed(
         _ scenario: PrettyDataScenario = .showcase,
         into modelContainer: ModelContainer,
-        now: Date = Date(),
+        now: Date = AppClock.now,
         calendar: Calendar = .current,
         locale: Locale = .autoupdatingCurrent
     ) throws {

@@ -269,10 +269,10 @@ public final class TodayViewModel {
         errorMessage = nil
         isLoading = true
         
-        let overview = await getTodayOverviewUseCase.compute()
+        let overview = await getTodayOverviewUseCase.compute(today: AppClock.now)
         isDailyCycleModeEnabled = overview.isDailyCycleModeEnabled
         nextDayRolloverDate = overview.nextDayRolloverDate
-        let now = Date()
+        let now = AppClock.now
 
         // BP slots
         bpSlots = overview.bpSlots.map { slot in
@@ -487,7 +487,7 @@ public final class TodayViewModel {
         mealSlot: MealSlot,
         measurementType: GlucoseMeasurementType
     ) -> GlucoseSlotViewModel? {
-        let now = Date()
+        let now = AppClock.now
         return glucoseSlots
             .filter { $0.mealSlot == mealSlot && $0.measurementType == measurementType }
             .min { left, right in
