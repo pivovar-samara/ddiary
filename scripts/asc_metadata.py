@@ -116,7 +116,8 @@ def load_texts(version: str, locales):
     version_dir = TEXTS_DIR / version
     if not version_dir.is_dir():
         sys.exit(f"No texts folder: {version_dir}")
-    available = sorted(p.name for p in version_dir.iterdir() if p.is_dir())
+    # screenshots/ sits next to the locale folders but is handled by asc_screenshots.py.
+    available = sorted(p.name for p in version_dir.iterdir() if p.is_dir() and p.name != "screenshots")
     selected = locales or available
     texts, errors = {}, []
     for locale in selected:
