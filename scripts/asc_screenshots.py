@@ -199,22 +199,26 @@ def main():
             failed = [shot_id for shot_id, attrs in old
                       if (attrs.get("assetDeliveryState") or {}).get("state") in ("FAILED", "AWAITING_UPLOAD")]
             old = [(shot_id, attrs) for shot_id, attrs in old if shot_id not in failed]
-            # A screenshot already in the set with the same bytes (from an interrupted run) is reused.
-            reusable = {attrs.get("sourceFileChecksum"): shot_id for shot_id, attrs in old}
+            # A screenshot already in the set with the same bytes (from an interrupted run) is reused,
+            # each one for at most one position, so identical files still get a screenshot apiece.
+            reusable = {}
+            for shot_id, attrs in old:
+                reusable.setdefault(attrs.get("sourceFileChecksum"), []).append(shot_id)
             sources = [opaque_copy(f, Path(tmp)) for f in files]
             checksums = [hashlib.md5(p.read_bytes()).hexdigest() for p in sources]
-            keep = {reusable[c] for c in checksums if c in reusable}
+            reuse = [reusable[c].pop(0) if reusable.get(c) else None for c in checksums]
+            keep = {shot_id for shot_id in reuse if shot_id}
             stale = [shot_id for shot_id, _ in old if shot_id not in keep]
             # The old screenshots stay until the new ones are processed; that needs room for both in the set.
             if len(old) + len(files) - len(keep) > MAX_PER_SET:
                 overflow.append(locale)
-            staged.append((locale, loc_id, set_id, files, reusable, sources, checksums, keep, stale, failed))
+            staged.append((locale, loc_id, set_id, files, reuse, sources, keep, stale, failed))
         if overflow and not args.delete_first:
             sys.exit(f"Old and new screenshots do not fit in one set (max {MAX_PER_SET}) for: "
                      f"{', '.join(overflow)}. Nothing was changed. Re-run with --delete-first to remove "
                      "the old ones before uploading; an upload failure then leaves those sets incomplete.")
 
-        for locale, loc_id, set_id, files, reusable, sources, checksums, keep, stale, failed in staged:
+        for locale, loc_id, set_id, files, reuse, sources, keep, stale, failed in staged:
             if set_id is None:
                 set_id = api.request("POST", "/v1/appScreenshotSets", body={"data": {
                     "type": "appScreenshotSets",
@@ -229,8 +233,8 @@ def main():
                     api.request("DELETE", f"/v1/appScreenshots/{shot_id}")
                 stale = []
             new_ids = []
-            for i, (f, path, checksum) in enumerate(zip(files, sources, checksums), 1):
-                new_ids.append(reusable.get(checksum) or upload(api, set_id, path, f"{i}_{f.name}"))
+            for i, (f, path, shot_id) in enumerate(zip(files, sources, reuse), 1):
+                new_ids.append(shot_id or upload(api, set_id, path, f"{i}_{f.name}"))
             print(f"[{locale}] {len(new_ids) - len(keep)} uploaded, {len(keep)} reused")
             work.append((locale, set_id, stale, new_ids))
 
