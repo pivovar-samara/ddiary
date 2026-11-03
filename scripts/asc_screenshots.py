@@ -41,11 +41,19 @@ MAX_PER_SET = 10
 
 
 def png_info(path: Path):
-    """Width, height and whether the PNG declares an alpha channel (IHDR color type 4 or 6)."""
-    head = path.read_bytes()[:26]
-    if head[:8] != b"\x89PNG\r\n\x1a\n":
+    """Width, height and whether the PNG can hold transparency: an alpha channel (IHDR color type 4 or 6)
+    or a tRNS chunk, which gives palette and plain RGB/gray images transparent pixels."""
+    data = path.read_bytes()
+    if data[:8] != b"\x89PNG\r\n\x1a\n":
         sys.exit(f"Not a PNG: {path}")
-    return int.from_bytes(head[16:20], "big"), int.from_bytes(head[20:24], "big"), head[25] in (4, 6)
+    transparent, pos = data[25] in (4, 6), 8
+    while not transparent and pos + 8 <= len(data):
+        length, kind = int.from_bytes(data[pos:pos + 4], "big"), data[pos + 4:pos + 8]
+        if kind in (b"IDAT", b"IEND"):
+            break
+        transparent = kind == b"tRNS"
+        pos += 12 + length
+    return int.from_bytes(data[16:20], "big"), int.from_bytes(data[20:24], "big"), transparent
 
 
 def load_screens(version: str, device: str, folders):
