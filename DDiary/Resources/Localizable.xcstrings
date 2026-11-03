@@ -5456,13 +5456,13 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "جلوكوز - بعد الإفطار (2h)"
+            "value": "جلوكوز - بعد الإفطار (ساعتان)"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Glukose - Nach dem Frühstück (2h)"
+            "value": "Glukose - Nach dem Frühstück (2 Std.)"
           }
         },
         "en": {
@@ -5474,19 +5474,19 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Glucosa - Después del desayuno (2h)"
+            "value": "Glucosa - Después del desayuno (2 h)"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Glycémie - Après le petit-déjeuner (2h)"
+            "value": "Glycémie - Après le petit-déjeuner (2 h)"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Glucosio - Dopo colazione (2h)"
+            "value": "Glucosio - Dopo colazione (2 ore)"
           }
         },
         "ja": {
@@ -5504,43 +5504,43 @@
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Glucose - Na ontbijt (2u)"
+            "value": "Glucose - Na ontbijt (2 uur)"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Glukoza - Po śniadaniu (2h)"
+            "value": "Glukoza - Po śniadaniu (2 godz.)"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Glicose - Após o café da manhã (2h)"
+            "value": "Glicose - Após o café da manhã (2 h)"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Глюкоза - после завтрака (2ч)"
+            "value": "Глюкоза - после завтрака (2 ч)"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Glukos - Efter frukost (2h)"
+            "value": "Glukos - Efter frukost (2 tim)"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Glikoz - Kahvaltıdan Sonra (2s)"
+            "value": "Glikoz - Kahvaltıdan Sonra (2 sa)"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Глюкоза - Після сніданку (2г)"
+            "value": "Глюкоза - Після сніданку (2 год)"
           }
         },
         "zh-Hans": {
@@ -5658,13 +5658,13 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "جلوكوز - بعد العشاء (2h)"
+            "value": "جلوكوز - بعد العشاء (ساعتان)"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Glukose - Nach dem Abendessen (2h)"
+            "value": "Glukose - Nach dem Abendessen (2 Std.)"
           }
         },
         "en": {
@@ -5676,19 +5676,19 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Glucosa - Después de la cena (2h)"
+            "value": "Glucosa - Después de la cena (2 h)"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Glycémie - Après le dîner (2h)"
+            "value": "Glycémie - Après le dîner (2 h)"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Glucosio - Dopo cena (2h)"
+            "value": "Glucosio - Dopo cena (2 ore)"
           }
         },
         "ja": {
@@ -5706,43 +5706,43 @@
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Glucose - Na diner (2u)"
+            "value": "Glucose - Na diner (2 uur)"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Glukoza - Po kolacji (2h)"
+            "value": "Glukoza - Po kolacji (2 godz.)"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Glicose - Após o jantar (2h)"
+            "value": "Glicose - Após o jantar (2 h)"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Глюкоза - после ужина (2ч)"
+            "value": "Глюкоза - после ужина (2 ч)"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Glukos - Efter middag (2h)"
+            "value": "Glukos - Efter middag (2 tim)"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Glikoz - Akşam Yemeğinden Sonra (2s)"
+            "value": "Glikoz - Akşam Yemeğinden Sonra (2 sa)"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Глюкоза - Після вечері (2г)"
+            "value": "Глюкоза - Після вечері (2 год)"
           }
         },
         "zh-Hans": {
@@ -5860,13 +5860,13 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "جلوكوز - بعد الغداء (2h)"
+            "value": "جلوكوز - بعد الغداء (ساعتان)"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Glukose - Nach dem Mittagessen (2h)"
+            "value": "Glukose - Nach dem Mittagessen (2 Std.)"
           }
         },
         "en": {
@@ -5878,19 +5878,19 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Glucosa - Después del almuerzo (2h)"
+            "value": "Glucosa - Después del almuerzo (2 h)"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Glycémie - Après le déjeuner (2h)"
+            "value": "Glycémie - Après le déjeuner (2 h)"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Glucosio - Dopo pranzo (2h)"
+            "value": "Glucosio - Dopo pranzo (2 ore)"
           }
         },
         "ja": {
@@ -5908,43 +5908,43 @@
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Glucose - Na lunch (2u)"
+            "value": "Glucose - Na lunch (2 uur)"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Glukoza - Po obiedzie (2h)"
+            "value": "Glukoza - Po obiedzie (2 godz.)"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Glicose - Após o almoço (2h)"
+            "value": "Glicose - Após o almoço (2 h)"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Глюкоза - после обеда (2ч)"
+            "value": "Глюкоза - после обеда (2 ч)"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Glukos - Efter lunch (2h)"
+            "value": "Glukos - Efter lunch (2 tim)"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Glikoz - Öğle Yemeğinden Sonra (2s)"
+            "value": "Glikoz - Öğle Yemeğinden Sonra (2 sa)"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Глюкоза - Після обіду (2г)"
+            "value": "Глюкоза - Після обіду (2 год)"
           }
         },
         "zh-Hans": {
@@ -10708,13 +10708,13 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "بعد الوجبة (2h)"
+            "value": "بعد الوجبة (ساعتان)"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nach dem Essen (2h)"
+            "value": "Nach dem Essen (2 Std.)"
           }
         },
         "en": {
@@ -10726,19 +10726,19 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Después de comer (2h)"
+            "value": "Después de comer (2 h)"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Après le repas (2h)"
+            "value": "Après le repas (2 h)"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dopo il pasto (2h)"
+            "value": "Dopo il pasto (2 ore)"
           }
         },
         "ja": {
@@ -10756,19 +10756,19 @@
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Na maaltijd (2u)"
+            "value": "Na maaltijd (2 uur)"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Po posiłku (2h)"
+            "value": "Po posiłku (2 godz.)"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Após a refeição (2h)"
+            "value": "Após a refeição (2 h)"
           }
         },
         "ru": {
@@ -10780,19 +10780,19 @@
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Efter måltid (2h)"
+            "value": "Efter måltid (2 tim)"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Yemekten sonra (2s)"
+            "value": "Yemekten sonra (2 sa)"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Після їжі (2г)"
+            "value": "Після їжі (2 год)"
           }
         },
         "zh-Hans": {
